@@ -5,21 +5,28 @@
 //  Created by Sebastian Darren on 13/10/26.
 //
 
+import SwiftUI
 import UIKit
 
+/// UIKit view of `GoPhotoDesign`: the same tokens as `UIColor`/`UIFont`, so UIKit screens never
+/// define their own colors.
 enum Theme {
-    static let background = dyn(0xF6F3EE, 0x1C1B1A)
-    static let surface = dyn(0xFFFFFF, 0x2A2826)
-    static let stroke = dyn(0xCFC8BE, 0x514D49)
-    static let text = dyn(0x3F3A36, 0xECE7E0)
-    static let accent = dyn(0x9DB5A6, 0x6F8A7A)
-    static let onAccent = dyn(0x25302A, 0x0E1511) 
-
-    private static func dyn(_ light: UInt32, _ dark: UInt32) -> UIColor {
-        UIColor { $0.userInterfaceStyle == .dark ? color(dark) : color(light) }
-    }
-    private static func color(_ hex: UInt32) -> UIColor {
-        UIColor(red: CGFloat((hex >> 16) & 0xFF) / 255, green: CGFloat((hex >> 8) & 0xFF) / 255,
-                blue: CGFloat(hex & 0xFF) / 255, alpha: 1)
-    }
+    static let background = UIColor(GoPhotoDesign.background)
+    static let surface = UIColor(GoPhotoDesign.surface)
+    static let stroke = UIColor(GoPhotoDesign.border)
+    static let divider = UIColor(GoPhotoDesign.divider)
+    static let text = UIColor(GoPhotoDesign.primaryText)
+    static let secondaryText = UIColor(GoPhotoDesign.secondaryText)
+    static let disabledText = UIColor(GoPhotoDesign.disabledText)
+    static let accent = UIColor(GoPhotoDesign.primary)
+    static let accentPressed = UIColor(GoPhotoDesign.primaryPressed)
+    static let accentSubtle = UIColor(GoPhotoDesign.primarySubtle)
+    static let accentBorder = UIColor(GoPhotoDesign.primaryBorder)
+    static let tagBackground = UIColor(GoPhotoDesign.tagBackground)
+    static let tagText = UIColor(GoPhotoDesign.tagText)
+    static let disabledFill = UIColor(GoPhotoDesign.secondaryBackground)
+    static let destructive = UIColor(GoPhotoDesign.error)
+    static let onAccent = UIColor(GoPhotoDesign.onPrimary)
+    static let cardCornerRadius = GoPhotoDesign.cardCornerRadius
+    static let buttonHeight = GoPhotoDesign.buttonHeight
 }

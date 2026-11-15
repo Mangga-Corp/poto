@@ -25,6 +25,8 @@ final class AnalysisSession: ObservableObject {
     @Published private(set) var profile: PreferenceProfile?
     @Published private(set) var photoOrder: [UUID] = []
     @Published private(set) var finishedAt: Date?
+    /// Background / person sharpness per photo (v18, `BackgroundBlurMeter`); debug screens.
+    @Published private(set) var backgroundBlur: [UUID: Double] = [:]
 
     let imageStore: PhotoImageStore
     let artifactStore: AnalysisArtifactStore
@@ -67,8 +69,25 @@ final class AnalysisSession: ObservableObject {
         await runTask?.value
         guard phase == .completed, let profile else { return nil }
         var analysis = PreferenceAnalyzer.make(profile: profile, results: results, photoCount: photos.count)
+        analysis.evidence = AnalysisEvidenceSummary(photoRuns: results.map { result in
+            result.evidence.map { evidence in
+                evidence.runs.map { record in
+                    AnalysisEvidenceSummary.Run(
+                        source: record.source,
+                        outcome: AnalysisEvidenceSummary.Outcome(rawValue: record.state.rawValue) ?? .failed,
+                        detail: record.detail)
+                }
+            }
+        })
         let images = photos.map(\.image)
         analysis.lightLevel = await Task.detached(priority: .utility) { PhotoLightLevel.median(of: images) }.value
+        // How blurred the backgrounds are, so the blur copy can match the references (v18).
+        let blurInputs = photos.map { (id: $0.id, image: $0.image) }
+        let blurRatios = await Task.detached(priority: .utility) { BackgroundBlurMeter.ratios(blurInputs) }.value
+        analysis.applyBackgroundBlur(blurRatios)
+        backgroundBlur = Dictionary(uniqueKeysWithValues: blurRatios.compactMap { key, value in
+            UUID(uuidString: key).map { ($0, value) }
+        })
         return analysis
     }
 

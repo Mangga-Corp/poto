@@ -3,18 +3,20 @@ import SwiftData
 
 @main
 struct MyApp: App {
-    @State private var hasPreferences = PreferencesViewModel.shared.hasPreferences
+    init() {
+        AppFont.register()
+        #if DEBUG
+        DebugFixtures.prepareLaunchState()
+        DebugFixtures.seedIfNeeded()
+        DebugFixtures.diagnoseVisionIfRequested()
+        DebugFixtures.scheduleDeletionIfRequested()
+        #endif
+    }
 
     var body: some Scene {
         WindowGroup {
-            Group {
-                if hasPreferences {
-                    CameraView()
-                } else {
-                    OnboardingFlowView(onFinish: { hasPreferences = true })
-                }
-            }
-            .animation(.easeInOut(duration: 0.4), value: hasPreferences)
+            AppRootView()
+                .font(AppFont.body)   // default for any text without its own font
         }
         .modelContainer(AppDatabase.container)
     }

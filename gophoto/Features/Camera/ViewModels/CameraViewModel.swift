@@ -4,14 +4,17 @@
 //
 //  Created by Brian Juniarta Darmadi on 10/10/26.
 //
-//
-//  CameraViewModel.swift
-//  gophoto
+//  13 Nov (Reynard): production camera only — Phased · Auto crop. Everything developer-only (experiment
+//  picker, old guides Main / Main modified, auto-zoom, replay, guide log, GT recording, depth, Blur On,
+//  debug panel, pose guide) moved to the debugphoto repo (Lab), which keeps its own copy of this
+//  feature folder and uses the same Core (CameraService, PersonDetector, Phased engine).
+//  The previous version is in `_to_delete/pra-bersih-debug/`.
 //
 
 import Observation
 import AVFoundation
 import UIKit
+import ImageIO
 
 enum CameraState: Equatable {
     case idle
@@ -31,208 +34,12 @@ final class CameraViewModel {
     private(set) var horizon: HorizonState = .hidden
     private(set) var captureCount = 0
     private(set) var currentZoomLabel: String?
-    /// Where the last shot's time went (debug panel): capture, crop, enhance, save, in seconds.
-    private(set) var lastShotTiming: String?
 
-    /// The photo just taken, shown for review with its enhanced version; saved only on Save.
-    private(set) var review: CaptureReview?
-    private(set) var isSavingReview = false
-    /// Drives the review cover; closing it discards the photo (Retake).
-    var isReviewing: Bool {
-        get { review != nil }
-        set { if !newValue { retake() } }
-    }
-    @ObservationIgnored private let enhancer = PhotoEnhancer()
-    @ObservationIgnored private var enhanceTask: Task<Void, Never>?
-
-    // for the guide frame
-    private(set) var target: FramingTarget = .center   // from the selected preset's AI analysis
-    private(set) var instruction: GuideInstruction = .findPerson
-    var isReady: Bool { instruction == .holdStill }      // "green"
-
-    // Live values. Observable so the debug panel can show them; the guide UI does not read them.
-    private(set) var personBox: CGRect?                  // normalized, origin top-left
+    // Live sensor values the guide reads.
     private(set) var roll: Double = 0                    // + = rotated clockwise
     private(set) var pitch: Double = 0                   // + = phone tilted down
-    private(set) var face: CGRect?                       // normalized, origin top-left
-    private(set) var personOutline: CGImage?             // body outline, old-look mode only
-    private(set) var exposure: ExposureStatus?           // backlight tip / ISO / shutter (debug panel)
-    let lighting = LightingCoordinator()                 // sun / light tips; the camera owns the exposure
     @ObservationIgnored private var verticalFOV: Double? // of the upright frame, degrees
-    @ObservationIgnored private var photoMegapixels: Double? // largest photo size (mode F)
-
-    // Guide variant under test (debug panel). Saved across launches.
-    /// Photo ratio (4:3 native; 1:1 and 16:9 are centred crops of it). Saved across launches.
-    var captureAspect: CaptureAspect =
-        UserDefaults.standard.string(forKey: CaptureAspect.storageKey).flatMap(CaptureAspect.init(rawValue:)) ?? .fourThree {
-        didSet { if savesSetup { UserDefaults.standard.set(captureAspect.rawValue, forKey: CaptureAspect.storageKey) } }
-    }
-    /// False when the view fixes mode + ratio (testing mode): don't overwrite the developer's saved choice.
-    @ObservationIgnored private var savesSetup = true
-
-    var guideMode: GuideMode = GuideMode.saved() {
-        didSet {
-            if savesSetup { UserDefaults.standard.set(guideMode.rawValue, forKey: GuideMode.storageKey) }
-            cameraService.setOutlineEnabled(guideMode == .currentOldLook)
-            cameraService.setHighResolution(guideMode.crops)
-            progress = GuideProgress()
-            adaptiveFOVReset()
-            updateInstruction()
-        }
-    }
-
-    // MARK: Adaptive FOV state
-
-    @ObservationIgnored private var adaptiveFOVTargetZoom: Double? = nil
-    @ObservationIgnored private var adaptiveFOVLastAppliedZoom: Double? = nil
-    @ObservationIgnored private var adaptiveFOVLastChangeTime: TimeInterval? = nil
-    @ObservationIgnored private var adaptiveFOVHoldSince: TimeInterval? = nil
-    @ObservationIgnored private var adaptiveFOVWasHold: Bool = false
-    @ObservationIgnored private var adaptiveFOVResumeUntil: TimeInterval? = nil
-    @ObservationIgnored private var lastNonNilDetectionTime: TimeInterval = 0
-    @ObservationIgnored private var adaptiveFOVZoomInFlight = false
-    @ObservationIgnored private var liveEnvironmentSignal: LiveEnvironmentSignal?
-
-    private static let adaptiveFOVMaxRatePerSecond: Double = 0.5
-    private static let adaptiveFOVHysteresisDeadband: Double = 0.10
-    private static let adaptiveFOVDetectionFreezeDelay: TimeInterval = 1.5
-    private static let adaptiveFOVResumeDelay: TimeInterval = 0.5
-    @ObservationIgnored private var adaptiveFOVStatusTask: Task<Void, Never>? = nil
-    private(set) var adaptiveFOVStatusText: String? = nil
-
-    /// Steps, checks and measurements of the current frame (modes B and C fill the checks).
-    private(set) var evaluation = GuideEvaluation()
-    @ObservationIgnored private var progress = GuideProgress()
-    /// Keep finished steps done (no going back over small wobbles). Debug-panel toggle.
-    var latchSteps: Bool = UserDefaults.standard.object(forKey: "guideLatch") as? Bool ?? true {
-        didSet {
-            UserDefaults.standard.set(latchSteps, forKey: "guideLatch")
-            progress = GuideProgress()
-        }
-    }
-
-    // Smoothed values for the step bars (live measurements jitter frame to frame).
-    private(set) var barSizeRatio: Double?
-    private(set) var barHeightError: Double?   // camera vs eyes minus target, + = camera too high
-    private(set) var barTiltError: Double?     // pitch minus target, + = tilted down too much
-    @ObservationIgnored private var smoothing: [String: Double] = [:]
-
-    // MARK: Still-phone snapshot
-    //
-    // Vision boxes jitter and the motion sensor lags the camera while the phone moves, so the
-    // camera-height and distance numbers jumped around. They are now measured only while the
-    // phone is still: the median of the still frames is the reference ("snapshot"), and while
-    // the phone moves that reference is frozen. Tilt and level stay live (sensor only).
-
-    /// The phone has not turned more than `stillTolerance` degrees for `stillWindow` seconds.
-    private(set) var isPhoneStill = false
-    /// Still frames behind the current snapshot (debug).
-    private(set) var snapshotFrames = 0
-    @ObservationIgnored private var motionSamples: [(t: TimeInterval, pitch: Double, roll: Double)] = []
-    @ObservationIgnored private var stillFrames: [(person: CGRect, face: CGRect?, pitch: Double)] = []
-    @ObservationIgnored private var snapshot: (person: CGRect, face: CGRect?, pitch: Double)?
-    private static let stillWindow: TimeInterval = 0.3
-    private static let stillTolerance = 1.0
-    private static let snapshotSize = 8
-
-    private func recordMotion(pitch: Double, roll: Double) {
-        let now = ProcessInfo.processInfo.systemUptime
-        motionSamples.append((now, pitch, roll))
-        motionSamples.removeAll { now - $0.t > Self.stillWindow + 0.1 }
-        let span = (motionSamples.last?.t ?? now) - (motionSamples.first?.t ?? now)
-        let pitches = motionSamples.map { $0.pitch }, rolls = motionSamples.map { $0.roll }
-        let steady = (pitches.max() ?? 0) - (pitches.min() ?? 0) < Self.stillTolerance
-            && (rolls.max() ?? 0) - (rolls.min() ?? 0) < Self.stillTolerance
-        let still = span >= Self.stillWindow && steady
-        if still != isPhoneStill { isPhoneStill = still }
-        if !still { stillFrames.removeAll() }      // moving: keep the last snapshot frozen
-    }
-
-    private func recordDetection() {
-        guard let box = personBox else {
-            stillFrames.removeAll()
-            snapshot = nil
-            snapshotFrames = 0
-            return
-        }
-        guard isPhoneStill else { return }
-        stillFrames.append((box, face, pitch))
-        if stillFrames.count > Self.snapshotSize { stillFrames.removeFirst(stillFrames.count - Self.snapshotSize) }
-        let faces = stillFrames.compactMap { $0.face }
-        // A face only counts when it was found in at least half of the still frames.
-        let medianFace: CGRect? = faces.count * 2 >= stillFrames.count ? Self.medianRect(faces) : nil
-        snapshot = (person: Self.medianRect(stillFrames.map { $0.person }),
-                    face: medianFace,
-                    pitch: Self.median(stillFrames.map { $0.pitch }))
-        snapshotFrames = stillFrames.count
-    }
-
-    private static func median(_ values: [Double]) -> Double {
-        let v = values.sorted()
-        guard !v.isEmpty else { return 0 }
-        return v.count % 2 == 0 ? (v[v.count / 2 - 1] + v[v.count / 2]) / 2 : v[v.count / 2]
-    }
-
-    private static func medianRect(_ rects: [CGRect]) -> CGRect {
-        CGRect(x: median(rects.map { Double($0.minX) }), y: median(rects.map { Double($0.minY) }),
-               width: median(rects.map { Double($0.width) }), height: median(rects.map { Double($0.height) }))
-    }
-
-    /// Mode C height step: where the eyes are now and where they must be in the frame for the
-    /// preset's camera height at the CURRENT tilt (both live, so the rings follow the phone).
-    /// The eyes sit on the target ring exactly when camera-vs-eyes equals the target.
-    var heightRings: (eye: CGPoint, targetY: CGFloat)? {
-        guard let face, let vfov = verticalFOV, vfov > 0,
-              let target = evaluation.eyeElevationTarget else { return nil }
-        let focal = 0.5 / tan(vfov * .pi / 360)
-        let eye = CGPoint(x: face.midX, y: face.minY + face.height * GuideFlow.eyeFraction)
-        // camera vs eyes = pitch − eyeAboveAxis  →  eyeAboveAxis = pitch − target
-        let eyeAboveAxis = (pitch - target) * .pi / 180
-        return (eye, CGFloat(0.5 - focal * tan(eyeAboveAxis)))
-    }
-
-    /// Mode E: the photographer holds the phone at the shown body height and taps Done.
-    func confirmPhoneHeight() {
-        progress.heightConfirmed = true
-        updateInstruction()
-    }
-
-    /// Exponential smoothing; nil input resets the key.
-    private func smoothed(_ key: String, _ value: Double?, weight: Double = 0.3) -> Double? {
-        guard let value else { smoothing[key] = nil; return nil }
-        let next = smoothing[key].map { $0 + weight * (value - $0) } ?? value
-        smoothing[key] = next
-        return next
-    }
-
-    // The selected preset and what the AI learned from it (copied from PreferencesViewModel).
-    private(set) var presetName: String?
-    private(set) var presetID: UUID?
-    private(set) var analysis: PresetAnalysis?
-    private(set) var isAnalyzingPreset = false
-
-    /// Phone pitch the camera aims for, or nil when there is no angle guidance.
-    var targetPitch: Double? { Self.pitchTarget(for: analysis?.angle) }
-
-    /// Values for the optional side-view pose guide (A / B, bottom right). Heights are the camera
-    /// height against the subject's eyes, from the camera-vs-eyes angle and the estimated distance.
-    var poseGuide: PoseGuideState {
-        let e = evaluation
-        func centimetres(_ angle: Double?) -> Double? {
-            guard let angle, let d = e.distanceMeters, d > 0 else { return nil }
-            return d * tan(angle * .pi / 180) * 100
-        }
-        let heightOK = e.eyeElevation.flatMap { now in
-            e.eyeElevationTarget.map { abs(now - $0) <= GuideFlow.heightEnter }
-        } ?? true
-        let tiltOK = pitchError.map { abs($0) <= GuideFlow.tiltEnter } ?? true
-        return PoseGuideState(heightNow: centimetres(e.eyeElevation),
-                              heightTarget: centimetres(e.eyeElevationTarget),
-                              tiltNow: -pitch, tiltTarget: targetPitch.map { -$0 },
-                              distance: e.distanceMeters, heightOK: heightOK, tiltOK: tiltOK)
-    }
-    /// Phone pitch minus the target (+ = tilted further down than the target).
-    var pitchError: Double? { targetPitch.map { pitch - $0 } }
+    @ObservationIgnored private var photoMegapixels: Double?
 
     var isLevel: Bool { horizon == .level }
 
@@ -245,34 +52,195 @@ final class CameraViewModel {
     /// Current live frame for Scene Ideas (nil when the camera isn't running).
     func sceneFrame() async -> CGImage? { await cameraService.latestFrame() }
 
-    // MARK: Dependency (injected, like swiftshop's repositories)
+    // MARK: Zoom settling (boxes are only comparable within one zoom)
+
+    @ObservationIgnored private var lastFrameZoom: Double?
+    @ObservationIgnored private var zoomQuietSince: TimeInterval?
+    private static let zoomSettle: TimeInterval = 0.3
+
+    private func recordZoom(_ detection: PersonDetection?, now: TimeInterval) {
+        guard let zoom = detection?.zoomFactor else { return }
+        let changed = lastFrameZoom.map { abs(zoom - $0) / $0 > 0.01 } ?? false
+        lastFrameZoom = zoom
+        if changed || detection?.isZooming == true {
+            zoomQuietSince = nil
+        } else if zoomQuietSince == nil {
+            zoomQuietSince = now
+        }
+    }
+
+    private func zoomSettled(now: TimeInterval) -> Bool {
+        zoomQuietSince.map { now - $0 >= Self.zoomSettle } ?? (lastFrameZoom == nil)
+    }
+
+    // MARK: Phone still (the engine reads it)
+
+    /// The phone has not turned more than `stillTolerance` degrees for `stillWindow` seconds.
+    private(set) var isPhoneStill = false
+    @ObservationIgnored private var motionSamples: [(t: TimeInterval, pitch: Double, roll: Double)] = []
+    private static let stillWindow: TimeInterval = 0.3
+    private static let stillTolerance = 1.0
+
+    private func recordMotion(pitch: Double, roll: Double) {
+        let now = clockNow
+        motionSamples.append((now, pitch, roll))
+        motionSamples.removeAll { now - $0.t > Self.stillWindow + 0.1 }
+        let span = (motionSamples.last?.t ?? now) - (motionSamples.first?.t ?? now)
+        let pitches = motionSamples.map { $0.pitch }, rolls = motionSamples.map { $0.roll }
+        let steady = (pitches.max() ?? 0) - (pitches.min() ?? 0) < Self.stillTolerance
+            && (rolls.max() ?? 0) - (rolls.min() ?? 0) < Self.stillTolerance
+        let still = span >= Self.stillWindow && steady
+        if still != isPhoneStill { isPhoneStill = still }
+    }
+
+    private var clockNow: TimeInterval { ProcessInfo.processInfo.systemUptime }
+
+    // MARK: Phased state
+
+    /// The Phased engine's decision this update (crop window, readiness, bars).
+    private(set) var phased = PhasedOutput()
+    /// The photo shape the preview shows and the shutter saves (3:4 by default). Kept for this
+    /// camera session only: a new session (a new camera screen) starts at 3:4 again.
+    private(set) var aspectRatio: CameraAspectRatio = .threeFour
+    /// The one instruction shown: choosing / finding the subject first, then the engine's.
+    private(set) var phasedInstruction: PhasedInstruction?
+    /// Selection UI: dims everything but people (nil = no dimming).
+    private(set) var selectionDimMask: CGImage?
+    /// A phase just finished: green confirmation for about a second ("Distance ✓"), else nil.
+    private(set) var phasedFlash: String?
+    @ObservationIgnored private var phasedFlashID = 0
+    @ObservationIgnored private var phasedEngine: PhasedEngine?
+    @ObservationIgnored private var phasedEngineSourceMP: Double?
+    @ObservationIgnored private var selector = PhasedSubjectPicker()
+    @ObservationIgnored private var phasedCandidates: [CGRect] = []
+    @ObservationIgnored private var phasedSubject: SubjectObservation?
+    @ObservationIgnored private var phasedDetectionTime: TimeInterval?
+    @ObservationIgnored private var phasedLockedBox: CGRect?
+    @ObservationIgnored private var phasedSubjectLocked = false
+    @ObservationIgnored private var phasedZooming = false
+    /// Last zoom asked of the camera (one request per target; the ramp then runs on its own).
+    @ObservationIgnored private var phasedZoomTarget: (zoom: Double, at: TimeInterval)?
+    @ObservationIgnored private var phasedLandmarks: (marks: [BodyLandmark], at: TimeInterval)?
+    @ObservationIgnored private var phasedExtent: (box: CGRect, edges: FrameEdges, at: TimeInterval)?
+    @ObservationIgnored private var dimmingOn = false
+    @ObservationIgnored private var lockRequested: CGRect?
+
+    /// The photo is ready to take ("Take the photo now").
+    var isReady: Bool { phased.ready }
+
+    // MARK: Session, preset and shot size
+
+    /// The session the camera guides with, set by the view (`apply(sessionConfiguration:)`).
+    /// The camera never picks a preference itself; the session's shot size is the picker's first
+    /// selection. Nil = no preset.
+    private(set) var sessionConfiguration: PhotoSessionConfiguration?
+    private(set) var presetName: String?
+    private(set) var presetID: UUID?
+    /// The whole preset analysis (all shot sizes), for the shot size picker.
+    private(set) var presetAnalysis: PresetAnalysis?
+    /// The analysis guiding now: the picked shot size for the person's posture.
+    private(set) var analysis: PresetAnalysis?
+
+    /// Sitting / standing, smoothed over the last pose readings. Nil until read (or after the
+    /// person was lost): treated like standing.
+    private(set) var posture: BodyPosture?
+    /// The photographer's pick among the standing shot sizes. Starts at the session's shot size.
+    private(set) var selectedShot: PresetAnalysis.ShotSize?
+    @ObservationIgnored private var postureReadings: [BodyPosture] = []
+    @ObservationIgnored private var personMissingSince: TimeInterval?
+    private static let postureWindow = 6
+    private static let postureSwitchVotes = 4
+    private static let postureFirstVotes = 3
+    /// Posture is forgotten after the person has been gone this long.
+    private static let postureLostReset: TimeInterval = GuideFlow.lostReset
+
+    /// What the picker offers now: sitting → full body only; standing → the preset's shot sizes
+    /// (one-quarter is not supported by the Phased guide yet).
+    var shotOptions: [PresetAnalysis.ShotSize] {
+        (presetAnalysis?.shotOptions(for: posture) ?? []).filter { $0 != .quarter }
+    }
+
+    /// The shot size guiding now: the pick when it is offered, else the preset's default, else the first option.
+    var activeShot: PresetAnalysis.ShotSize? {
+        let options = shotOptions
+        if let selectedShot, options.contains(selectedShot) { return selectedShot }
+        if let fallback = presetAnalysis?.defaultShot, options.contains(fallback) { return fallback }
+        return options.first
+    }
+
+    /// Shown above the shot sizes when the preset has one-quarter photos.
+    var phasedShotNote: String? {
+        guard presetAnalysis?.availableShots.contains(.quarter) == true else { return nil }
+        return "1/4 isn't available yet"
+    }
+
+    /// A pick in the shot size picker: the guide starts over with that shot size.
+    func selectShot(_ shot: PresetAnalysis.ShotSize) {
+        guard shotOptions.contains(shot), shot != selectedShot else { return }
+        selectedShot = shot
+        updateInstruction()
+    }
+
+    private func recordPosture(_ reading: BodyPosture?, personVisible: Bool) {
+        let now = clockNow
+        guard personVisible else {
+            let since = personMissingSince ?? now
+            personMissingSince = since
+            if now - since >= Self.postureLostReset {
+                postureReadings.removeAll()
+                if posture != nil { posture = nil }
+            }
+            return
+        }
+        personMissingSince = nil
+        guard let reading else { return }
+        postureReadings.append(reading)
+        if postureReadings.count > Self.postureWindow {
+            postureReadings.removeFirst(postureReadings.count - Self.postureWindow)
+        }
+        guard reading != posture else { return }
+        let votes = postureReadings.filter { $0 == reading }.count
+        if votes >= (posture == nil ? Self.postureFirstVotes : Self.postureSwitchVotes) {
+            posture = reading
+        }
+    }
+
+    // MARK: Dependency (injected)
     @ObservationIgnored private let cameraService: CameraServiceProtocol
     @ObservationIgnored private let motionService: MotionServiceProtocol
     @ObservationIgnored private let photoLibraryService: PhotoLibraryServiceProtocol
     @ObservationIgnored private let galleryStore: GalleryStoreProtocol
     @ObservationIgnored private let preferences: PreferencesViewModel
+    private var camera: CameraServiceProtocol { cameraService }
 
     init(cameraService: CameraServiceProtocol = CameraService(),
          motionService: MotionServiceProtocol = MotionService(),
          photoLibraryService: PhotoLibraryServiceProtocol = PhotoLibraryService(),
          galleryStore: GalleryStoreProtocol? = nil,
          preferences: PreferencesViewModel? = nil,
-         fixedSetup: (mode: GuideMode, aspect: CaptureAspect)? = nil){
+         sessionConfiguration: PhotoSessionConfiguration? = nil) {
         self.cameraService = cameraService
         self.motionService = motionService
         self.photoLibraryService = photoLibraryService
         self.galleryStore = galleryStore ?? GalleryStore()
         self.preferences = preferences ?? .shared
-        if let fixedSetup {   // testing mode: fixed, not saved
-            savesSetup = false
-            guideMode = fixedSetup.mode
-            captureAspect = fixedSetup.aspect
-        }
-        self.cameraService.setOutlineEnabled(guideMode == .currentOldLook)
-        self.cameraService.setHighResolution(guideMode.crops)
+        self.sessionConfiguration = sessionConfiguration
+        // Phased · Auto crop: largest photo size at 1× (it crops), strict subject lock.
+        cameraService.setOutlineEnabled(false)
+        cameraService.setHighResolution(true)
+        cameraService.setStrictSubjectLock(true)
+        phasedEngine = makePhasedEngine()
     }
 
     // MARK: Intents (things the View asks for)
+
+    /// A new session (or none): the guide starts over with its preset and effective shot size.
+    func apply(sessionConfiguration configuration: PhotoSessionConfiguration?) {
+        guard configuration != sessionConfiguration else { return }
+        sessionConfiguration = configuration
+        selectedShot = configuration?.effectiveShotSize
+        updateInstruction()
+    }
 
     func startCamera() async {
         switch await cameraService.requestPermission() {
@@ -280,11 +248,12 @@ final class CameraViewModel {
         case .denied:   state = .permissionDenied; return
         case .restricted: state = .restricted; return
         }
-
         do {
             try await cameraService.configure()
             await cameraService.start()
             state = .running
+            // Auto crop never zooms: 1× for the whole guide.
+            _ = await camera.applyZoom(1)
         } catch {
             state = .failed(error.localizedDescription)
         }
@@ -300,419 +269,314 @@ final class CameraViewModel {
             roll = tilt.roll
             pitch = tilt.pitch
             recordMotion(pitch: tilt.pitch, roll: tilt.roll)
-
             let next = HorizonState.next(roll: tilt.roll, pitch: tilt.pitch, current: horizon)
-            if next != horizon {
-                horizon = next
-            }
+            if next != horizon { horizon = next }
             updateInstruction()
         }
         horizon = .hidden
     }
 
-    // listens to person detection until the View's .task is cancelled
+    /// Listens to person detection until the View's .task is cancelled.
     func observePerson() async {
-        for await detection in cameraService.personDetections() {
-            personBox = detection?.box
-            if detection?.outline != nil || personOutline != nil { personOutline = detection?.outline }
-            face = detection?.face
+        for await detection in camera.personDetections() {
+            let subjectSeen = detection != nil && detection?.subjectLocked != false
+            let now = clockNow
+            recordPhasedDetection(detection, now: now)
+            recordZoom(detection, now: now)
             if let fov = detection?.verticalFOV { verticalFOV = fov }
             if let mp = detection?.photoMegapixels { photoMegapixels = mp }
-            recordDetection()
+            recordPosture(detection?.posture, personVisible: subjectSeen)
             updateInstruction()
-            evaluateAdaptiveFOV()
         }
-        personBox = nil
-        personOutline = nil
-        face = nil
-        instruction = .findPerson
-    }
-
-    func observeEnvironment() async {
-        for await signal in cameraService.environmentUpdates() {
-            liveEnvironmentSignal = signal
-            evaluateAdaptiveFOV()
-        }
-        liveEnvironmentSignal = nil
     }
 
     func observeZoom() async {
-        for await zoom in cameraService.zoomUpdates() {
+        for await zoom in camera.zoomUpdates() {
             let label = zoom.flatMap { value -> String? in
                 guard value.isFinite, value > 0 else { return nil }
                 return String(format: "%.1f×", value)
             }
-            if label != currentZoomLabel {
-                currentZoomLabel = label
-            }
+            if label != currentZoomLabel { currentZoomLabel = label }
         }
         currentZoomLabel = nil
     }
 
+    /// Targets come from the session's preset and the shot size picked in the camera for the
+    /// person's posture (read live, so a finished analysis applies at once). A deleted preset
+    /// means no preset targets: another preset is never substituted here.
     private func updateInstruction() {
-        // Targets come from the selected preset, so switching presets applies at once.
-        let preset = preferences.selectedPreference
+        let session = sessionConfiguration
+        let preset = session.flatMap { preferences.preference(id: $0.preferenceID) }
         if preset?.id != presetID { presetID = preset?.id }
         if preset?.name != presetName { presetName = preset?.name }
-        let picked = preset?.analysis?.forFraming(preferences.effectiveFraming(for: preset))
+        let whole = session == nil ? nil : preset?.analysis
+        if whole != presetAnalysis { presetAnalysis = whole }
+        let picked = activeShot.flatMap { whole?.guide(for: $0, posture: posture) }
         if picked != analysis { analysis = picked }
-        lighting.setLightLevel(preset?.analysis?.lightLevel)
-        let analyzing = preset.map { preferences.isAnalyzing($0.id) } ?? false
-        if analyzing != isAnalyzingPreset { isAnalyzingPreset = analyzing }
-
-        let newTarget = analysis?.subjectBox.map { FramingTarget(rect: $0) } ?? .center
-        if newTarget != target {
-            target = newTarget
-        }
-
-        switch guideMode {
-        case .current, .currentOldLook, .noAngle:
-            let next = GuideInstruction.next(offset: personBox.map(target.offset(of:)),
-                                             roll: roll,
-                                             pitchError: guideMode == .noAngle ? nil : pitchError,
-                                             current: instruction)
-            if next != instruction {
-                instruction = next
-            }
-            let plain = GuideEvaluation(instruction: next)
-            if plain != evaluation { evaluation = plain }
-
-        case .heightFirst, .heightFirstOld, .heightFirstCrop, .tiltFirst, .tiltFirstOld, .currentSteps, .currentStepsHeight, .fixedRules, .wideCrop:
-            // Distance, camera height and position from the still-phone snapshot; tilt and level live.
-            let snap = personBox == nil || !guideMode.usesSnapshot ? nil : snapshot
-            let live = GuideLive(person: snap?.person ?? personBox, face: snap.map { $0.face } ?? face,
-                                 verticalFOV: verticalFOV, roll: roll, pitch: pitch,
-                                 photoMegapixels: photoMegapixels, measurePitch: snap?.pitch)
-            let (result, nextProgress) = GuideFlow.evaluate(
-                mode: guideMode, live: live, analysis: analysis, target: target, targetPitch: targetPitch,
-                progress: progress, latch: latchSteps, now: ProcessInfo.processInfo.systemUptime)
-            progress = nextProgress
-            if result != evaluation { evaluation = result }
-
-            // Size is smoothed in log space so "2x too close" and "2x too far" behave alike.
-            barSizeRatio = smoothed("size", result.sizeRatio.map { log($0) }).map { exp($0) }
-            let heightError: Double? = {
-                guard let now = result.eyeElevation, let target = result.eyeElevationTarget else { return nil }
-                return now - target
-            }()
-            barHeightError = smoothed("height", heightError)
-            barTiltError = smoothed("tilt", pitchError)
-            if result.instruction != instruction {
-                instruction = result.instruction
-            }
-        }
-    }
-
-    /// Phone pitch the preset asks for (`DeviceTilt` convention), or nil for no angle guidance.
-    /// Not analysed yet or no angle readable: PRD fixed rule, phone straight (0 degrees).
-    private static func pitchTarget(for angle: PresetAnalysis.AngleTarget?) -> Double? {
-        switch angle {
-        case .match(_, let pitchDown): return pitchDown
-        case .fixedRule, nil:          return 0
-        case .noGuidance:              return nil
-        }
-    }
-
-    // MARK: - Adaptive FOV
-
-    private func adaptiveFOVReset() {
-        adaptiveFOVTargetZoom = nil
-        adaptiveFOVLastAppliedZoom = nil
-        adaptiveFOVLastChangeTime = nil
-        adaptiveFOVHoldSince = nil
-        adaptiveFOVWasHold = false
-        adaptiveFOVResumeUntil = nil
-        lastNonNilDetectionTime = 0
-        adaptiveFOVStatusText = nil
-        adaptiveFOVStatusTask?.cancel()
-        adaptiveFOVStatusTask = nil
-    }
-
-    private func adaptiveFOVShowStatus(_ text: String) {
-        if adaptiveFOVStatusText != text {
-            adaptiveFOVStatusText = text
-        }
-    }
-
-    private func adaptiveFOVHideStatus(after delay: TimeInterval = 1.5) {
-        adaptiveFOVStatusTask?.cancel()
-        adaptiveFOVStatusTask = nil
-        guard delay > 0 else {
-            adaptiveFOVStatusText = nil
-            return
-        }
-        adaptiveFOVStatusTask = Task {
-            try? await Task.sleep(for: .seconds(delay))
-            // Only clear if no new status was set while waiting.
-            if adaptiveFOVStatusTask?.isCancelled == false {
-                adaptiveFOVStatusText = nil
-            }
-        }
-    }
-
-    private func adaptiveFOVMayAct() -> Bool {
-        switch guideMode {
-        case .current, .currentOldLook, .noAngle:
-            switch instruction {
-            case .moveCloser, .moveFarther, .holdStill:
-                return true
-            default:
-                return false
-            }
-        default:
-            if let activeStep = evaluation.activeStep {
-                return activeStep == .distance
-            }
-            if !isPhoneStill {
-                return false
-            }
-            return true
-        }
-    }
-
-    private func adaptiveFOVApplyHysteresis(_ decision: AdaptiveFOV.Decision) -> AdaptiveFOV.Decision {
-        let now = ProcessInfo.processInfo.systemUptime
-        switch decision {
-        case .hold:
-            adaptiveFOVWasHold = true
-            adaptiveFOVHoldSince = now
-            return decision
-        case .narrow, .widen:
-            guard adaptiveFOVWasHold, let holdSince = adaptiveFOVHoldSince,
-                  let currentZoom = cameraService.currentZoom else {
-                adaptiveFOVWasHold = false
-                adaptiveFOVHoldSince = nil
-                return decision
-            }
-            let targetZoom: Double
-            if case let .narrow(tz, _) = decision { targetZoom = tz }
-            else if case let .widen(tz, _) = decision { targetZoom = tz }
-            else { return decision }
-            let requiredDelta = Self.adaptiveFOVHysteresisDeadband * currentZoom
-            if abs(targetZoom - currentZoom) < requiredDelta {
-                return .hold(reason: "hysteresis")
-            }
-            adaptiveFOVWasHold = false
-            adaptiveFOVHoldSince = nil
-            return decision
-        }
-    }
-
-    private func adaptiveFOVClampRate(_ targetZoom: Double, now: TimeInterval) -> Double {
-        guard let lastChangeTime = adaptiveFOVLastChangeTime,
-              let lastApplied = adaptiveFOVLastAppliedZoom else {
-            return targetZoom
-        }
-        let elapsed = now - lastChangeTime
-        let maxDelta = Self.adaptiveFOVMaxRatePerSecond * elapsed
-        let delta = targetZoom - lastApplied
-        if abs(delta) <= maxDelta {
-            return targetZoom
-        } else {
-            return lastApplied + (delta > 0 ? maxDelta : -maxDelta)
-        }
-    }
-
-    private func evaluateAdaptiveFOV() {
-        let now = ProcessInfo.processInfo.systemUptime
-
-        guard !adaptiveFOVZoomInFlight else { return }
-
-        if personBox != nil {
-            lastNonNilDetectionTime = now
-            if adaptiveFOVResumeUntil != nil {
-                adaptiveFOVResumeUntil = nil
-            }
-        }
-
-        if now - lastNonNilDetectionTime > Self.adaptiveFOVDetectionFreezeDelay {
-            adaptiveFOVResumeUntil = now + Self.adaptiveFOVResumeDelay
-            adaptiveFOVHideStatus(after: 0)
-            return
-        }
-
-        if let resumeUntil = adaptiveFOVResumeUntil, now < resumeUntil {
-            return
-        }
-
-        guard let currentZoom = cameraService.currentZoom,
-              let minZoom = cameraService.minAvailableZoom,
-              let maxZoom = cameraService.maxAvailableZoom,
-              currentZoom > 0, minZoom > 0, maxZoom >= minZoom,
-              minZoom <= AdaptiveFOV.maximumAutomaticZoom,
-              let person = personBox,
-              target.rect.height > 0 else {
-            adaptiveFOVHideStatus(after: 0)
-            return
-        }
-
-        guard adaptiveFOVMayAct() else {
-            adaptiveFOVHideStatus(after: 0.5)
-            return
-        }
-
-        let input = AdaptiveFOV.Input(
-            personBox: person,
-            face: face,
-            targetRect: target.rect,
-            currentZoom: currentZoom,
-            minZoom: minZoom,
-            maxZoom: maxZoom,
-            framing: analysis?.framing,
-            targetFaceHeight: analysis.map { $0.faceHeight } ?? nil,
-            clippedTop: analysis?.clippedTop ?? false,
-            clippedBottom: analysis?.clippedBottom ?? false,
-            distanceFactor: guideMode.distanceFactor,
-            environment: liveEnvironmentSignal,
-            preserveEnvironmentContext: shouldPreserveEnvironmentContext,
-            now: now
-        )
-        var decision = AdaptiveFOV.evaluate(input)
-        decision = adaptiveFOVApplyHysteresis(decision)
-
-        let proposedTarget: Double
-        switch decision {
-        case .narrow(let tz, _):
-            proposedTarget = tz
-        case .widen(let tz, _):
-            proposedTarget = tz
-        case .hold:
-            adaptiveFOVHideStatus(after: 1.5)
-            return
-        }
-        let effectiveMaxZoom = min(maxZoom, AdaptiveFOV.maximumAutomaticZoom)
-        let rateLimitedTarget = adaptiveFOVClampRate(proposedTarget, now: now)
-        let clampedTarget = max(minZoom, min(effectiveMaxZoom, rateLimitedTarget))
-
-        if let lastApplied = adaptiveFOVLastAppliedZoom,
-           abs(clampedTarget - lastApplied) < 0.01 {
-            adaptiveFOVHideStatus(after: 1.5)
-            return
-        }
-
-        let directionText: String
-        if clampedTarget > currentZoom {
-            directionText = "Zooming in…"
-        } else if clampedTarget < currentZoom {
-            directionText = "Zooming out…"
-        } else {
-            adaptiveFOVHideStatus(after: 0)
-            return
-        }
-        adaptiveFOVShowStatus(directionText)
-
-        adaptiveFOVZoomInFlight = true
-        adaptiveFOVTargetZoom = clampedTarget
-        Task {
-            let applied = await self.cameraService.applyZoom(clampedTarget)
-            self.adaptiveFOVLastAppliedZoom = applied
-            self.adaptiveFOVLastChangeTime = ProcessInfo.processInfo.systemUptime
-            self.adaptiveFOVZoomInFlight = false
-            self.adaptiveFOVTargetZoom = nil
-            // Keep the status visible briefly after the zoom settles so the user can
-            // perceive the change, then fade it out.
-            self.adaptiveFOVHideStatus(after: 1.2)
-        }
-    }
-
-    private var shouldPreserveEnvironmentContext: Bool {
-        guard let id = preferences.selectedPreference?.id,
-              let environment = preferences.session(for: id)?.profile?.environment else { return false }
-        let finding = environment.transferable.environmentProminence
-        guard finding.validObservationCount >= 2,
-              finding.strength >= .moderate,
-              finding.dominantShare >= 0.6,
-              let dominant = finding.dominant else { return false }
-        return dominant != .subjectDominates
+        updatePhased()
     }
 
     func stopCamera() async {
-        lighting.reset()
-        await cameraService.stop()
+        await camera.stop()
     }
 
     /// Restarts the feed after `stopCamera()` (the session is already set up).
     func resumeCamera() async {
         guard state == .running else { return }
-        await cameraService.start()
+        await camera.start()
     }
 
-    /// Seconds from the tap to the moment the last photo was taken (debug panel).
-    @ObservationIgnored private var shutterSeconds = 0.0
+    // MARK: Capture
 
     /// The photo was taken: flash, haptic and a free shutter (its file is still processing).
-    private func shutterFired(after start: Date) {
+    private func shutterFired() {
         guard isCapturing else { return }
         isCapturing = false
         captureCount += 1
-        shutterSeconds = Date().timeIntervalSince(start)
     }
 
     func takePhoto() async {
         guard state == .running, !isCapturing else { return }
         isCapturing = true
-
+        // The crop at the shutter: the final crop when ready; before that the crop valid right now
+        // (shaky hands still get a framed photo). Nothing measurable yet = the full photo.
+        let wanted = shutterCrop()
+        let aspectAtShot = aspectRatio
         let photo: CapturedPhoto
-        let shutterAt = Date()
         do {
-            // Flash + free the shutter at the moment the photo is taken, not when the (48 MP)
-            // file is ready: with zero shutter lag that moment is the tap.
-            photo = try await cameraService.capturePhoto(onShutter: { [weak self] in
-                Task { @MainActor in self?.shutterFired(after: shutterAt) }
+            photo = try await camera.capturePhoto(onShutter: { [weak self] in
+                Task { @MainActor in self?.shutterFired() }
             })
         } catch {
             isCapturing = false
             errorMessage = error.localizedDescription
             return
         }
-        shutterFired(after: shutterAt)                    // no-op if the shutter callback came first
-        let captureSeconds = Date().timeIntervalSince(shutterAt)
-        lastShotTiming = String(format: "shutter %.2fs · file %.2fs · processing…", shutterSeconds, captureSeconds)
+        shutterFired()                                    // no-op if the shutter callback came first
 
-        // Guide rectangles and aspect overlays are live composition aids, not crop instructions.
         let capturedData = photo.data
+        let presetAtShot = presetID
         Task { [weak self] in
             guard let self else { return }
-            let saveStart = Date()
-            do {
-                if let assetID = try await self.photoLibraryService.save(imageData: capturedData) {
-                    self.galleryStore.addCaptured(assetID: assetID, presetID: nil)
-                }
-            } catch {
-                self.errorMessage = error.localizedDescription
+            // Only the crop is saved (Reynard, 9 Nov). The full photo is saved only when no crop
+            // was made (nothing measurable yet, or the export failed).
+            var savedCrop = false
+            if let wanted {
+                savedCrop = await self.savePhasedCrop(of: capturedData, crop: wanted.rect, roll: wanted.roll,
+                                                      floor: wanted.floor, aspect: aspectAtShot,
+                                                      presetID: presetAtShot)
             }
-            self.lastShotTiming = String(format: "shutter %.2fs · file %.2fs · save %.2fs",
-                                         self.shutterSeconds, captureSeconds, Date().timeIntervalSince(saveStart))
+            if !savedCrop { await self.saveFull(capturedData, presetID: presetAtShot) }
         }
     }
-      
 
-    /// Saves the reviewed photo: the enhanced version (the original if the enhance failed).
-    func saveReview() async {
-        guard let review, !review.isEnhancing, !isSavingReview else { return }
-        isSavingReview = true
-        defer { isSavingReview = false }
+    private func shutterCrop() -> (rect: CGRect, roll: Double, floor: Double)? {
+        let floor = PhasedParameters.standard.cropFloorMegapixels
+        guard let window = phased.cropWindow ?? phased.captureCrop else {
+            // Nothing measurable yet: 3:4 saves the whole photo; a narrower ratio still saves
+            // exactly what the preview shows (its band of the frame).
+            if aspectRatio.showsWholeFrame { return nil }
+            return (rect: aspectRatio.visibleRect, roll: 0, floor: floor)
+        }
+        return (window, phased.cropWindow != nil ? phased.cropRoll : phased.captureRoll, floor)
+    }
 
-        let original = review.photo.data
-        let enhanced = review.enhanced
-        let data = await Task.detached(priority: .userInitiated) {
-            enhanced.flatMap { CapturedPhotoEnhancing.file(for: $0, metadataFrom: original) } ?? original
+    /// The ratio picker: the preview, the guide's crop and the next photo follow at once (the
+    /// camera session keeps running; the guide keeps its progress).
+    func selectAspectRatio(_ ratio: CameraAspectRatio) {
+        guard ratio != aspectRatio else { return }
+        aspectRatio = ratio
+        guard var engine = phasedEngine else { return }
+        engine.cropShape = ratio.cropShape
+        phasedEngine = engine
+        updatePhased()   // the shutter crop follows the new shape before the next frame
+    }
+
+    /// Saves the Auto crop as THE photo. False = not saved (no crop made or the save failed).
+    private func savePhasedCrop(of data: Data, crop: CGRect, roll: Double, floor: Double,
+                                aspect: CameraAspectRatio, presetID presetAtShot: UUID?) async -> Bool {
+        // 3:4: the original crop (the frame's own shape). Narrower: exactly that shape, inside
+        // the band the preview showed.
+        let bounds = aspect.visibleRect
+        let shape: (width: Int, height: Int)? = aspect.showsWholeFrame ? nil : aspect.units
+        let result = await Task.detached(priority: .userInitiated) {
+            PhasedCrop.apply(imageData: data, crop: crop, rollDegrees: roll, floorMegapixels: floor,
+                             bounds: bounds, outputShape: shape)
         }.value
+        guard let cropped = result.data else { return false }
+        let thumbnail = Self.makeThumbnail(of: cropped)
+        do {
+            if let assetID = try await photoLibraryService.save(imageData: cropped) {
+                await Self.storeThumbnail(thumbnail, for: assetID)
+                galleryStore.addCaptured(assetID: assetID, presetID: presetAtShot)
+                return true
+            }
+        } catch {
+            errorMessage = error.localizedDescription
+        }
+        return false
+    }
 
+    private func saveFull(_ data: Data, presetID presetAtShot: UUID?) async {
+        let thumbnail = Self.makeThumbnail(of: data)
         do {
             if let assetID = try await photoLibraryService.save(imageData: data) {
-                galleryStore.addCaptured(assetID: assetID, presetID: nil)
+                await Self.storeThumbnail(thumbnail, for: assetID)   // before the grid shows it
+                galleryStore.addCaptured(assetID: assetID, presetID: presetAtShot)
             }
-            if self.review?.id == review.id { self.review = nil }
         } catch {
-            self.review?.saveError = error.localizedDescription
+            errorMessage = error.localizedDescription
         }
     }
 
-    /// Discards the reviewed photo and returns to the viewfinder.
-    func retake() {
-        enhanceTask?.cancel()
-        enhanceTask = nil
-        review = nil
+    /// Starts building the gallery thumbnail from the photo file (background), so the gallery
+    /// shows the photo instantly and sharp without asking Photos (slow for 48 MP files).
+    private nonisolated static func makeThumbnail(of data: Data) -> Task<Data?, Never> {
+        Task.detached(priority: .userInitiated) { ThumbnailCache.encodedThumbnail(from: data) }
     }
+
+    private nonisolated static func storeThumbnail(_ thumbnail: Task<Data?, Never>, for assetID: String) async {
+        await Task.detached(priority: .userInitiated) {
+            if let encoded = await thumbnail.value {
+                ThumbnailCache.shared.store(encoded: encoded, for: assetID)
+            }
+        }.value
+    }
+}
+
+// MARK: - Phased guide
+//
+// The engine (Core/Guide/Phased) decides; this glue feeds it the locked subject and sensors, shows
+// its one instruction and the subject choice. Spec: Docs/Experiments/PhaseGuide/Spec-v3.md.
+
+extension CameraViewModel {
+
+    private func makePhasedEngine() -> PhasedEngine {
+        let params = PhasedParameters.standard
+        let minScale = PhasedMeasure.cropMinScale(sourceMP: photoMegapixels, floorMP: params.cropFloorMegapixels)
+        phasedEngineSourceMP = photoMegapixels
+        var engine = PhasedEngine(params: params, policy: .autoCrop, zoomPlan: .fixedOne, cropMinScale: minScale)
+        engine.cropShape = aspectRatio.cropShape
+        return engine
+    }
+
+    /// Called for every detection.
+    private func recordPhasedDetection(_ detection: PersonDetection?, now: TimeInterval) {
+        guard let d = detection else {
+            phasedCandidates = []
+            phasedSubjectLocked = false
+            phasedSubject = nil
+            if selectionDimMask != nil, !dimmingOn { selectionDimMask = nil }
+            return
+        }
+        phasedCandidates = d.candidates
+        phasedZooming = d.isZooming
+        if dimmingOn, let mask = d.dimMask { selectionDimMask = mask }
+        guard d.subjectLocked else {
+            phasedSubjectLocked = false
+            phasedSubject = nil
+            phasedLandmarks = nil
+            phasedExtent = nil
+            return
+        }
+        if let marks = d.landmarks { phasedLandmarks = (marks, now) }
+        if let extent = d.extent { phasedExtent = (extent, d.extentEdges, now) }
+        phasedSubjectLocked = true
+        phasedLockedBox = d.box
+        lockRequested = nil
+        // Pose and mask run every few detections: their last values count for half a second.
+        let fresh: (TimeInterval) -> Bool = { now - $0 <= 0.5 }
+        let extent = phasedExtent.flatMap { fresh($0.at) ? $0 : nil }
+        phasedSubject = SubjectObservation(box: d.box, face: d.face,
+                                           landmarks: phasedLandmarks.flatMap { fresh($0.at) ? $0.marks : nil },
+                                           extent: extent?.box, touches: extent?.edges ?? [])
+        phasedDetectionTime = now
+    }
+
+    /// One update of the guide (every detection and every motion update).
+    private func updatePhased() {
+        guard var engine = phasedEngine else { return }
+        let now = clockNow
+        // The crop floor depends on the real photo size, known after the first frames.
+        if let mp = photoMegapixels, phasedEngineSourceMP != mp {
+            engine = makePhasedEngine()
+        }
+        var events: [PhasedEvent] = []
+        let made = PhasedTarget.make(analysis: analysis, shot: activeShot, posture: posture)
+        events += engine.setTarget(made.target, problem: made.reason)
+        let selection = selector.update(candidates: phasedCandidates, locked: phasedSubjectLocked,
+                                        lockedBox: phasedLockedBox, now: now)
+        handleSelection(selection, engine: &engine, events: &events)
+
+        let frame = PhasedFrame(time: now,
+                                subject: phasedSubjectLocked ? phasedSubject : nil,
+                                detectionTime: phasedDetectionTime,
+                                pitch: pitch, roll: roll,
+                                phoneStill: isPhoneStill,
+                                verticalFOV: verticalFOV, zoom: lastFrameZoom,
+                                zoomStable: zoomSettled(now: now) && !phasedZooming,
+                                nativeTwoX: camera.nativeZoomFactors.contains { abs($0 - 2) < 0.05 },
+                                depth: nil)
+        let (out, more) = engine.step(frame)
+        events += more
+        phasedEngine = engine
+        // Engine zoom (always 1× for Auto crop): also pulls the zoom back if something else moved it.
+        if let zoom = out.zoomRequest { requestPhasedZoom(zoom, now: now) }
+
+        let final: PhasedInstruction? = selection.instruction ?? (phasedSubjectLocked ? out.instruction : nil)
+        if out != phased { phased = out }
+        if final != phasedInstruction { phasedInstruction = final }
+        for event in events where event.kind == "phase" { flashPhaseDone(event.detail) }
+    }
+
+    /// Green confirmation when a phase is finished (not when the guide moves back).
+    private func flashPhaseDone(_ detail: String) {
+        let names: [(String, String)] = [("distance →", "Distance"), ("vantage →", "Phone height"), ("tilt →", "Tilt")]
+        guard let name = names.first(where: { detail.hasPrefix($0.0) })?.1 else { return }
+        phasedFlashID += 1
+        let id = phasedFlashID
+        phasedFlash = name + " ✓"
+        Task {
+            try? await Task.sleep(for: .seconds(1.0))
+            if self.phasedFlashID == id { self.phasedFlash = nil }
+        }
+    }
+
+    private func handleSelection(_ s: PhasedSubjectPicker.Output, engine: inout PhasedEngine, events: inout [PhasedEvent]) {
+        if case .lock(let box) = s.action, lockRequested != box {
+            lockRequested = box
+            camera.lockSubject(to: box)
+        }
+        if s.newSubject { events += engine.subjectChanged() }
+        setDimming(s.dims)
+    }
+
+    private func setDimming(_ on: Bool) {
+        guard on != dimmingOn else { return }
+        dimmingOn = on
+        camera.setSelectionDimming(on)
+        if !on { selectionDimMask = nil }
+    }
+
+    /// A tap on the preview while choosing (point in frame units, origin top-left).
+    func tapPreview(at point: CGPoint) {
+        guard phasedInstruction == .tapPerson, var engine = phasedEngine else { return }
+        var events: [PhasedEvent] = []
+        let s = selector.tap(point, candidates: phasedCandidates)
+        handleSelection(s, engine: &engine, events: &events)
+        setDimming(false)
+        phasedEngine = engine
+    }
+
+    private func requestPhasedZoom(_ zoom: Double, now: TimeInterval) {
+        guard let current = camera.currentZoom, abs(current - zoom) > 0.02, !phasedZooming else { return }
+        if let last = phasedZoomTarget, abs(last.zoom - zoom) < 0.01, now - last.at < 1.5 { return }
+        phasedZoomTarget = (zoom, now)
+        Task { _ = await camera.applyZoom(zoom) }
+    }
+
+    /// Instruction animation for the motion overlay (height = translation, tilt = rotation).
+    var phasedMotion: GuideInstruction { phasedInstruction?.motion ?? .findPerson }
+    /// Pitch error for the tilt animation's swing (only when the tilt follows the reference pitch).
+    var phasedPitchError: Double? { phased.tiltSource == "pitch" ? phased.tiltError : nil }
 }
