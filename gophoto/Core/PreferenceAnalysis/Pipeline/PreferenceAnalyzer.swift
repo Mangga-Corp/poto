@@ -13,7 +13,8 @@ enum PreferenceAnalyzer {
     // MARK: Profile -> camera targets
 
     nonisolated static func make(profile: PreferenceProfile, results: [PhotoResult],
-                                 photoCount: Int, date: Date = Date()) -> PresetAnalysis {
+                                 photoCount: Int, date: Date = Date(),
+                                 styleInputs: StyleInputs = .empty) -> PresetAnalysis {
         var analysis = build(profile: profile, results: results, photoCount: photoCount, date: date, only: nil)
         // One analysis per framing, from that framing's photos only (picked in the preset popover).
         var variants: [String: PresetAnalysis] = [:]
@@ -37,14 +38,17 @@ enum PreferenceAnalyzer {
         // Seated full-body photos (version 15) get their own analysis instead: the shot sizes are
         // what a STANDING person is offered.
         var shots: [String: PresetAnalysis] = [:]
+        // Taste rules (15 Nov): one scene = one vote; scenes are found once over all photos.
+        let sceneOf = SceneGrouping.group(results.map { stylePhoto($0, shot: "", inputs: styleInputs) },
+                                          imageDistance: { styleInputs.distance($0, $1) })
         let sizes = results.map { shotSize(of: $0) }
         let postures = zip(results, sizes).map { $0.1 == .full ? posture(of: $0.0) : nil }
         for shot in PresetAnalysis.ShotSize.allCases {
             let subset = zip(zip(results, sizes), postures)
                 .filter { $0.0.1 == shot && $0.1 != .sitting }.map { $0.0.0 }
             guard !subset.isEmpty else { continue }
-            var variant = build(profile: profile, results: subset, photoCount: subset.count,
-                                date: date, only: shot.framing, shot: shot)
+            var variant = styled(profile: profile, results: subset, date: date, only: shot.framing,
+                                 shot: shot, key: shot.rawValue, sceneOf: sceneOf, inputs: styleInputs)
             variant.shotSize = shot.rawValue
             variant.cutLevel = analysis.cutLevel
             variant.cutLevelCount = analysis.cutLevelCount
@@ -54,8 +58,9 @@ enum PreferenceAnalyzer {
         analysis.shotVariants = shots.isEmpty ? nil : shots
         let seated = zip(results, postures).filter { $0.1 == .sitting }.map { $0.0 }
         if !seated.isEmpty {
-            var variant = build(profile: profile, results: seated, photoCount: seated.count,
-                                date: date, only: .fullBody)
+            var variant = styled(profile: profile, results: seated, date: date, only: .fullBody,
+                                 shot: nil, key: BodyPosture.sitting.rawValue, sceneOf: sceneOf,
+                                 inputs: styleInputs)
             variant.shotSize = PresetAnalysis.ShotSize.full.rawValue
             variant.cutLevel = analysis.cutLevel
             variant.cutLevelCount = analysis.cutLevelCount
@@ -73,6 +78,105 @@ enum PreferenceAnalyzer {
             shotSize(of: result).map { (result.id.uuidString, $0.rawValue) }
         }, uniquingKeysWith: { first, _ in first })
         return analysis
+    }
+
+    // MARK: Taste rules (Mode 1, 15 Nov)
+
+    /// One shot size's (or the seated photos') analysis by the taste rules: the photos are grouped
+    /// into styles, scenes vote (`StyleDecision`), the analysis is built from the winning style's
+    /// photos only, and the guide's targets come from its medoid photo. When the user should pick
+    /// (`status == "ask"`) the most-voted style is used until then; every candidate is kept.
+    nonisolated static func styled(profile: PreferenceProfile, results subset: [PhotoResult], date: Date,
+                                   only: FramingCategory?, shot: PresetAnalysis.ShotSize?, key: String,
+                                   sceneOf: [String: Int], inputs: StyleInputs) -> PresetAnalysis {
+        let plain = { build(profile: profile, results: subset, photoCount: subset.count, date: date,
+                            only: only, shot: shot) }
+        let photos = subset.map { stylePhoto($0, shot: key, inputs: inputs) }
+        let groups = StyleGrouping.group(photos)
+        let votes = StyleDecision.votes(groups, sceneOf: sceneOf)
+        let status: String
+        let order: [Int]
+        switch StyleDecision.decide(votes: votes) {
+        case .none: return plain()
+        case .single(let s): status = "single"; order = [s]
+        case .clear(let s):
+            status = "clear"
+            order = [s] + votes.indices.filter { $0 != s }.sorted { votes[$0] > votes[$1] }
+        case .ask(let o): status = "ask"; order = o
+        }
+        var candidates: [PresetAnalysis.StyleChoice.Candidate] = []
+        for s in order {
+            guard let pick = StyleDecision.target(style: s, groups: groups, photos: photos, sceneOf: sceneOf)
+            else { continue }
+            let members = subset.filter { groups.styles(of: $0.id.uuidString).contains(s) }
+            guard !members.isEmpty else { continue }
+            var variant = build(profile: profile, results: members, photoCount: members.count, date: date,
+                                only: only, shot: shot)
+            applyTarget(&variant, from: subset.first { $0.id.uuidString == pick.target })
+            candidates.append(.init(photoIDs: members.map(\.id.uuidString), targetPhotoID: pick.target,
+                                    representativeIDs: pick.representatives, votes: votes[s], analysis: variant))
+        }
+        guard var chosen = candidates.first?.analysis else { return plain() }
+        var choice = PresetAnalysis.StyleChoice(status: status, chosen: 0,
+                                                candidates: status == "single" ? [] : candidates)
+        if status != "single" {
+            choice.photoScenes = Dictionary(subset.compactMap { r in
+                sceneOf[r.id.uuidString].map { (r.id.uuidString, $0) }
+            }, uniquingKeysWith: { a, _ in a })
+        }
+        chosen.styleChoice = choice
+        return chosen
+    }
+
+    /// The guide's targets from one photo (the style's medoid) instead of medians: person box,
+    /// camera height (face heights and degrees) and phone pitch. Values that were not read keep
+    /// the style's own.
+    nonisolated static func applyTarget(_ analysis: inout PresetAnalysis, from result: PhotoResult?) {
+        guard let result else { return }
+        let positioning = result.subjectPositioning
+        if positioning.assessment.isDetermined, positioning.isMeasurementValid, let box = positioning.subjectBox {
+            analysis.subjectBox = box
+        }
+        if let faces = result.cameraAngle.horizonCue?.offsetInHeadHeights, faces.isFinite,
+           abs(faces) <= maxTargetFaces {
+            analysis.eyeOffsetFaces = faces
+        }
+        if let e = result.angleComparison?.details[.geoCalibLight]?.cameraElevation, e.isFinite,
+           abs(e) <= maxTargetPitch {
+            analysis.eyeElevation = e
+        }
+        if case .match(let category, _) = analysis.angle, let pitch = result.cameraAngle.pitchDownDegrees,
+           abs(pitch) <= maxTargetPitch {
+            analysis.angle = .match(category: category, pitchDown: pitch)
+        }
+    }
+
+    /// One photo as the style rules see it. Camera height with σ above `vantageSigmaMax` is left
+    /// out (an unsure reading must not split styles). Screenshots keep only the angles until the
+    /// photo area can be cropped (their person box includes the app's UI).
+    nonisolated static func stylePhoto(_ result: PhotoResult, shot: String, inputs: StyleInputs) -> StylePhoto {
+        let id = result.id.uuidString
+        let meta = inputs.meta[id]
+        var photo = StylePhoto(id: id, shot: shot)
+        photo.takenAt = meta?.takenAt
+        photo.latitude = meta?.latitude
+        photo.longitude = meta?.longitude
+        photo.isScreenshot = meta?.isScreenshot ?? false
+        if let cue = result.cameraAngle.horizonCue, let faces = cue.offsetInHeadHeights, faces.isFinite,
+           abs(faces) <= maxTargetFaces, (cue.offsetUncertaintyHeads ?? 0) <= vantageSigmaMax {
+            photo.vantageFaces = faces
+            photo.vantageSigma = cue.offsetUncertaintyHeads
+        }
+        if let pitch = result.cameraAngle.pitchDownDegrees, pitch.isFinite, abs(pitch) <= maxTargetPitch {
+            photo.pitchDegrees = pitch
+        }
+        let positioning = result.subjectPositioning
+        if !photo.isScreenshot, positioning.assessment.isDetermined, positioning.isMeasurementValid,
+           let box = positioning.subjectBox, box.height > 0 {
+            photo.centreX = Double(box.midX)
+            photo.size = Double(box.height)
+        }
+        return photo
     }
 
     /// The analysis of `results`. `only`: these are the photos of one framing (a framing variant).

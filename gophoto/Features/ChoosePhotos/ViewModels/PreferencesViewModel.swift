@@ -716,6 +716,50 @@ final class PreferencesViewModel {
         }
     }
 
+    // MARK: Style question (taste rules, Mode 1, 15 Nov)
+
+    /// "Which style do you want for your preset?" for one shot size whose scene votes were not
+    /// clear (`PresetAnalysis.StyleChoice.status == "ask"`). One question per shot size, answer
+    /// required. Until it is answered the most-voted style is used.
+    struct StyleQuestion: Identifiable, Equatable {
+        /// The style key (`ShotSize.rawValue` or "sitting").
+        let id: String
+        let shotTitle: String
+        let options: [Option]
+
+        struct Option: Identifiable, Equatable {
+            /// Candidate index (most votes first).
+            let id: Int
+            let photo: PhotoItem?
+            static func == (a: Option, b: Option) -> Bool { a.id == b.id && a.photo?.id == b.photo?.id }
+        }
+    }
+
+    /// The next unanswered style question of this preset, or nil.
+    func pendingStyleQuestion(for id: UUID) -> StyleQuestion? {
+        guard let preference = preference(id: id), let analysis = preference.analysis,
+              let key = analysis.pendingStyleKeys.first,
+              let choice = analysis.styleVariant(forKey: key)?.styleChoice,
+              choice.candidates.count > 1 else { return nil }
+        let photos = Dictionary(preference.photos.map { ($0.id.uuidString, $0) }, uniquingKeysWith: { a, _ in a })
+        let options = choice.questionPhotoIDs().enumerated().map { index, photoID in
+            StyleQuestion.Option(id: index, photo: photos[photoID])
+        }
+        let title = key == BodyPosture.sitting.rawValue
+            ? "Sitting" : (PresetAnalysis.ShotSize(rawValue: key)?.title ?? key)
+        return StyleQuestion(id: key, shotTitle: title, options: options)
+    }
+
+    /// Saves the user's answer: style `index` becomes the preset for that shot size.
+    /// False when it could not be applied or saved (the question then stays).
+    func chooseStyle(_ index: Int, forKey key: String, of id: UUID) async -> Bool {
+        guard let analysis = preference(id: id)?.analysis,
+              let updated = analysis.choosingStyle(index, forKey: key) else { return false }
+        let saved = await setAnalysisPersisted(updated, for: id)
+        if !saved { logger.error("Preference \(id): style choice for \(key, privacy: .public) not saved") }
+        return saved
+    }
+
     private func setAnalysisPersisted(_ analysis: PresetAnalysis, for id: UUID) async -> Bool {
         guard let index = preferences.firstIndex(where: { $0.id == id }) else { return false }
         let previousAnalysis = preferences[index].analysis

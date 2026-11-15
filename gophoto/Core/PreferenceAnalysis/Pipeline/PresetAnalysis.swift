@@ -323,5 +323,93 @@ nonisolated struct PresetAnalysis: Codable, Sendable, Equatable {
         case fixedRule
     }
 
+    /// Taste rules, Mode 1 (15 Nov): how this shot size's style was chosen (`StyleDecision`).
+    /// Nil in analyses made before the style rules and outside shot / posture variants.
+    /// Optional and decoded when present: the version is unchanged, old presets keep working.
+    var styleChoice: StyleChoice? = nil
+
+    nonisolated struct StyleChoice: Codable, Sendable, Equatable {
+        /// single (one style) · clear (the scene votes decided) · ask (the user should pick; until
+        /// then the most-voted style is used) · chosen (the user picked).
+        var status: String
+        /// Index into `candidates` of the style in use.
+        var chosen = 0
+        /// Candidate styles, most votes first. Empty when there was only one style.
+        var candidates: [Candidate] = []
+        /// Scene index per photo of this shot size, so a question can show photos of one scene.
+        var photoScenes: [String: Int] = [:]
+
+        nonisolated struct Candidate: Codable, Sendable, Equatable {
+            /// Photos of this style (`PhotoItem.id.uuidString`).
+            var photoIDs: [String]
+            /// The photo whose measurements are the target (medoid of the scene representatives).
+            var targetPhotoID: String
+            /// One photo per scene.
+            var representativeIDs: [String]
+            /// Scene votes (a scene with k styles gives each 1/k).
+            var votes: Double
+            /// The shot variant made from this style's photos (its own `styleChoice` is nil).
+            var analysis: PresetAnalysis
+        }
+
+        var needsAnswer: Bool { status == "ask" }
+
+        /// Photo ids to show in the question, one per candidate (all candidates, most votes
+        /// first). When the first three candidates all have a photo in one scene, those photos
+        /// (same place, clothes and light); otherwise each candidate's target photo.
+        func questionPhotoIDs() -> [String] {
+            let shown = Array(candidates.prefix(3))
+            var common: Set<Int>?
+            for candidate in shown {
+                let scenes = Set(candidate.photoIDs.compactMap { photoScenes[$0] })
+                common = common.map { $0.intersection(scenes) } ?? scenes
+            }
+            let scene = shown.count > 1 ? common?.sorted().first : nil
+            return candidates.enumerated().map { index, candidate in
+                guard index < 3, let scene else { return candidate.targetPhotoID }
+                let inScene = candidate.photoIDs.filter { photoScenes[$0] == scene }.sorted()
+                return inScene.first { candidate.representativeIDs.contains($0) } ?? inScene.first
+                    ?? candidate.targetPhotoID
+            }
+        }
+    }
+
+    /// Keys (`ShotSize.rawValue`, or "sitting") whose style the user should still pick.
+    var pendingStyleKeys: [String] {
+        var keys = ShotSize.allCases.map(\.rawValue).filter { shotVariants?[$0]?.styleChoice?.needsAnswer == true }
+        if sittingVariant?.styleChoice?.needsAnswer == true { keys.append(BodyPosture.sitting.rawValue) }
+        return keys
+    }
+
+    /// The shot variant (or the seated one) a style key refers to.
+    func styleVariant(forKey key: String) -> PresetAnalysis? {
+        key == BodyPosture.sitting.rawValue ? sittingVariant : shotVariants?[key]
+    }
+
+    /// This analysis with style `index` used for `key` (the user's answer): that style's own
+    /// analysis replaces the variant, keeping what was added after the style rules ran (shot size,
+    /// cut level, background blur). Nil when the key or the index does not exist.
+    func choosingStyle(_ index: Int, forKey key: String) -> PresetAnalysis? {
+        guard let current = styleVariant(forKey: key), var choice = current.styleChoice,
+              choice.candidates.indices.contains(index) else { return nil }
+        var picked = choice.candidates[index].analysis
+        picked.shotSize = current.shotSize
+        picked.cutLevel = current.cutLevel
+        picked.cutLevelCount = current.cutLevelCount
+        picked.cutLevelOf = current.cutLevelOf
+        picked.backgroundBlur = current.backgroundBlur
+        picked.backgroundBlurCount = current.backgroundBlurCount
+        choice.status = "chosen"
+        choice.chosen = index
+        picked.styleChoice = choice
+        var updated = self
+        if key == BodyPosture.sitting.rawValue {
+            updated.postureVariants?[key] = picked
+        } else {
+            updated.shotVariants?[key] = picked
+        }
+        return updated
+    }
+
     var isCurrent: Bool { version == Self.currentVersion }
 }

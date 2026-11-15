@@ -68,7 +68,10 @@ final class AnalysisSession: ObservableObject {
         start(photos: references)
         await runTask?.value
         guard phase == .completed, let profile else { return nil }
-        var analysis = PreferenceAnalyzer.make(profile: profile, results: results, photoCount: photos.count)
+        // Scene rules (15 Nov): capture date / place / screenshot flag and image similarity.
+        let styleInputs = await StyleInputs.collect(photos)
+        var analysis = PreferenceAnalyzer.make(profile: profile, results: results, photoCount: photos.count,
+                                               styleInputs: styleInputs)
         analysis.evidence = AnalysisEvidenceSummary(photoRuns: results.map { result in
             result.evidence.map { evidence in
                 evidence.runs.map { record in

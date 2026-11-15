@@ -7,6 +7,7 @@
 //  AI Preferences popover).
 //
 
+import SwiftUI
 import UIKit
 
 final class PreferenceEditorPresenter {
@@ -114,6 +115,13 @@ final class PreferenceEditorPresenter {
                 finish()
                 return
             }
+            // A shot size whose styles were not clear: ask first, then come back here.
+            if let question = self.preferences.pendingStyleQuestion(for: id) {
+                self.presentStyleQuestion(question, of: id, over: analyzing) { [weak analyzing] in
+                    analyzing?.onFinish?()
+                }
+                return
+            }
             let card = StyleCardViewController(summary: summary, buttonTitle: buttonTitle)
             card.modalPresentationStyle = .fullScreen
             card.modalTransitionStyle = .crossDissolve
@@ -121,5 +129,22 @@ final class PreferenceEditorPresenter {
             analyzing.present(card, animated: true)
         }
         host.present(analyzing, animated: true)
+    }
+
+    /// "Which style do you want for your preset?" over `host`; required. After a saved answer
+    /// it closes and `next` runs (the next question or the style card).
+    private func presentStyleQuestion(_ question: PreferencesViewModel.StyleQuestion, of id: UUID,
+                                      over host: UIViewController, next: @escaping () -> Void) {
+        let view = StyleChoiceView(question: question) { [weak self, weak host] index in
+            guard let self else { return }
+            Task { @MainActor in
+                guard await self.preferences.chooseStyle(index, forKey: question.id, of: id) else { return }
+                host?.dismiss(animated: true) { next() }
+            }
+        }
+        let hosting = UIHostingController(rootView: view)
+        hosting.modalPresentationStyle = .fullScreen
+        hosting.isModalInPresentation = true
+        host.present(hosting, animated: true)
     }
 }

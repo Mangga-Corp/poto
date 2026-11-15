@@ -30,6 +30,9 @@ struct OnboardingFlowView: View {
     /// "Some Photos Were Excluded": enough valid photos, some invalid; analysis waits for Continue.
     @State private var exclusionNotice: HumanSubjectValidationResult?
     @State private var isConfirmingExclusions = false
+    /// Style question (taste rules): shown over the flow until every unclear shot size is answered.
+    @State private var styleQuestion: PreferencesViewModel.StyleQuestion?
+    @State private var isSavingStyle = false
 
     private static let log = Logger(subsystem: "co.mango.gophoto", category: "analysis")
 
@@ -71,6 +74,7 @@ struct OnboardingFlowView: View {
             recoveredFailure = nil
         }
         _failure = State(initialValue: recoveredFailure)
+        _styleQuestion = State(initialValue: usable ? PreferencesViewModel.shared.pendingStyleQuestion(for: preferenceID) : nil)
     }
 
     var body: some View {
@@ -99,6 +103,11 @@ struct OnboardingFlowView: View {
                     withAnimation(.easeInOut(duration: 0.4)) { failure = .analysisFailed }
                 }
                 .transition(.opacity)
+            }
+            if let styleQuestion {
+                StyleChoiceView(question: styleQuestion, isSaving: isSavingStyle, onChoose: chooseStyle)
+                    .transition(.opacity)
+                    .zIndex(1)
             }
         }
         .ignoresSafeArea()
@@ -148,6 +157,11 @@ struct OnboardingFlowView: View {
         }
         switch analysis.usability {
         case .usable:
+            // A shot size whose styles were not clear: ask before the style card.
+            if let question = PreferencesViewModel.shared.pendingStyleQuestion(for: preferenceID) {
+                withAnimation(.easeInOut(duration: 0.3)) { styleQuestion = question }
+                return
+            }
             guard let preference, let summary = StyleSummary(analysis: analysis, photos: preference.analyzedPhotos) else {
                 withAnimation(.easeInOut(duration: 0.4)) { failure = .analysisFailed }
                 return
@@ -181,6 +195,19 @@ struct OnboardingFlowView: View {
                 Self.log.error("Could not remove excluded photos of \(preferenceID): \(error.message, privacy: .public)")
                 withAnimation(.easeInOut(duration: 0.4)) { failure = .analysisFailed }
             }
+        }
+    }
+
+    /// Saves the answer, then shows the next question or the style card.
+    private func chooseStyle(_ index: Int) {
+        guard let question = styleQuestion, !isSavingStyle else { return }
+        isSavingStyle = true
+        Task {
+            let saved = await PreferencesViewModel.shared.chooseStyle(index, forKey: question.id, of: preferenceID)
+            isSavingStyle = false
+            guard saved else { return }
+            withAnimation(.easeInOut(duration: 0.3)) { styleQuestion = nil }
+            analysisFinished()
         }
     }
 

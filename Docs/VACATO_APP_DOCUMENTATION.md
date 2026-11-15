@@ -4,7 +4,8 @@
 > Setiap klaim merujuk ke file di `gophoto/…`. Hal yang tidak bisa dipastikan dari kode ditandai **[PERLU KONFIRMASI]**.
 >
 > - **Snapshot kode:** branch `main`, commit `63a19cd` ("camera permissions updated"), 237 commit sejak 2026-10-10.
-> - **Pembaruan 13 Nov 2026 (branch `Adjust-Live-Guidance`, setelah merge `main`):** perubahan guide Phased, analisis preset, dan fitur developer 12–13 Nov dimasukkan ke §6.4, §6.6, §6.7, §6.12, §6.15, §7.4.2, §14, §16. Ringkasannya di [§17 Changelog](#17-changelog-1213-nov-2026).
+> - **Pembaruan 13 Nov 2026 (branch `Adjust-Live-Guidance`, setelah merge `main`):** perubahan guide Phased, analisis preset, dan fitur developer 12–13 Nov dimasukkan ke §6.4, §6.6, §6.7, §6.12, §6.15, §7.4.2, §14, §16. Ringkasannya di [§17 Changelog](#17-changelog-1215-nov-2026).
+> - **Aturan selera Mode 1 (15 Nov 2026):** analisis preset sekarang mengelompokkan foto referensi per shot size menjadi gaya, menghitung suara per scene, bertanya ke user bila hasilnya tidak jelas, dan memakai foto medoid gaya pemenang sebagai target guide. Lihat §6.15.1 dan §17.
 > - **Pembersihan 13 Nov 2026 (kode developer keluar dari repo ini):** saklar `appMode` dihapus. GoPhoto sekarang hanya berisi **Phased · Auto crop**. Semua alat developer (ExperimentBar, GuideDebugPanel, Replay, Guide log, Record GT, guide Main/Legacy, Analysis Results, Shot Analysis) pindah ke repo **debugphoto** (§6.12). Bagian lain yang masih menyebut "appMode 2" atau "dev-only" menggambarkan keadaan sebelum pembersihan; baris terkait di §13 dan §15 sudah diberi tanda **dipindah ke debugphoto**. Sumber angka: `Core/Guide/Phased/PhasedParameters.swift` dan `Docs/Experiments/PhaseGuide/Parameters.md`.
 > - **Cakupan:** 255 file Swift (sekitar 41.900 baris), 3 model CoreML, `project.pbxproj`, `Info.plist`, entitlements, `Package.resolved`, dan semua dokumen `.md`/gambar spesifikasi di repo.
 > - **Legenda status:**
@@ -35,7 +36,7 @@
 14. [Glosarium](#14-glosarium)
 15. [Lampiran: Indeks File](#15-lampiran-indeks-file)
 16. [Lampiran: Daftar [PERLU KONFIRMASI]](#16-lampiran-daftar-perlu-konfirmasi)
-17. [Changelog 12–13 Nov 2026](#17-changelog-1213-nov-2026)
+17. [Changelog 12–15 Nov 2026](#17-changelog-1215-nov-2026)
 
 ## 1. Ringkasan Eksekutif
 
@@ -981,6 +982,28 @@ String yang tampil ke user:
 - **Status:** ✅ Selesai.
   - Stack "original" (horizon + garis vertikal + 3D pose + fusion) masih **dihitung tetapi dibuang** (🗑️ legacy).
   - Mode GeoCalib Heavy (fp32) tidak terjangkau dan modelnya tidak dibundel.
+
+#### 6.15.1 Aturan selera Mode 1: gaya, scene, pertanyaan (15 Nov 2026)
+
+Berlaku untuk preferensi dari foto ("pilih foto favorit"). Mode 2 ("semua foto dirinya + A/B") belum dibuat. Pengecekan "tepat 1 orang di depan" dan minimal 3 foto valid tetap dari `HumanSubjectValidator` (Kevin, 14 Nov).
+
+**Sebelumnya.** Per shot size, tinggi kamera sudah divoting di atas/bawah patokan badan (`AnchorSide`, sisi kalah dibuang, dipecah jadi gaya bila ≥ 6 foto). Kotak orang (ukuran, posisi) tetap median **semua** foto shot size itu, dan setiap foto (termasuk burst) dihitung satu suara.
+
+**Sekarang** (`PreferenceAnalyzer.styled`, per shot size dan untuk foto duduk):
+
+1. **Data per foto** (`StylePhoto`): tinggi kamera (`offsetInHeadHeights`, dibuang bila σ > 1.5 wajah), pitch, posisi horizontal (tengah kotak orang) dan size (tinggi kotak / tinggi frame). Nilai yang tidak terbaca tetap kosong, tidak diisi default. Screenshot sementara hanya memakai sudut (kotak orangnya ikut UI aplikasi; crop belum dibuat).
+2. **Scene** (`SceneGrouping`): hari sama + lokasi ≤ 100 m (tanpa lokasi: ≤ 1 jam) + gambar mirip (FeaturePrint ≤ 0.5, *provisional*). Tanggal, lokasi, dan penanda screenshot dibaca dari Photos lewat `sourceAssetIdentifier` hanya bila izin sudah ada (`StyleInputs`). Foto tanpa tanggal hanya bisa satu scene lewat kemiripan gambar. Jarak FeaturePrint dicatat di log kategori `style` untuk kalibrasi.
+3. **Gaya** (`StyleGrouping`): complete linkage. Dua foto **berlawanan** bila `maks(selisih dimensi / batas) ≥ 1`. Batas: tinggi kamera 1 wajah (= `vantageFacesReopen` guide), tilt 6°, posisi 10% lebar frame, size rasio 1.15 (jarak `|ln(a/b)| / ln 1.15`). Satu gaya tidak boleh berisi pasangan berlawanan. Foto yang cocok ke lebih dari satu gaya (biasanya karena dimensi kosong) dihitung "shared".
+4. **Suara** (`StyleDecision`): 1 scene = 1 suara, dibagi rata ke gaya yang ada di scene itu (1/k). Foto burst dengan gaya sama = 1 suara; scene campuran terbagi.
+5. **Keputusan:** satu gaya → langsung. Jelas bila total ≥ 5 suara **dan** `suara teratas / jumlah suara lain ≥ 1.75` → otomatis. Selain itu → **1 pertanyaan** untuk shot size itu.
+6. **Target:** analisis dibangun hanya dari foto gaya pemenang, lalu target guide diambil dari **foto medoid** (satu foto asli, bukan median): kotak orang, `eyeOffsetFaces`, `eyeElevation`, dan pitch (`applyTarget`). Medoid dua tahap: satu wakil per scene, lalu medoid dari wakil-wakil scene.
+7. **Toleransi guide tidak dilebarkan** dari sebaran foto (keputusan 15 Nov). `StyleDecision.spread` tidak dipakai.
+
+**Disimpan** di `PresetAnalysis.styleChoice` (opsional, versi tetap 18, preset lama tetap jalan): status `single` / `clear` / `ask` / `chosen`, kandidat gaya (foto, foto target, wakil scene, suara, dan analisisnya sendiri), serta scene per foto.
+
+**Pertanyaan** (`StyleChoiceView`, layar baru): "Which style do you want for your preset?" dengan label shot size dan 2–3 foto (A/B/C, "Show other styles" bila lebih). Foto diambil dari satu scene bila semua kandidat punya foto di scene itu, kalau tidak dari foto target tiap gaya. Wajib dijawab: tanpa tombol lewati dan tanpa "dua-duanya". Maksimal 1 per shot size. Muncul di `OnboardingFlowView` (onboarding dan sesi foto) dan `PreferenceEditorPresenter` (edit foto) sebelum Style card. Jawaban → `PreferencesViewModel.chooseStyle` → `PresetAnalysis.choosingStyle` (analisis gaya itu menggantikan varian, status `chosen`) → disimpan. Belum dijawab: gaya dengan suara terbanyak dipakai, dan pertanyaan muncul lagi saat alur dibuka.
+
+**Belum dibuat:** crop screenshot, kalibrasi ambang FeaturePrint dengan foto asli, Mode 2, posisi berbasis bahu.
 
 ### 6.16 Analisis lingkungan & konteks scene (bagian dari analisis preferensi)
 
@@ -2213,12 +2236,18 @@ Total **255** file Swift, diurutkan per path. Status per file ada di §6/§13 da
 | `gophoto/Core/PreferenceAnalysis/Models/ResultModels.swift` | `PhotoResult`, `Assessment`, `CameraAngleResult`, `SubjectFramingResult`, dll. | Kosakata hasil per foto (in-memory) |
 | `gophoto/Core/PreferenceAnalysis/Pipeline/AnalysisEngine.swift` | `AnalysisEngine` (actor), `PhotoAnalyzing`, `PhotoRunEvent` | Orkestrasi stage A–E per foto, maks 2 paralel |
 | `gophoto/Core/PreferenceAnalysis/Pipeline/AnalysisEvidenceSummary.swift` | `AnalysisEvidenceSummary`, `PresetAnalysis.Usability` | Ringkasan outcome sumber evidence → usable/gagal |
-| `gophoto/Core/PreferenceAnalysis/Pipeline/AnalysisSession.swift` | `AnalysisSession`, `PhotoRunState` | Satu run analisis dengan progres terpublikasi; menambah evidence, light level, blur |
+| `gophoto/Core/PreferenceAnalysis/Pipeline/AnalysisSession.swift` | `AnalysisSession`, `PhotoRunState` | Satu run analisis dengan progres terpublikasi; menambah evidence, light level, blur; mengumpulkan data scene (`StyleInputs`) sebelum `make` (15 Nov) |
 | `gophoto/Core/PreferenceAnalysis/Pipeline/AnalysisSupport.swift` | `EvidenceOptions`, `PhotoScanTiming` | Opsi evidence & catatan timing |
 | `gophoto/Core/PreferenceAnalysis/Pipeline/AnchorSide.swift` | `AnchorSide` | Voting kamera di atas/bawah anchor tubuh + clustering gaya (v16) |
 | `gophoto/Core/PreferenceAnalysis/Pipeline/BackgroundBlurMeter.swift` | `BackgroundBlurMeter` | Rasio ketajaman background/orang (v18) |
-| `gophoto/Core/PreferenceAnalysis/Pipeline/PreferenceAnalyzer.swift` | `PreferenceAnalyzer`, `EyeVote`, `EyeSideResult` | Profil + hasil per foto → `PresetAnalysis` (box, sisi mata, shot size, postur, varian) |
-| `gophoto/Core/PreferenceAnalysis/Pipeline/PresetAnalysis.swift` | `PresetAnalysis`, `ShotSize`, `EyeSide`, `AngleTarget` | Model target kamera tersimpan (v18) + lookup varian |
+| `gophoto/Core/PreferenceAnalysis/Pipeline/PreferenceAnalyzer.swift` | `PreferenceAnalyzer`, `EyeVote`, `EyeSideResult` | Profil + hasil per foto → `PresetAnalysis` (box, sisi mata, shot size, postur, varian); aturan gaya per shot size: `styled`, `applyTarget`, `stylePhoto` (15 Nov) |
+| `gophoto/Core/PreferenceAnalysis/Pipeline/PresetAnalysis.swift` | `PresetAnalysis`, `ShotSize`, `EyeSide`, `AngleTarget` | Model target kamera tersimpan (v18) + lookup varian; `styleChoice`, `pendingStyleKeys`, `choosingStyle` (15 Nov) |
+| `gophoto/Core/PreferenceAnalysis/Style/StyleTypes.swift` | `StylePhoto`, `StyleLimits` | Nilai per foto + batas berlawanan (15 Nov) |
+| `gophoto/Core/PreferenceAnalysis/Style/SceneGrouping.swift` | `SceneGrouping` | Pengelompokan scene: hari + lokasi/waktu + kemiripan gambar (15 Nov) |
+| `gophoto/Core/PreferenceAnalysis/Style/StyleGrouping.swift` | `StyleGrouping`, `StyleGroups` | Gaya per shot size, complete linkage (15 Nov) |
+| `gophoto/Core/PreferenceAnalysis/Style/StyleDecision.swift` | `StyleDecision` | Suara per scene, jelas vs tanya, medoid (15 Nov) |
+| `gophoto/Core/PreferenceAnalysis/Style/StyleInputs.swift` | `StyleInputs` | Tanggal/lokasi/screenshot dari Photos + jarak FeaturePrint (15 Nov) |
+| `gophoto/Features/ChoosePhotos/Components/StyleChoiceView.swift` | `StyleChoiceView` | Layar "Which style do you want for your preset?" (15 Nov) |
 | `gophoto/Core/PreferenceAnalysis/SceneModels/ClassificationHint.swift` | `ClassificationHint` | Tipe hasil classifier (dead) |
 | `gophoto/Core/PreferenceAnalysis/SceneModels/DepthAnythingEstimator.swift` | `DepthAnythingEstimator` | Wrapper Depth Anything (dead) |
 | `gophoto/Core/PreferenceAnalysis/SceneModels/DepthMap.swift` | `DepthMap` | Peta depth ternormalisasi (dead) |
@@ -2308,7 +2337,7 @@ Total **255** file Swift, diurutkan per path. Status per file ada di §6/§13 da
 | `gophoto/Features/ChoosePhotos/Components/PhotoCell.swift` | `PhotoCell` | Sel grid foto dengan badge pilihan |
 | `gophoto/Features/ChoosePhotos/Components/PhotoPreferencePickerFlow.swift` | `PhotoPreferencePickerFlow`, `PreferenceNamePrompt` | Koordinator UIKit: izin → picker → nama → simpan |
 | `gophoto/Features/ChoosePhotos/Components/PillButton.swift` | `PillButton` | Tombol teks/prominent dengan loading (UIKit) |
-| `gophoto/Features/ChoosePhotos/Components/PreferenceEditorPresenter.swift` | `PreferenceEditorPresenter` | Membuka editor foto → analisis → style card |
+| `gophoto/Features/ChoosePhotos/Components/PreferenceEditorPresenter.swift` | `PreferenceEditorPresenter` | Membuka editor foto → analisis → style card; pertanyaan gaya sebelum style card (15 Nov) |
 | `gophoto/Features/ChoosePhotos/Extensions/UILabel+Make.swift` | `UILabel.make` | Factory label Dynamic Type |
 | `gophoto/Features/ChoosePhotos/Theme/Theme.swift` | `Theme` | Mirror token `GoPhotoDesign` ke `UIColor` |
 | `gophoto/Features/ChoosePhotos/ViewModels/AnalyzingViewModel.swift` | `AnalyzingViewModel` | Menggerakkan layar analisis (progres, teks bergilir) |
@@ -2429,7 +2458,7 @@ Total **255** file Swift, diurutkan per path. Status per file ada di §6/§13 da
 - Kebutuhan `PrivacyInfo.xcprivacy` sebelum submit App Store.
 - Lokasi UI test yang memakai accessibility identifier & `DebugFixtures`.
 
-## 17. Changelog 12–13 Nov 2026
+## 17. Changelog 12–15 Nov 2026
 
 Branch `Adjust-Live-Guidance`. Semua angka dari `PhasedParameters.swift`; catatan per parameter di `Docs/Experiments/PhaseGuide/Parameters.md`.
 
@@ -2450,3 +2479,7 @@ Branch `Adjust-Live-Guidance`. Semua angka dari `PhasedParameters.swift`; catata
 | Developer | Record GT + Share GT (appMode 2); debugphoto: Record + compare | 12 Nov |
 | Struktur repo | Semua kode developer pindah ke debugphoto; `appMode` dihapus; `CameraViewModel` dan `CameraView` ditulis ulang khusus produksi; `FramingPolicy` pindah ke `Core/Guide/Phased/` | 13 Nov |
 | Zoom | Guide terus menarik zoom kembali ke 1× bila bergeser (dulu ada di jalur eksperimen, dipertahankan) | 13 Nov |
+| Analisis preset (Mode 1) | Foto per shot size dikelompokkan jadi gaya (4 dimensi), 1 scene = 1 suara, target = foto medoid gaya pemenang (§6.15.1) | 15 Nov |
+| Pertanyaan gaya | Layar baru "Which style do you want for your preset?" bila suara < 5 atau rasio < 1.75; maks 1 per shot size, wajib dijawab | 15 Nov |
+| Toleransi guide | Tidak dilebarkan dari sebaran foto gaya pemenang (keputusan) | 15 Nov |
+| Dari tim (14–15 Nov, dipakai ulang) | Cek tepat 1 orang di depan + minimal 3 foto (`HumanSubjectValidator`, Kevin); pilihan rasio 3:4 / 9:16 (Kevin); tampilan kamera/onboarding/galeri + font Alegreya Sans (Sebastian) | 14–15 Nov |
