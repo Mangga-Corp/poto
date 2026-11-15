@@ -30,12 +30,6 @@
 			exceptions = (
 				D31644A8307F88BC00DBBFBC /* Exceptions for "gophoto" folder in "gophoto" target */,
 			);
-			explicitFolders = (
-				Features/PhotoSessionSetup,
-				Features/PhotoSuggestion,
-				Features/PreferenceStart,
-				Features/SessionSetup,
-			);
 			path = gophoto;
 			sourceTree = "<group>";
 		};

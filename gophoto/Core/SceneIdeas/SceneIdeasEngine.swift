@@ -86,6 +86,7 @@ nonisolated enum SceneIdeaAdvisor {
     """
 
     static var unavailableReason: String? {
+        if #unavailable(iOS 27.0) { return "Photo ideas need iOS 27 or later." }
         guard case .unavailable(let reason) = SystemLanguageModel.default.availability else { return nil }
         switch reason {
         case .deviceNotEligible: return "Photo ideas need Apple Intelligence, which this iPhone doesn't support."
@@ -109,6 +110,7 @@ nonisolated enum SceneIdeaAdvisor {
 
     /// One run → guard → two ideas with template sentences.
     static func run(_ image: CGImage) async throws -> SceneIdeasResult {
+        guard #available(iOS 27.0, *) else { throw CancellationError() }   // image input needs iOS 27
         let t0 = Date()
         let session = LanguageModelSession(instructions: instructions)
         let survey = try await session.respond(generating: FMSceneSurvey.self, options: GenerationOptions(temperature: 0.7)) {

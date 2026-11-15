@@ -251,12 +251,6 @@ nonisolated enum GuideFlow {
     static let faceHeightMeters = 0.20
     static let bodyHeightMeters = 1.65
 
-    /// `bodyHeightMeters` for the preset's posture (a seated subject is shorter).
-    private static func bodyMeters(_ analysis: PresetAnalysis?) -> Double {
-        PostureTargets.bodyHeightMeters(standing: bodyHeightMeters, posture: analysis?.posture,
-                                        support: analysis?.sittingSupport)
-    }
-
     /// Step modes (B, C and the "A · Steps" variants).
     /// - Parameters:
     ///   - progress: carried from the previous frame; the updated value is returned.
@@ -268,7 +262,6 @@ nonisolated enum GuideFlow {
                          now: TimeInterval) -> (GuideEvaluation, GuideProgress) {
         var result = GuideEvaluation()
         var progress = previous
-        let postureBodyMeters = bodyMeters(analysis)
         guard let person = live.person else {                     // findPerson
             let lost = progress.lostSince ?? now
             if now - lost >= lostReset { progress = GuideProgress() }
@@ -355,9 +348,7 @@ nonisolated enum GuideFlow {
                 // Half body (the preset's photos are cut at the bottom): a cut-off box's height is
                 // "head to frame edge", not the person's size, so the face's share of the frame sets
                 // the distance. A share, not an angle: the reference may be a 2-3× portrait, and
-                // matching its angle would send the photographer far back. Sitting does not change
-                // this: a face is the same size seated or standing. (The full-body rules do change
-                // with posture: see `PostureTargets` and `PresetAnalysis.forSelection`.)
+                // matching its angle would send the photographer far back. Sitting does not change it.
                 result.distanceSource = "face size (half body)"
                 result.sizeRatio = Double(face.height) / targetFace
             } else {
@@ -397,7 +388,7 @@ nonisolated enum GuideFlow {
             result.distanceMeters = faceHeightMeters / (2 * tan(head * .pi / 360))
         } else if !liveTop, !liveBottom, let vfov = live.verticalFOV {
             let body = PreferenceAnalyzer.angle(ofHeight: Double(person.height), verticalFOV: vfov)
-            if body > 0 { result.distanceMeters = postureBodyMeters / (2 * tan(body * .pi / 360)) }
+            if body > 0 { result.distanceMeters = bodyHeightMeters / (2 * tan(body * .pi / 360)) }
         }
 
         // B + crop: show where the photo will be cropped (same rule as mode F).
@@ -523,7 +514,7 @@ nonisolated enum GuideFlow {
             switch analysis?.framing {
             case "fullBody":
                 if liveTop || liveBottom { discrete(false, .moveFarther) }
-                else { discrete(bodyRatio >= PostureTargets.fullBodyMinRatio(posture: analysis?.posture), .moveCloser) }
+                else { discrete(bodyRatio >= 0.7, .moveCloser) }
             case "halfBody":
                 if liveTop { discrete(false, .moveFarther) }
                 else { discrete(liveBottom, .moveCloser) }

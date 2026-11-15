@@ -49,8 +49,6 @@ final class CameraViewModel {
     }
 
     var session: AVCaptureSession { cameraService.session }
-    /// Current live frame for Scene Ideas (nil when the camera isn't running).
-    func sceneFrame() async -> CGImage? { await cameraService.latestFrame() }
 
     // MARK: Zoom settling (boxes are only comparable within one zoom)
 
