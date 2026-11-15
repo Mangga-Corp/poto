@@ -5,17 +5,29 @@ final class PhotoPreferencePickerFlow {
     private let viewModel: ChoosePhotosViewModel
     private let onSave: ([PhotoItem], String) -> String?
     private let onCancel: () -> Void
+    private let onPickerFinished: (() -> Void)?
+    private let onSaveAsync: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?
+    private let onSaveSuccess: (() -> Void)?
+    private var isSavingPreference = false
+    /// Editor mode: called after the picker closes with at least one photo added (no naming step).
+    var onPhotosAddedToExisting: (() -> Void)?
 
     init(
         presenter: UIViewController,
         viewModel: ChoosePhotosViewModel,
         onSave: @escaping ([PhotoItem], String) -> String?,
-        onCancel: @escaping () -> Void = {}
+        onCancel: @escaping () -> Void = {},
+        onPickerFinished: (() -> Void)? = nil,
+        onSaveAsync: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)? = nil,
+        onSaveSuccess: (() -> Void)? = nil
     ) {
         self.presenter = presenter
         self.viewModel = viewModel
         self.onSave = onSave
         self.onCancel = onCancel
+        self.onPickerFinished = onPickerFinished
+        self.onSaveAsync = onSaveAsync
+        self.onSaveSuccess = onSaveSuccess
     }
 
     func start() {
@@ -39,21 +51,36 @@ final class PhotoPreferencePickerFlow {
 
     private func presentPicker() {
         let picker = SelectPhotoViewController(viewModel: viewModel.makePickerViewModel())
+        picker.requiresReanalyzeConfirmation = (viewModel.mode == .editor || !viewModel.items.isEmpty)
         picker.modalPresentationStyle = .fullScreen
         picker.onCancel = { [weak self, weak picker] in
             picker?.dismiss(animated: true) {
                 self?.onCancel()
             }
         }
-        picker.onDone = { [weak self, weak picker] newItems in
+        picker.onDone = { [weak self, weak picker] pickedItems in
             guard let self else { return }
-            self.viewModel.append(newItems)
+            let changed = self.viewModel.differs(from: pickedItems)
+            if changed { self.viewModel.replaceItems(pickedItems) }
             picker?.dismiss(animated: true) {
-                guard !newItems.isEmpty, self.viewModel.asksNameAfterPicking else { return }
-                self.continueAfterSelection()
+                guard changed else {
+                    self.onPickerFinished?()
+                    return
+                }
+                if self.viewModel.asksNameAfterPicking {
+                    self.continueAfterSelection()
+                } else if let onPhotosAddedToExisting = self.onPhotosAddedToExisting {
+                    onPhotosAddedToExisting()
+                } else {
+                    self.onPickerFinished?()
+                }
             }
         }
         presenter?.present(picker, animated: true)
+    }
+
+    func startNamingSelection() {
+        continueAfterSelection()
     }
 
     private func continueAfterSelection() {
@@ -69,22 +96,50 @@ final class PhotoPreferencePickerFlow {
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
             self?.onCancel()
         })
+        alert.view.tintColor = Theme.accent
         presenter?.present(alert, animated: true)
     }
 
     private func askPreferenceName() {
-        guard let presenter else { return }
+        guard let presenter, !isSavingPreference else { return }
         PreferenceNamePrompt.present(from: presenter, viewModel: viewModel, onCancel: onCancel) { [weak self] name in
             guard let self else { return }
+            if let onSaveAsync = self.onSaveAsync {
+                let flow = self
+                flow.isSavingPreference = true
+                let progress = UIAlertController(
+                    title: "Saving Preference",
+                    message: "Saving your selected photos…",
+                    preferredStyle: .alert
+                )
+                flow.presenter?.present(progress, animated: true)
+                onSaveAsync(flow.viewModel.items, name) { [weak preferenceFlow = flow] error in
+                    DispatchQueue.main.async {
+                        guard let preferenceFlow else { return }
+                        preferenceFlow.isSavingPreference = false
+                        progress.dismiss(animated: true) {
+                            if let error {
+                                preferenceFlow.showAlert(message: error) {
+                                    preferenceFlow.askPreferenceName()
+                                }
+                            } else {
+                                preferenceFlow.onSaveSuccess?()
+                            }
+                        }
+                    }
+                }
+                return
+            }
             if let error = self.onSave(self.viewModel.items, name) {
-                self.showAlert(message: error)
+                self.showAlert(message: error) { [weak self] in self?.askPreferenceName() }
             }
         }
     }
 
-    private func showAlert(message: String) {
+    private func showAlert(message: String, onDismiss: @escaping () -> Void = {}) {
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in onDismiss() })
+        alert.view.tintColor = Theme.accent
         presenter?.present(alert, animated: true)
     }
 
@@ -103,6 +158,7 @@ final class PhotoPreferencePickerFlow {
             }
             self?.onCancel()
         })
+        alert.view.tintColor = Theme.accent
         presenter?.present(alert, animated: true)
     }
 }
@@ -139,6 +195,7 @@ enum PreferenceNamePrompt {
         alert.addAction(confirm)
         alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in onCancel() })
         alert.preferredAction = confirm
+        alert.view.tintColor = Theme.accent
         presenter.present(alert, animated: true)
     }
 }

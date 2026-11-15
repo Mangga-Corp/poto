@@ -4,36 +4,43 @@
 //
 //  Created by Brian Juniarta Darmadi on 10/10/26.
 //
+//  13 Nov (Reynard): production camera only (Phased · Auto crop). The developer camera (appMode 2:
+//  debug panel, experiment picker, pose guide, replay, GT, blur toggle, ratio and grid toggles) lives
+//  in the debugphoto repo (Lab). The previous version is in `_to_delete/pra-bersih-debug/`.
+//
 
 import SwiftUI
 import UIKit
+import AVFoundation
 
 struct CameraView: View {
-    /// Which camera to build. Change this number:
-    /// 1 = testing: clean camera for testers. Guide B crop-framing mode, grid on, 4:3. No pose guide,
-    ///     no debug, no pickers.
-    /// 2 = developer: everything (debug panel, mode picker, pose guide picker, grid, ratio).
-    private static let appMode = 1
-    private static var isTesting: Bool { appMode == 1 }
+    /// The session to guide with, from the navigation that opened the camera. The camera never
+    /// chooses a preference itself; its shot size is only the picker's starting point (the
+    /// photographer switches shot size above the shutter). Nil = no preset.
+    let sessionConfiguration: PhotoSessionConfiguration?
+    /// Close (top left): ends the session; the app then returns to Preference Selection.
+    /// Nil hides the button (previews).
+    let onClose: (() -> Void)?
+    /// The close button fires once, even if tapped again during the transition.
+    @State private var isClosing = false
 
-    @State private var viewModel = CameraViewModel(
-        fixedSetup: CameraView.isTesting ? (mode: .heightFirstCrop, aspect: .fourThree) : nil)
+    init(sessionConfiguration: PhotoSessionConfiguration? = nil, onClose: (() -> Void)? = nil) {
+        self.sessionConfiguration = sessionConfiguration
+        self.onClose = onClose
+    }
+
+    @State private var viewModel = CameraViewModel()
     @Environment(\.openURL) private var openURL
     @Environment(\.scenePhase) private var scenePhase
 
     @State private var isShowingGallery = false
     @State private var isFlashing = false
-    @AppStorage("showGuideDebug") private var isShowingDebug = false
-    @AppStorage(PoseGuideStyle.storageKey) private var poseGuideStyle: PoseGuideStyle = .off
-    @AppStorage("showCameraGrid") private var showsGrid = false
-    private var isDeveloper: Bool { !Self.isTesting }
-    private var showsDebug: Bool { isDeveloper && isShowingDebug }
-    /// Developer: the picked style. Testing: none.
-    private var activePoseGuide: PoseGuideStyle { isDeveloper ? poseGuideStyle : .off }
-    @State private var isShowingAnalysis = false
     @State private var isShowingAcknowledgements = false
-    @State private var stepBanner: String?
     @Namespace private var galleryZoom
+    /// Onboarding kamera: hanya sekali, saat pertama kali install. Teksnya: Onboarding/CameraOnboardingCopy.swift
+    @AppStorage("cameraOnboardingCompleted") private var cameraOnboardingCompleted = false
+    @State private var onboardingFrames: [CameraOnboardingTarget: CGRect] = [:]
+    private var showsCameraOnboarding: Bool { !cameraOnboardingCompleted && viewModel.state == .running }
 
     var body: some View {
         ZStack {
@@ -45,6 +52,7 @@ struct CameraView: View {
 
             case .running:
                 liveCamera
+                    .overlay { cameraOnboarding }
 
             case .permissionDenied:
                 permissionDenied
@@ -62,6 +70,14 @@ struct CameraView: View {
                     .foregroundStyle(.white)
             }
 
+        }
+        // No live view (starting, no permission, unavailable): the top bar isn't shown, so the
+        // close button is, to leave the camera from any state.
+        .overlay(alignment: .topLeading) {
+            if viewModel.state != .running { closeButton }
+        }
+        .onChange(of: sessionConfiguration, initial: true) { _, configuration in
+            viewModel.apply(sessionConfiguration: configuration)
         }
         .task { await viewModel.startCamera() }
         .onChange(of: scenePhase) { _, phase in
@@ -82,67 +98,57 @@ struct CameraView: View {
         .sheet(isPresented: $isShowingAcknowledgements) {
             AcknowledgementsView()
                 .preferredColorScheme(.light)
-                .tint(GoPhotoDesign.purple)
-        }
-        .sheet(isPresented: $isShowingAnalysis) {
-            AnalysisResultsScreen(presetID: viewModel.presetID, presetName: viewModel.presetName ?? "Preset")
+                .tint(GoPhotoDesign.primary)
         }
         .fullScreenCover(isPresented: $isShowingGallery) {
-            NavigationStack {
-                GalleryView(viewModel: GalleryViewModel())
-                    .toolbar {
-                        ToolbarItem(placement: .topBarLeading) {
-                            Button {
-                                isShowingGallery = false
-                            } label: {
-                                Image(systemName: "chevron.backward")
-                            }
-                            .accessibilityLabel("Back")
-                        }
-                    }
-            }
-            .preferredColorScheme(.light)
-            .tint(GoPhotoDesign.purple)
-            .navigationTransition(.zoom(sourceID: "gallery", in: galleryZoom))
+            LatestPhotoView()
+                .navigationTransition(.zoom(sourceID: "gallery", in: galleryZoom))
         }
         .preferredColorScheme(.dark)
     }
 
-    // MARK: - Layout (like the Camera app: slim top bar, 4:3 image, big bottom area)
+    // MARK: - Layout
+    //
+    // Two presentations of one view tree (the preview layer and the camera session stay alive
+    // when the ratio changes; only frames move):
+    // • 3:4 — contained, like the Camera app's 4:3: slim top bar, the image, a big bottom area.
+    // • 9:16 — immersive, like the Camera app's 16:9: the image runs from the top of the safe area
+    //   down behind the controls; top bar and controls float above it on soft gradients.
+    // The shutter area is the same in both, so the shutter never moves when switching.
 
     private var liveCamera: some View {
-        VStack(spacing: 0) {
-            topBar
+        GeometryReader { geo in
+            let layout = CameraScreenLayout(size: geo.size, ratio: viewModel.aspectRatio,
+                                            topBarHeight: Self.topBarHeight,
+                                            controlsMinHeight: Self.controlsMinHeight)
+            ZStack(alignment: .topLeading) {
+                cameraPreview(coveredTop: layout.coveredTop, coveredBottom: layout.coveredBottom)
+                    .frame(width: layout.preview.width, height: layout.preview.height)
+                    .clipShape(RoundedRectangle(cornerRadius: layout.isImmersive ? 0 : 24, style: .continuous))
+                    .reportOnboardingFrame(.preview, into: $onboardingFrames)
+                    .position(x: layout.preview.midX, y: layout.preview.midY)
 
-            cameraPreview
+                immersiveScrims(layout)
+                    .opacity(layout.isImmersive ? 1 : 0)
 
-            shutterButton
-                .frame(maxWidth: .infinity, maxHeight: .infinity)   // centred in the bottom area
-                .overlay(alignment: .leading) {
-                    GalleryShortcutButton { isShowingGallery = true }
-                        .matchedTransitionSource(id: "gallery", in: galleryZoom)
-                        .padding(.leading, 24)
-                }
-        }
-        .task { await viewModel.observeTilt() }
-        .task { await viewModel.observePerson() }
-        .task { await viewModel.observeEnvironment() }
-        .task { await viewModel.observeZoom() }
-        // A step just finished: tap + short banner so the change of task is obvious
-        // (e.g. tilt is done, now move the phone up/down and keep the angle).
-        .onChange(of: viewModel.evaluation.activeStep) { old, new in
-            guard let old, old != new, viewModel.evaluation.checks[old] == .ok else { return }
-            let next = new.map { " → now \($0.title.lowercased())" } ?? ""
-            withAnimation(.snappy) { stepBanner = "\(old.title) ✓\(next)" }
-            Task {
-                try? await Task.sleep(for: .seconds(1.4))
-                withAnimation(.easeOut) { stepBanner = nil }
+                topBar
+                    .frame(width: geo.size.width, height: Self.topBarHeight)
+                    .position(x: geo.size.width / 2, y: Self.topBarHeight / 2)
+
+                controls
+                    .frame(width: layout.controls.width, height: layout.controls.height)
+                    .position(x: layout.controls.midX, y: layout.controls.midY)
             }
+            .animation(.smooth(duration: 0.42), value: viewModel.aspectRatio)
         }
-        .sensoryFeedback(.success, trigger: viewModel.evaluation.activeStep) { old, new in
-            guard let old else { return false }
-            return old != new && viewModel.evaluation.checks[old] == .ok
+        // Motion runs 30×/s and redraws the camera screen each time: stop it while the gallery
+        // covers the camera, otherwise the gallery underneath it is rebuilt 30×/s too (lag).
+        .task(id: isShowingGallery) {
+            guard !isShowingGallery else { return }
+            await viewModel.observeTilt()
         }
+        .task { await viewModel.observePerson() }
+        .task { await viewModel.observeZoom() }
         .sensoryFeedback(.impact(weight: .light), trigger: viewModel.isLevel) { _, isNowLevel in
             isNowLevel
         }
@@ -159,150 +165,144 @@ struct CameraView: View {
         .sensoryFeedback(.impact(flexibility: .rigid, intensity: 1.0), trigger: viewModel.captureCount)
     }
 
+    /// Shot sizes and shutter, centred in the bottom area (both presentations).
+    private var controls: some View {
+        VStack(spacing: 12) {
+            shotSizePicker
+            controlPanel
+        }
+    }
+
+    /// Dark rounded panel holding the gallery shortcut and the shutter; stays in 3:4 and 9:16.
+    private var controlPanel: some View {
+        shutterButton
+            .frame(maxWidth: .infinity)
+            .frame(height: 108)
+            .reportOnboardingFrame(.shutter, into: $onboardingFrames)
+            .background(Color(hex: 0x1A1A1A), in: RoundedRectangle(cornerRadius: 40, style: .continuous))
+            .overlay(RoundedRectangle(cornerRadius: 40, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
+            .overlay(alignment: .leading) {
+                GalleryShortcutButton { isShowingGallery = true }
+                    .matchedTransitionSource(id: "gallery", in: galleryZoom)
+                    .padding(.leading, 24)
+            }
+            .padding(.horizontal, 20)
+    }
+
+    /// 9:16: soft dark gradients where the top bar and the controls lie over the image, so they
+    /// stay readable. Visual only: the photo is the whole 9:16 image, as the grid shows.
+    private func immersiveScrims(_ layout: CameraScreenLayout) -> some View {
+        // Always laid out (faded in and out by the caller) so switching ratio cross-fades them.
+        let top = max(layout.coveredTop, Self.topBarHeight)
+        let bottom = max(layout.coveredBottom, 100)
+        return ZStack(alignment: .topLeading) {
+            LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
+                .frame(width: layout.preview.width, height: top + 16)
+                .position(x: layout.preview.midX, y: layout.preview.minY + (top + 16) / 2)
+            LinearGradient(colors: [.clear, .black.opacity(0.5)], startPoint: .top, endPoint: .bottom)
+                .frame(width: layout.preview.width, height: bottom + 24)
+                .position(x: layout.preview.midX, y: layout.preview.maxY - (bottom + 24) / 2)
+        }
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     /// The live preview with every guide layer on top. Each layer is its own property so the
     /// compiler can type-check them one by one instead of one huge overlay chain.
-    private var cameraPreview: some View {
-        CameraPreviewView(session: viewModel.session)
+    /// `coveredTop` / `coveredBottom`: how much of the image the floating top bar and controls
+    /// cover (9:16). Pills, bars and the motion guide stay in the uncovered part; the grid, the
+    /// person dimming / tap and the horizon cover the whole image (the photo).
+    private func cameraPreview(coveredTop: CGFloat, coveredBottom: CGFloat) -> some View {
+        CameraPreviewView(session: viewModel.session,
+                          videoGravity: .resizeAspectFill)   // 3:4 box has the frame's own shape, so fill = exact; one gravity keeps the ratio change continuous
             .overlay { guideVisuals }
-            .overlay { gridOverlay }
+            .overlay { CameraGridOverlay(aspect: viewModel.aspectRatio.gridAspect, showsGrid: true) }
             .overlay { HorizonLevelView(state: viewModel.horizon) }
-            .overlay { directionArrow }
-            .overlay(alignment: .bottom) { bottomStepCard }
-            .overlay { heightRings }
-            .overlay(alignment: .top) { stepBannerView }
-            .overlay(alignment: .trailing) { sideBar }
-            .overlay(alignment: .top) { instructionPill }
-            .overlay(alignment: .top) { fovStatus }
-            .overlay(alignment: .top) { checklist }
-            .overlay(alignment: .bottomTrailing) { poseGuide }
-            .overlay(alignment: .bottomLeading) { debugPanel }
+            .overlay {
+                GuidanceMotionOverlay(
+                    instruction: viewModel.phasedMotion,
+                    pitchError: viewModel.phasedPitchError,
+                    isEnabled: !isShowingGallery && !showsCameraOnboarding
+                )
+                .padding(.top, coveredTop)
+                .padding(.bottom, coveredBottom)
+            }
+            .overlay(alignment: .bottom) { bottomStepCard.padding(.bottom, coveredBottom) }
+            .overlay(alignment: .trailing) { sideBar.padding(.top, coveredTop).padding(.bottom, coveredBottom) }
+            .overlay(alignment: .top) { instructionPill.padding(.top, coveredTop) }
             .overlay { flashOverlay }
-            .aspectRatio(3.0 / 4.0, contentMode: .fit)
-            .layoutPriority(1)
+    }
+
+    /// The top bar's height: close + preference name on top, the ratio picker below.
+    private static let topBarHeight: CGFloat = 76
+    /// Shot-size picker (34) + its note + spacing + control panel (108), with a little room.
+    private static let controlsMinHeight: CGFloat = 170
+
+    // MARK: Onboarding (first install only)
+
+    @ViewBuilder private var cameraOnboarding: some View {
+        if showsCameraOnboarding {
+            CameraOnboardingView(frames: onboardingFrames) {
+                withAnimation(.easeOut(duration: 0.25)) { cameraOnboardingCompleted = true }
+            }
+            .transition(.opacity)
+        }
     }
 
     // MARK: Preview layers
 
-    /// Step modes (B, C): rings only for left/right and the final "ready" state.
-    @ViewBuilder private var guideVisuals: some View {
-        if viewModel.guideMode.crops {
-            if showsDebug {
-                // Debug: the crop window itself (outside dimmed, green when ready).
-                CropPreviewOverlay(window: viewModel.evaluation.cropWindow,
-                                   isReady: viewModel.isReady)
-            }
-            // Otherwise no frame at all: the crop is not shown to the photographer.
-        } else if viewModel.guideMode == .currentOldLook {
-            GuideFramesOverlay(target: viewModel.target.rect,
-                               personOutline: viewModel.personOutline,
-                               isAligned: viewModel.isReady)
-        } else if showsRing {
-            GuideRingOverlay(target: viewModel.target.rect,
-                             person: viewModel.personBox,
-                             isAligned: viewModel.isReady)      // green = ready
+    /// Person choice (dim + tap). The Auto crop is not drawn: the green pill says ready.
+    private var guideVisuals: some View {
+        PhasedPreviewLayer(dimMask: viewModel.selectionDimMask,
+                           isChoosing: viewModel.phasedInstruction == .tapPerson,
+                           cropWindow: nil,
+                           isReady: viewModel.phased.ready,
+                           aspectRatio: viewModel.aspectRatio) { point in
+            viewModel.tapPreview(at: point)
         }
     }
 
-    /// Ratio mask + thirds grid, under the guide visuals.
-    private var gridOverlay: some View {
-        CameraGridOverlay(aspect: viewModel.captureAspect, showsGrid: isDeveloper ? showsGrid : true)
-    }
-
-    @ViewBuilder private var directionArrow: some View {
-        if !showsStepBar {
-            DirectionArrowOverlay(instruction: viewModel.instruction)
-        }
-    }
-
+    /// The distance bar while the distance phase runs (green zone = enter band).
     @ViewBuilder private var bottomStepCard: some View {
-        if activeStep == .heightRule, let rule = viewModel.evaluation.heightRule {
-            HeightRuleCard(rule: rule, seatedTips: viewModel.isSeated && viewModel.analysis?.framing == "fullBody") {
-                viewModel.confirmPhoneHeight()
-            }
-                .padding(.bottom, 12)
-        } else if activeStep == .distance {
-            DistanceBar(sizeRatio: viewModel.barSizeRatio, tolerance: GuideFlow.sizeEnter,
-                        isOK: viewModel.evaluation.checks[.distance] == .ok)
+        if viewModel.phased.phase == .distance, let lo = viewModel.phased.sizeEnterLow,
+           let hi = viewModel.phased.sizeEnterHigh {
+            let centre = (lo + hi) / 2
+            DistanceBar(sizeRatio: viewModel.phased.sizeRatio.map { $0 / centre },
+                        tolerance: (hi - lo) / 2 / centre,
+                        isOK: viewModel.phased.sizeRatio.map { $0 >= lo && $0 <= hi } ?? false)
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
         }
     }
 
-    /// Mode C: camera height as two rings on the subject's eyes, not a bar.
-    @ViewBuilder private var heightRings: some View {
-        if activeStep == .height, viewModel.evaluation.heightUsesRings,
-           let rings = viewModel.heightRings {
-            HeightRingOverlay(eye: rings.eye, targetY: rings.targetY,
-                              // "Don't tilt" only once the tilt is set (C); in B it comes after.
-                              tiltError: viewModel.guideMode.tiltBeforeHeight ? viewModel.pitchError : nil,
-                              isOK: viewModel.evaluation.checks[.height] == .ok)
-        }
-    }
-
-    @ViewBuilder private var stepBannerView: some View {
-        if let banner = stepBanner {
-            Text(banner)
-                .font(.subheadline.weight(.semibold))
-                .foregroundStyle(.black)
-                .padding(.horizontal, 14).padding(.vertical, 8)
-                .background(Color.green, in: Capsule())
-                .padding(.top, 96)
-                .transition(.move(edge: .top).combined(with: .opacity))
-        }
-    }
-
+    /// The tilt bar while the tilt phase runs (green zone = tolerance).
     @ViewBuilder private var sideBar: some View {
-        if activeStep == .height, !viewModel.evaluation.heightUsesRings {
-            // Phone icon above the zone = camera too high.
-            GuideVerticalBar(value: viewModel.barHeightError.map { $0 / Self.barRange },
-                             zone: GuideFlow.heightEnter / Self.barRange,
-                             symbol: "iphone", caption: "Height",
-                             isOK: viewModel.evaluation.checks[.height] == .ok)
-                .padding(.trailing, 12)
-        } else if activeStep == .tilt {
-            // Aim point below the zone = phone tilted down too much.
-            GuideVerticalBar(value: viewModel.barTiltError.map { -$0 / Self.barRange },
-                             zone: GuideFlow.tiltEnter / Self.barRange,
-                             symbol: "scope", caption: "Tilt",
-                             isOK: viewModel.evaluation.checks[.tilt] == .ok)
+        if viewModel.phased.phase == .tilt {
+            GuideVerticalBar(value: viewModel.phased.tiltNeed.map { max(-1, min(1, -$0 * Self.phasedTiltZone)) },
+                             zone: Self.phasedTiltZone, symbol: "scope", caption: "Tilt",
+                             isOK: viewModel.phased.tiltNeed.map { abs($0) <= 1 } ?? false)
                 .padding(.trailing, 12)
         }
     }
 
     private var instructionPill: some View {
-        InstructionPill(instruction: viewModel.instruction)
-            .padding(.top, 12)
-    }
-
-    @ViewBuilder private var fovStatus: some View {
-        if let status = viewModel.adaptiveFOVStatusText {
-            AdaptiveFOVStatus(text: status)
-                .padding(.top, 48)
-                .transition(.opacity.combined(with: .scale(scale: 0.95)))
+        VStack(spacing: 6) {
+            PhasedInstructionPill(instruction: viewModel.phasedInstruction, isPlain: true)
+                .frame(maxWidth: .infinity, minHeight: 44)
+                .background(.black.opacity(0.35))
+                .animation(.snappy, value: viewModel.phasedInstruction)
+            if let flash = viewModel.phasedFlash {
+                // A phase just finished.
+                Label(flash, systemImage: "checkmark.circle.fill")
+                    .font(AppFont.subheadline.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color.green.opacity(0.9), in: Capsule())
+                    .transition(.scale.combined(with: .opacity))
+            }
         }
-    }
-
-    @ViewBuilder private var checklist: some View {
-        if showsDebug, !viewModel.guideMode.steps.isEmpty, viewModel.instruction != .findPerson {
-            GuideChecklistView(steps: viewModel.guideMode.steps, checks: viewModel.evaluation.checks)
-                .padding(.top, 56)   // below the instruction pill
-        }
-    }
-
-    /// Optional side-view pose guide (A / B), picked next to the ladybug.
-    @ViewBuilder private var poseGuide: some View {
-        if activePoseGuide != .off {
-            PoseGuidePanel(style: activePoseGuide, state: viewModel.poseGuide)
-                .padding(8)
-                .padding(.bottom, activeStep == .distance ? 48 : 0)   // clear of the distance bar
-        }
-    }
-
-    @ViewBuilder private var debugPanel: some View {
-        if showsDebug {
-            GuideDebugPanel(viewModel: viewModel) { isShowingAnalysis = true }
-                .padding(8)
-        }
+        .animation(.snappy, value: viewModel.phasedFlash)
+        .sensoryFeedback(.success, trigger: viewModel.phasedFlash) { _, new in new != nil }
     }
 
     private var flashOverlay: some View {
@@ -311,86 +311,96 @@ struct CameraView: View {
             .allowsHitTesting(false)
     }
 
-    // MARK: Step visuals (modes B and C)
-
-    /// Degrees at the ends of the height and tilt bars.
-    private static let barRange = 15.0
-
-    private var activeStep: GuideStep? {
-        viewModel.guideMode.steps.isEmpty ? nil : viewModel.evaluation.activeStep
-    }
-
-    private var showsStepBar: Bool {
-        activeStep == .distance || activeStep == .height || activeStep == .tilt || activeStep == .heightRule
-    }
-
-    private var showsRing: Bool {
-        viewModel.guideMode.steps.isEmpty || activeStep == .horizontal || activeStep == .vertical
-            || viewModel.isReady
-    }
+    /// Tilt bar: the green zone's half height (the tolerance edge is ±1 in `tiltNeed`).
+    private static let phasedTiltZone = 0.25
 
     // MARK: Top bar, shutter, permission
 
-    /// Reserved for future controls (flash, settings). Keeps the image where the Camera app puts it.
+    /// Row 1: close, with the preference name centred on the same line. Row 2: photo ratio.
     private var topBar: some View {
-        HStack {
-            if isDeveloper {
-                Button {
-                    isShowingDebug.toggle()
-                } label: {
-                    Image(systemName: isShowingDebug ? "ladybug.fill" : "ladybug")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(isShowingDebug ? .yellow : .white)
-                        .frame(width: 44, height: 44)
+        VStack(spacing: 0) {
+            ZStack {
+                HStack {
+                    closeButton
+                    Spacer()
                 }
-                .padding(.leading, 8)
-                .accessibilityLabel(isShowingDebug ? "Hide guide debug values" : "Show guide debug values")
-                Menu {
-                    Picker("Pose guide", selection: $poseGuideStyle) {
-                        ForEach(PoseGuideStyle.allCases, id: \.self) { Text($0.title).tag($0) }
-                    }
-                } label: {
-                    Image(systemName: poseGuideStyle == .off ? "figure.stand" : "figure.stand.line.dotted.figure.stand")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(poseGuideStyle == .off ? .white : .yellow)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel("Pose guide: \(poseGuideStyle.title)")
-                Button {
-                    showsGrid.toggle()
-                } label: {
-                    Image(systemName: showsGrid ? "grid.circle.fill" : "grid")
-                        .font(.body.weight(.semibold))
-                        .foregroundStyle(showsGrid ? .yellow : .white)
-                        .frame(width: 44, height: 44)
-                }
-                .accessibilityLabel(showsGrid ? "Hide grid" : "Show grid")
-                Button {
-                    viewModel.captureAspect = viewModel.captureAspect.next
-                } label: {
-                    Text(viewModel.captureAspect.title)
-                        .font(.footnote.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(viewModel.captureAspect == .fourThree ? .white : .yellow)
-                        .padding(.horizontal, 8).frame(height: 28)
-                        .overlay(Capsule().stroke(Color.white.opacity(0.6), lineWidth: 1))
-                        .frame(minWidth: 44, minHeight: 44)
-                }
-                .accessibilityLabel("Photo ratio \(viewModel.captureAspect.title)")
+                preferenceNamePill
             }
-            Spacer()
-            if let zoom = viewModel.currentZoomLabel {
-                Text(zoom)
-                    .font(.caption.weight(.semibold).monospacedDigit())
+            .frame(height: 44)
+            AspectRatioPicker(selection: viewModel.aspectRatio) { viewModel.selectAspectRatio($0) }
+                .sensoryFeedback(.selection, trigger: viewModel.aspectRatio)
+                .frame(height: 32)
+        }
+    }
+
+    /// The preference in use, centred in the top bar next to the close button (slim, so the ratio picker below stays clear). A frosted capsule with a soft
+    /// purple tint, a small sparkle mark and a fine hairline; a label, not a button, so no solid fill.
+    @ViewBuilder private var preferenceNamePill: some View {
+        if let name = viewModel.presetName {
+            let shape = Capsule(style: .continuous)
+            HStack(spacing: 6) {
+                Image(systemName: "sparkle")
+                    .font(AppFont.system(size: 10, weight: .semibold))
+                    .foregroundStyle(
+                        LinearGradient(colors: [.white, GoPhotoDesign.primaryBorder],
+                                       startPoint: .top, endPoint: .bottom))
+                Text(name)
+                    .font(AppFont.system(size: 14, weight: .semibold))
+                    .tracking(0.3)
                     .foregroundStyle(.white)
-                    .padding(.horizontal, 9)
-                    .padding(.vertical, 5)
-                    .background(Color.black.opacity(0.35), in: Capsule())
-                    .accessibilityLabel("Current camera zoom \(zoom)")
-                    .padding(.trailing, 4)
+                    .lineLimit(1)
+                    .truncationMode(.tail)
             }
-            AIPreferencesButton()
-                .padding(.horizontal, 16)
-                .frame(height: 44)
+            .padding(.horizontal, 14)
+            .frame(height: 28)
+            .background {
+                shape.fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
+                shape.fill(GoPhotoDesign.primary.opacity(0.32))
+            }
+            .overlay(
+                shape.strokeBorder(
+                    LinearGradient(colors: [.white.opacity(0.45), GoPhotoDesign.primaryBorder.opacity(0.12)],
+                                   startPoint: .top, endPoint: .bottom),
+                    lineWidth: 0.7))
+            .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
+            .frame(maxWidth: 220)
+            .allowsHitTesting(false)
+            .accessibilityElement(children: .ignore)
+            .accessibilityLabel("Preference \(name)")
+        }
+    }
+
+    @ViewBuilder private var closeButton: some View {
+        if let onClose {
+            Button {
+                guard !isClosing else { return }
+                isClosing = true
+                onClose()
+            } label: {
+                Image(systemName: "xmark")
+                    .font(AppFont.body.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .frame(width: 44, height: 44)
+                    .contentShape(Rectangle())
+            }
+            .disabled(isClosing)
+            .padding(.leading, 8)
+            .accessibilityLabel("Close camera")
+            .accessibilityIdentifier("camera.close")
+        }
+    }
+
+    /// Shot sizes like TikTok's camera modes: full body only while the person sits, the
+    /// preference's shot sizes while they stand. Hidden without a preset.
+    @ViewBuilder private var shotSizePicker: some View {
+        let options = viewModel.shotOptions
+        if let note = viewModel.phasedShotNote {
+            Text(note).font(AppFont.caption2).foregroundStyle(.white.opacity(0.7))
+        }
+        if !options.isEmpty {
+            ShotSizePicker(options: options, selection: viewModel.activeShot,
+                           posture: viewModel.posture) { viewModel.selectShot($0) }
+                .sensoryFeedback(.selection, trigger: viewModel.activeShot)
         }
     }
 
@@ -419,7 +429,7 @@ struct CameraView: View {
                     openURL(url)
                 }
             }
-            .buttonStyle(.borderedProminent)
+            .buttonStyle(.goPhotoPrimary)
         }
         .foregroundStyle(.white)
     }
@@ -427,4 +437,49 @@ struct CameraView: View {
 
 #Preview {
     CameraView()
+}
+
+/// Where the preview, the top bar and the controls go in the camera's safe area.
+private struct CameraScreenLayout {
+    /// The image (the photo's framing), safe-area coordinates.
+    let preview: CGRect
+    /// The bottom area: shot sizes and shutter, centred in it. 9:16: the same area, lifted so
+    /// its bottom meets the image's bottom edge (the shutter sits on the image, as in the Camera
+    /// app); never off screen, since the image never extends past the safe area.
+    let controls: CGRect
+    /// 9:16: the image runs behind the top bar and the controls.
+    let isImmersive: Bool
+    /// Height of the image under the top bar / under the controls (0 when contained).
+    let coveredTop: CGFloat
+    let coveredBottom: CGFloat
+
+    init(size: CGSize, ratio: CameraAspectRatio, topBarHeight: CGFloat, controlsMinHeight: CGFloat) {
+        let full = CGFloat(CameraAspectRatio.threeFour.ratio)
+        // The contained 3:4 image: full width, below the top bar, leaving the controls their
+        // minimum (smaller iPhones: narrower, centred). The controls take the rest.
+        let containedHeight = max(0, min((size.width - 40) / full, size.height - topBarHeight - controlsMinHeight))
+        let controlsTop = topBarHeight + containedHeight
+        let containedControls = CGRect(x: 0, y: controlsTop, width: size.width,
+                                       height: max(0, size.height - controlsTop))
+
+        if ratio.showsWholeFrame {
+            let width = containedHeight * full
+            preview = CGRect(x: (size.width - width) / 2, y: topBarHeight, width: width, height: containedHeight)
+            controls = containedControls
+            isImmersive = false
+            coveredTop = 0
+            coveredBottom = 0
+        } else {
+            // Immersive: as large as the whole safe area allows, from its top, centred.
+            let r = CGFloat(ratio.ratio)
+            var width = size.width
+            var height = width / r
+            if height > size.height { height = size.height; width = height * r }
+            preview = CGRect(x: (size.width - width) / 2, y: 0, width: width, height: height)
+            controls = containedControls.offsetBy(dx: 0, dy: min(0, preview.maxY - containedControls.maxY))
+            isImmersive = true
+            coveredTop = max(0, min(topBarHeight, preview.maxY) - preview.minY)
+            coveredBottom = max(0, preview.maxY - controls.minY)
+        }
+    }
 }

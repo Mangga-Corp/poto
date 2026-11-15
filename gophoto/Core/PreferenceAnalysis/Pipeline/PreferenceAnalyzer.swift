@@ -34,14 +34,18 @@ enum PreferenceAnalyzer {
             variants[key]?.cutLevelOf = analysis.cutLevelOf
         }
         analysis.framingVariants = variants.isEmpty ? nil : variants
-        // One analysis per shot size (version 13): the popover offers the sizes with photos.
+        // One analysis per shot size (version 13): the camera offers the sizes with photos.
+        // Seated full-body photos (version 15) get their own analysis instead: the shot sizes are
+        // what a STANDING person is offered.
         var shots: [String: PresetAnalysis] = [:]
         let sizes = results.map { shotSize(of: $0) }
+        let postures = zip(results, sizes).map { $0.1 == .full ? posture(of: $0.0) : nil }
         for shot in PresetAnalysis.ShotSize.allCases {
-            let subset = zip(results, sizes).filter { $0.1 == shot }.map { $0.0 }
+            let subset = zip(zip(results, sizes), postures)
+                .filter { $0.0.1 == shot && $0.1 != .sitting }.map { $0.0.0 }
             guard !subset.isEmpty else { continue }
             var variant = build(profile: profile, results: subset, photoCount: subset.count,
-                                date: date, only: shot.framing)
+                                date: date, only: shot.framing, shot: shot)
             variant.shotSize = shot.rawValue
             variant.cutLevel = analysis.cutLevel
             variant.cutLevelCount = analysis.cutLevelCount
@@ -49,6 +53,21 @@ enum PreferenceAnalyzer {
             shots[shot.rawValue] = variant
         }
         analysis.shotVariants = shots.isEmpty ? nil : shots
+        let seated = zip(results, postures).filter { $0.1 == .sitting }.map { $0.0 }
+        if !seated.isEmpty {
+            var variant = build(profile: profile, results: seated, photoCount: seated.count,
+                                date: date, only: .fullBody)
+            variant.shotSize = PresetAnalysis.ShotSize.full.rawValue
+            variant.cutLevel = analysis.cutLevel
+            variant.cutLevelCount = analysis.cutLevelCount
+            variant.cutLevelOf = analysis.cutLevelOf
+            analysis.postureVariants = [BodyPosture.sitting.rawValue: variant]
+        }
+        let readPostures = zip(results, postures).compactMap { result, posture in
+            posture.map { (result.id.uuidString, $0.rawValue) }
+        }
+        analysis.photoPostures = readPostures.isEmpty ? nil
+            : Dictionary(readPostures, uniquingKeysWith: { first, _ in first })
         analysis.photoFramings = Dictionary(results.map { ($0.id.uuidString, $0.subjectFraming.category.rawValue) },
                                             uniquingKeysWith: { first, _ in first })
         analysis.photoShotSizes = Dictionary(results.compactMap { result in
@@ -138,8 +157,11 @@ enum PreferenceAnalyzer {
     }
 
     /// The analysis of `results`. `only`: these are the photos of one framing (a framing variant).
+    /// `shot`: these are the standing photos of one shot size (a shot variant): the camera height
+    /// is then voted against that size's body anchor (`AnchorSide`, version 16).
     nonisolated static func build(profile: PreferenceProfile, results: [PhotoResult], photoCount: Int,
-                                  date: Date, only: FramingCategory?) -> PresetAnalysis {
+                                  date: Date, only: FramingCategory?,
+                                  shot: PresetAnalysis.ShotSize? = nil) -> PresetAnalysis {
         // Subject: median full-body box over photos with one valid main person.
         let boxes = results.compactMap { result -> CGRect? in
             let positioning = result.subjectPositioning
@@ -156,7 +178,7 @@ enum PreferenceAnalyzer {
         var counts: [String: Int] = [:]
         for (category, count) in finding.counts { counts[category.rawValue] = count }
         let framing = only ?? majority(profile.subjectFraming, excluding: [.other, .unknown])
-        let side = eyeSide(results, framing: framing)
+        let side = eyeSide(results, framing: framing, shot: shot)
         let angle: PresetAnalysis.AngleTarget = side.map {
             PresetAnalysis.AngleTarget.match(category: $0.side.rawValue, pitchDown: $0.pitchDown)
         } ?? .fixedRule
@@ -179,6 +201,16 @@ enum PreferenceAnalyzer {
                               eyeSideSource: side?.source.rawValue,
                               eyeAboveShare: side?.aboveShare,
                               eyeSidePhotoCount: side?.photoCount)
+        analysis.eyeOffsetFaces = side?.eyeOffsetFaces
+        analysis.vantageRange = side?.vantageRange
+        if let pick = side?.anchor {
+            analysis.anchorReference = pick.anchor.rawValue
+            analysis.anchorAbove = pick.above
+            analysis.anchorBelow = pick.below
+            analysis.anchorStyleCount = pick.styleCount
+            analysis.anchorTargetPhotoCount = pick.indices.count
+            analysis.eyeElevationWeighted = side?.weightedElevation
+        }
         // Face height as a share of the frame height (not an angle): matches how big the person
         // looks, whatever lens the reference was shot with.
         let faces = results.compactMap { $0.cameraAngle.horizonCue?.headHeight }.filter { $0 > 0 }
@@ -264,6 +296,17 @@ enum PreferenceAnalyzer {
         }
     }
 
+    // MARK: Posture (sitting / standing)
+
+    /// Sitting or standing, from the main person's skeleton (`PostureClassifier`, the same rule
+    /// as the live camera). Nil when the hips and knees are not visible.
+    nonisolated static func posture(of result: PhotoResult) -> BodyPosture? {
+        guard let box = result.subjectPositioning.subjectBox,
+              let poses = result.evidence?.pose.value,
+              let pose = SubjectAssociation.pose(for: box, among: poses) else { return nil }
+        return PostureClassifier.posture(of: pose)
+    }
+
     // MARK: Half-body cut level
 
     /// The body part where most half-body photos are cut, from the deepest reliable joint.
@@ -303,6 +346,11 @@ enum PreferenceAnalyzer {
         /// Chance the photo was taken from above the eyes: Φ(elevation / sigma). A photo near the
         /// eye line counts about half for each side instead of flipping on noise.
         let aboveChance: Double
+        /// Camera height vs the eyes in face heights ((eye y − horizon y) / face height, + = camera
+        /// above), when the face was found (version 17). Unlike the angle, distance does not change it.
+        var faces: Double? = nil
+        /// σ of `faces` (face heights), when computed (12 Nov, display only).
+        var facesSigma: Double? = nil
     }
 
     nonisolated struct EyeSideResult: Sendable {
@@ -313,6 +361,14 @@ enum PreferenceAnalyzer {
         /// Camera-vs-eyes target and phone pitch target, degrees.
         let elevation: Double
         let pitchDown: Double
+        /// Set when the side came from the shot size's anchor vote (version 16).
+        var anchor: AnchorSide.Pick? = nil
+        /// 1/σ²-weighted mean of the camera-vs-eyes angle over the same photos (debug cross-check).
+        var weightedElevation: Double? = nil
+        /// Camera height target in face heights (version 17), nil when no photo had a face.
+        var eyeOffsetFaces: Double? = nil
+        /// Same photos as `eyeOffsetFaces`, as a range + confidence (display only).
+        var vantageRange: PresetAnalysis.VantageRange? = nil
     }
 
     /// The framing rule: full body is shot from eye level down, half body from eye level up.
@@ -324,6 +380,75 @@ enum PreferenceAnalyzer {
         }
     }
 
+    /// Face-height offsets beyond this are not used (a misread face or horizon).
+    nonisolated static let maxTargetFaces = 8.0
+
+    /// Median of the face-height offsets that were read, kept on `side` of the eye line.
+    nonisolated static func facesTarget(_ used: [EyeVote], side: PresetAnalysis.EyeSide?) -> Double? {
+        let values = used.compactMap(\.faces)
+        guard !values.isEmpty else { return nil }
+        let m = median(values)
+        switch side {
+        case .above?: return max(m, 0)
+        case .below?: return min(m, 0)
+        case nil: return m
+        }
+    }
+
+    // Vantage range (12 Nov, step 1: display only). Thresholds are provisional, not used by the guide.
+    /// Photos less certain than this (face heights) do not shape the range.
+    nonisolated static let vantageSigmaMax = 1.5
+    /// Median σ at or below this → high confidence possible.
+    nonisolated static let vantageSigmaGood = 1.0
+    nonisolated static let vantageMinPhotos = 3
+    /// Neighbour gap, in combined σ, that splits the photos into two groups (needs ≥ 4 photos).
+    nonisolated static let vantageGapZ = 2.0
+
+    /// The face-height offsets as a range: agree (spread within σ), varied (spread real, no gap),
+    /// two groups (one clear gap), uncertain. No clamp: a large σ lowers confidence instead.
+    nonisolated static func vantageRange(_ used: [EyeVote]) -> PresetAnalysis.VantageRange? {
+        let all = used.compactMap { v -> (Double, Double)? in
+            guard let f = v.faces, let s = v.facesSigma, s.isFinite, s > 0 else { return nil }
+            return (f, s)
+        }
+        guard !all.isEmpty else { return nil }
+        let items = all.filter { $0.1 <= vantageSigmaMax }.sorted { $0.0 < $1.0 }
+        var r = PresetAnalysis.VantageRange(used: items.count, excluded: all.count - items.count)
+        guard !items.isEmpty else { return r }
+        let vals = items.map(\.0), sig = items.map(\.1)
+        let w = sig.map { 1 / ($0 * $0) }
+        r.center = zip(vals, w).map { $0 * $1 }.reduce(0, +) / w.reduce(0, +)
+        r.medianSigma = median(sig)
+        let mean = vals.reduce(0, +) / Double(vals.count)
+        r.spread = vals.count > 1
+            ? (vals.map { ($0 - mean) * ($0 - mean) }.reduce(0, +) / Double(vals.count - 1)).squareRoot() : 0
+        var gapIndex: Int? = nil, gapZ = 0.0
+        for i in 0..<(vals.count - 1) {
+            let z = (vals[i + 1] - vals[i]) / (sig[i] * sig[i] + sig[i + 1] * sig[i + 1]).squareRoot()
+            if z > gapZ { gapZ = z; gapIndex = i }
+        }
+        r.gapZ = gapZ
+        if let g = gapIndex, gapZ >= vantageGapZ, vals.count >= 4 {
+            r.kind = "twoGroups"
+            r.groups = [[vals[0], vals[g]], [vals[g + 1], vals[vals.count - 1]]]
+        } else if r.spread <= r.medianSigma {
+            r.kind = "agree"
+            r.low = r.center - r.medianSigma
+            r.high = r.center + r.medianSigma
+        } else if gapZ < 1, vals.count >= 2 {
+            r.kind = "varied"
+            r.low = vals.first
+            r.high = vals.last
+        } else {
+            r.kind = "uncertain"
+            r.low = vals.first
+            r.high = vals.last
+        }
+        r.confidence = items.count >= vantageMinPhotos && r.medianSigma <= vantageSigmaGood && r.kind != "uncertain"
+            ? "high" : "low"
+        return r
+    }
+
     /// One vote per photo with a camera-vs-eyes angle, only photos with the preset's framing.
     nonisolated static func eyeVotes(_ results: [PhotoResult], framing: FramingCategory?) -> [EyeVote] {
         results.compactMap { result in
@@ -333,13 +458,40 @@ enum PreferenceAnalyzer {
                   let sigma = detail.cameraElevationUncertainty, sigma.isFinite, sigma > 0 else { return nil }
             let pitch = result.cameraAngle.pitchDownDegrees.flatMap { abs($0) <= maxTargetPitch ? $0 : nil }
             let chance = 0.5 * (1 + erf(e / (sigma * 2.0.squareRoot())))
-            return EyeVote(elevation: e, sigma: sigma, pitchDown: pitch, aboveChance: chance)
+            let faces = result.cameraAngle.horizonCue?.offsetInHeadHeights
+                .flatMap { $0.isFinite && abs($0) <= maxTargetFaces ? $0 : nil }
+            let facesSigma = faces == nil ? nil : result.cameraAngle.horizonCue?.offsetUncertaintyHeads
+            return EyeVote(elevation: e, sigma: sigma, pitchDown: pitch, aboveChance: chance, faces: faces,
+                           facesSigma: facesSigma)
         }
     }
 
     /// The user's taste first: the photos' side when they agree. The framing rule only decides
     /// when they split or too few were read. Nil without photos and without a framing.
-    nonisolated static func eyeSide(_ results: [PhotoResult], framing: FramingCategory?) -> EyeSideResult? {
+    nonisolated static func eyeSide(_ results: [PhotoResult], framing: FramingCategory?,
+                                    shot: PresetAnalysis.ShotSize? = nil) -> EyeSideResult? {
+        // Version 16: a shot variant votes against its body anchor (knee / chest / eyes). The
+        // winning side's biggest shooting style gives the camera-vs-eyes target and the tilt, so
+        // `GuideFlow` keeps guiding by the eyes. A tie, or no eye angle among the chosen photos,
+        // falls back to the eye-line vote below.
+        if let anchor = AnchorSide.anchor(for: shot), let pick = AnchorSide.pick(results, anchor: anchor) {
+            // The photos are already one shot size: no framing filter (a three-quarter photo's
+            // framing category may read either way).
+            let votes = eyeVotes(pick.indices.map { results[$0] }, framing: nil)
+            if !votes.isEmpty {
+                let elevation = median(votes.map(\.elevation))
+                let pitches = votes.compactMap(\.pitchDown)
+                let weights = votes.map { 1 / (max($0.sigma, 0.5) * max($0.sigma, 0.5)) }
+                let weighted = zip(votes, weights).map { $0.elevation * $1 }.reduce(0, +) / weights.reduce(0, +)
+                return EyeSideResult(side: elevation >= 0 ? .above : .below, source: .taste,
+                                     aboveShare: votes.map(\.aboveChance).reduce(0, +) / Double(votes.count),
+                                     photoCount: votes.count, elevation: elevation,
+                                     pitchDown: pitches.isEmpty ? 0 : median(pitches),
+                                     anchor: pick, weightedElevation: weighted,
+                                     eyeOffsetFaces: facesTarget(votes, side: nil),
+                                     vantageRange: vantageRange(votes))
+            }
+        }
         let votes = eyeVotes(results, framing: framing)
         let rule = ruleSide(for: framing)
         let share = votes.isEmpty ? nil : votes.map(\.aboveChance).reduce(0, +) / Double(votes.count)
@@ -358,13 +510,17 @@ enum PreferenceAnalyzer {
             let agreeing = votes.filter { side == .above ? $0.aboveChance >= 0.5 : $0.aboveChance < 0.5 }
             let (elevation, pitch) = targets(agreeing, side: side)
             return EyeSideResult(side: side, source: .taste, aboveShare: share, photoCount: votes.count,
-                                 elevation: elevation, pitchDown: pitch)
+                                 elevation: elevation, pitchDown: pitch,
+                                 eyeOffsetFaces: facesTarget(agreeing, side: side),
+                                 vantageRange: vantageRange(agreeing))
         }
         if !votes.isEmpty, let share, votes.count >= sideMinPhotos || rule == nil {
             let side = rule ?? (share >= 0.5 ? .above : .below)
             let (elevation, pitch) = targets(votes, side: side)
             return EyeSideResult(side: side, source: .mixed, aboveShare: share, photoCount: votes.count,
-                                 elevation: elevation, pitchDown: pitch)
+                                 elevation: elevation, pitchDown: pitch,
+                                 eyeOffsetFaces: facesTarget(votes, side: side),
+                                 vantageRange: vantageRange(votes))
         }
         guard let rule else { return nil }
         return EyeSideResult(side: rule, source: .default, aboveShare: share, photoCount: votes.count,

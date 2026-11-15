@@ -40,7 +40,7 @@ struct GalleryShortcutButton: View {
                 } else {
                     // No photo yet, or no Photos access yet
                     Image(systemName: "photo.on.rectangle")
-                        .font(.title3)
+                        .font(AppFont.title3)
                         .foregroundStyle(.white)
                 }
             }
@@ -58,7 +58,7 @@ struct GalleryShortcutButton: View {
             image = await loader.thumbnail(for: assetID, targetSize: CGSize(width: pixels, height: pixels))
         }
         .task(id: scenePhase){
-            if scenePhase == .active{GallerySync().removeDeletedPhotos()}
+            if scenePhase == .active{await GallerySync().removeDeletedPhotosInBackground()}
         }
     }
 }

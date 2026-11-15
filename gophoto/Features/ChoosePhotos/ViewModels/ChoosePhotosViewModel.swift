@@ -29,6 +29,7 @@ final class ChoosePhotosViewModel {
     private let service: ChoosePhotosService
     private(set) var title: String
     private(set) var items: [PhotoItem]
+    var canRemoveInPicker = false
     private(set) var isSelecting = false { didSet { onSelectionChange?() } }
     private(set) var checked: Set<UUID> = []
     private var didRequestAccessOnAppear = false
@@ -147,12 +148,38 @@ final class ChoosePhotosViewModel {
     }
 
     func makePickerViewModel() -> SelectPhotoViewModel {
-        SelectPhotoViewModel(service: service, remaining: Self.maxPhotos - items.count, limit: Self.maxPhotos)
+        SelectPhotoViewModel(service: service, existing: items, limit: Self.maxPhotos, canRemoveExisting: canRemoveInPicker)
+    }
+
+    func differs(from picked: [PhotoItem]) -> Bool { picked.map(\.id) != items.map(\.id) }
+
+    /// Shows photos the owner has already saved (e.g. after photos without a person were
+    /// removed): the grid updates, and `onPhotosChange` is not called (nothing new to store).
+    func syncSavedItems(_ saved: [PhotoItem]) {
+        items = Array(saved.prefix(Self.maxPhotos))
+        checked = checked.intersection(Set(items.map(\.id)))
+        onItemsChange?()
+    }
+
+    func replaceItems(_ picked: [PhotoItem]) {
+        items = Array(picked.prefix(Self.maxPhotos))
+        onItemsChange?()
+        onPhotosChange?(items)
     }
 
     func append(_ newItems: [PhotoItem]) {
         guard !newItems.isEmpty else { return }
-        items += newItems.prefix(Self.maxPhotos - items.count)
+        var assetIdentifiers = Set(items.compactMap(\.sourceAssetIdentifier))
+        var itemIdentifiers = Set(items.map(\.id))
+        for item in newItems {
+            guard items.count < Self.maxPhotos else { break }
+            if let sourceAssetIdentifier = item.sourceAssetIdentifier {
+                guard assetIdentifiers.insert(sourceAssetIdentifier).inserted else { continue }
+            } else {
+                guard itemIdentifiers.insert(item.id).inserted else { continue }
+            }
+            items.append(item)
+        }
         onItemsChange?()
         onPhotosChange?(items)
     }

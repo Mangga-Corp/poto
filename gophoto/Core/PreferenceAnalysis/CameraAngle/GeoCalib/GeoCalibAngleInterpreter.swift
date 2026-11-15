@@ -79,6 +79,10 @@ nonisolated struct CameraAngleMethodDetail: Sendable, Equatable {
     var error: String?
     /// The camera-vs-eyes angle used the EXIF focal length instead of GeoCalib's estimate.
     var focalFromExif: Bool? = nil
+    /// GeoCalib's raw calibration and the photo's EXIF 35 mm focal length (version 16): the
+    /// knee / chest anchor angles (`AnchorSide`) are measured from them.
+    var calibration: GeoCalibResult? = nil
+    var focalLength35mm: Double? = nil
 
     var totalMs: Double? {
         guard let p = predictMs, let o = optimizeMs else { return nil }
@@ -177,6 +181,8 @@ nonisolated enum GeoCalibAngleInterpreter {
     static let fullFrameDiagonalMM = 43.27
     /// How far the eye point may be off, in head heights: from eye landmarks / from the face box.
     static let eyeErrorHeads = (landmarks: 0.05, estimated: 0.15)
+    /// Relative error of the head height used as the unit (face box / pose). Assumption, not calibrated.
+    static let headRelativeError = 0.10
 
     /// One standard deviation of the camera-vs-eyes angle, combining the pitch's, the lens's
     /// (GeoCalib's focal estimate; none with EXIF) and the eye point's.
@@ -215,6 +221,8 @@ nonisolated enum GeoCalibAngleInterpreter {
             pitchDown: -r.pitch, pitchUncertainty: r.pitchUncertainty,
             roll: r.roll, rollUncertainty: r.rollUncertainty, focalPx: r.focalPx, vfov: r.vfov,
             preprocessMs: run.preprocessMs, predictMs: run.predictMs, optimizeMs: run.optimizeMs)
+        detail.calibration = r
+        detail.focalLength35mm = focalLength35mm
 
         let name = "\(method.title) (\(method == .geoCalibHeavy ? "fp32" : "fp16"))"
         let pitchUsable = r.pitchUncertainty.isFinite && r.pitchUncertainty <= usablePitchUncertainty
@@ -297,6 +305,19 @@ nonisolated enum GeoCalibAngleInterpreter {
             cue = HorizonEyeCue(horizon: horizon, eyePoint: anchor.eyePoint, eyeSource: anchor.eyeSource,
                                 headHeight: anchor.headHeight, offsetInImageHeights: eyeY - horizonY,
                                 offsetInHeadHeights: anchor.headHeight.map { (eyeY - horizonY) / $0 })
+            if let head = anchor.headHeight, head > 0 {
+                // Same formula as the offset: (eyeY − horizonY) / head, horizonY ≈ cy − f·tan(pitch)/H
+                // (GeoCalib's own lens, as `horizonLine`). Independent terms added in quadrature.
+                let p = r.pitch * .pi / 180, sp = pitchSigma * .pi / 180
+                let fH = r.focalPx / Double(r.imageHeight)
+                let dPitch = fH * abs(tan(p + sp) - tan(p - sp)) / 2
+                let df = r.focalUncertaintyPx.isFinite ? r.focalUncertaintyPx / Double(r.imageHeight) : 0
+                let dFocal = df * abs(tan(p))
+                let dEye = (anchor.isEstimated ? Self.eyeErrorHeads.estimated : Self.eyeErrorHeads.landmarks) * head
+                let dHead = abs(eyeY - horizonY) * Self.headRelativeError
+                let sigma = (dPitch * dPitch + dFocal * dFocal + dEye * dEye + dHead * dHead).squareRoot() / head
+                cue?.offsetUncertaintyHeads = sigma.isFinite ? sigma : nil
+            }
             if let pose {
                 // The level must not change across the pitch uncertainty.
                 let shift = r.focalPx / Double(r.imageHeight) * tan(pitchSigma * .pi / 180)

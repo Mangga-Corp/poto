@@ -14,13 +14,13 @@ struct WelcomeOnboardingView: View {
                 VStack(spacing: 0) {
                     Spacer(minLength: 18)
 
-                    Text("Start with your best photos")
-                        .font(GoPhotoDesign.headline)
+                    Text("Start with your favorite photos")
+                        .font(GoPhotoDesign.pageTitle)
                         .foregroundStyle(GoPhotoDesign.primaryText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
 
-                    Text("Add your favorite self-portraits as references for your AI guide.")
+                    Text("Add photos you love. We'll guide you to match them.")
                         .font(GoPhotoDesign.body)
                         .foregroundStyle(GoPhotoDesign.secondaryText)
                         .multilineTextAlignment(.center)
@@ -29,29 +29,17 @@ struct WelcomeOnboardingView: View {
 
                     Spacer(minLength: 28)
 
-                    Button(action: onContinue) {
-                        Text("CHOOSE PHOTOS")
-                            .font(GoPhotoDesign.primaryButton)
-                            .tracking(1.2)
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .frame(height: GoPhotoDesign.buttonHeight)
-                            .background(GoPhotoDesign.purple)
-                            .clipShape(RoundedRectangle(cornerRadius: GoPhotoDesign.buttonCornerRadius, style: .continuous))
-                            .shadow(color: .black.opacity(0.14), radius: 14, x: 0, y: 7)
-                    }
-                    .buttonStyle(.plain)
+                    Button("Choose Photos", action: onContinue)
+                        .buttonStyle(.goPhotoPrimary)
                     .accessibilityHint("Continue to choose reference photos")
                     .padding(.bottom, 14)
                 }
                 .padding(.horizontal, GoPhotoDesign.horizontalMargin)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-                .background(GoPhotoDesign.background)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)
-            .background(GoPhotoDesign.background)
         }
-        .background(GoPhotoDesign.background)
+        .appPatternBackground()
         .ignoresSafeArea(edges: .top)
     }
 }

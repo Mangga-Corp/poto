@@ -55,18 +55,18 @@ struct PreferencePhotoPager: View {
             HStack {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
-                        .font(.body.weight(.semibold))
+                        .font(AppFont.body.weight(.semibold))
                         .foregroundStyle(GoPhotoDesign.primaryText)
                         .frame(width: 44, height: 44)
-                        .background(GoPhotoDesign.subtleSurface, in: Circle())
+                        .background(GoPhotoDesign.primarySubtle, in: Circle())
                 }
                 .accessibilityLabel("Close")
                 Spacer()
                 Text(title)
-                    .font(.subheadline.weight(.semibold))
+                    .font(AppFont.subheadline.weight(.semibold))
                     .foregroundStyle(GoPhotoDesign.primaryText)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(GoPhotoDesign.subtleSurface, in: Capsule())
+                    .background(GoPhotoDesign.primarySubtle, in: Capsule())
                 Spacer()
                 if onSetPosture != nil {
                     postureMenu
