@@ -80,7 +80,10 @@ final class AIPreferencesViewController: UIViewController {
         stack.backgroundColor = Theme.tagBackground
         stack.layer.cornerRadius = 14
         stack.layer.borderWidth = 1
-        stack.layer.borderColor = Theme.accentBorder.withAlphaComponent(0.3).cgColor
+        stack.applyLayerColors {
+            $0.layer.borderColor = Theme.accentBorder.withAlphaComponent(0.3)
+                .resolvedColor(with: $0.traitCollection).cgColor
+        }
         return stack
     }()
 
@@ -198,7 +201,6 @@ final class AIPreferencesViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        overrideUserInterfaceStyle = .light
         view.backgroundColor = Theme.background
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
@@ -468,7 +470,9 @@ private final class WideAddPhotosButton: UIControl {
         layer.cornerRadius = 14
         clipsToBounds = true
 
-        dashedLayer.strokeColor = Theme.accentBorder.cgColor
+        applyLayerColors { [dashedLayer] view in
+            dashedLayer.strokeColor = Theme.accentBorder.resolvedColor(with: view.traitCollection).cgColor
+        }
         dashedLayer.fillColor = UIColor.clear.cgColor
         dashedLayer.lineWidth = 1.5
         dashedLayer.lineDashPattern = [6, 4]

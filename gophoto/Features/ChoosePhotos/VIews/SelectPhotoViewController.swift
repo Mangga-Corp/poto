@@ -48,7 +48,6 @@ final class SelectPhotoViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        overrideUserInterfaceStyle = .light
         view.backgroundColor = Theme.background
 
         let title = UILabel.make("Select Photo", style: .headline)

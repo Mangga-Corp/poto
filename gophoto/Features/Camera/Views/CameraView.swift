@@ -97,7 +97,7 @@ struct CameraView: View {
         }
         .sheet(isPresented: $isShowingAcknowledgements) {
             AcknowledgementsView()
-                .preferredColorScheme(.light)
+                .followsSystemColorScheme()
                 .tint(GoPhotoDesign.primary)
         }
         .fullScreenCover(isPresented: $isShowingGallery) {

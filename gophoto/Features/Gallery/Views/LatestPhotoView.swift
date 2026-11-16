@@ -34,7 +34,7 @@ struct LatestPhotoView: View {
                 }
             }
         }
-        .preferredColorScheme(.light)
+        .followsSystemColorScheme()
         .tint(GoPhotoDesign.primary)
         .task { await viewModel.onAppear() }
         .task(id: photos.map(\.assetID)) {

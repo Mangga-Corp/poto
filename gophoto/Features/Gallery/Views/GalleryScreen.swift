@@ -20,7 +20,6 @@ struct GalleryScreen: View {
         NavigationStack {
             GalleryView(viewModel: viewModel, onDismiss: { dismiss() })
         }
-        .preferredColorScheme(.light)
         .tint(GoPhotoDesign.primary)
     }
 }

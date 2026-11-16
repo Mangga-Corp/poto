@@ -171,7 +171,6 @@ struct PhotoSessionSetupView: View {
             reloadSavedPreference()
             showSubjectWarningIfNeeded()
         }
-        .preferredColorScheme(.light)
         .tint(GoPhotoDesign.primary)
         .fullScreenCover(isPresented: $isPresentingPicker) {
             PhotoSessionPhotoPicker(
@@ -233,7 +232,7 @@ struct PhotoSessionSetupView: View {
                         .foregroundStyle(GoPhotoDesign.primaryText)
                         .padding(.horizontal, 26)
                         .padding(.vertical, 14)
-                        .background(Color.white, in: Capsule())
+                        .background(GoPhotoDesign.surface, in: Capsule())
                         .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
@@ -525,7 +524,7 @@ struct PhotoSessionSetupView: View {
                 .padding(.top, 6)
             }
             .padding(22)
-            .background(Color(uiColor: .systemBackground), in: RoundedRectangle(cornerRadius: 24, style: .continuous))
+            .background(GoPhotoDesign.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 8)
             .padding(.horizontal, 28)
         }

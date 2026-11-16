@@ -21,7 +21,9 @@ struct CustomStyleOptionPhoto<Option: CustomStyleOption, Fallback: View>: View {
                 .resizable()
                 .scaledToFill()
         } else {
+            // Illustrations keep their light lavender look in Dark Mode too (per the dark design).
             fallback()
+                .environment(\.colorScheme, .light)
         }
     }
 }
