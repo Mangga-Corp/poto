@@ -60,7 +60,7 @@ final class AnalysisSession: ObservableObject {
     // MARK: Control
 
     /// Analyses a preset's photos and returns what the camera needs. Nil if cancelled.
-    func analyze(_ photos: [PhotoItem]) async -> PresetAnalysis? {
+    func analyze(_ photos: [PhotoItem], mode: ReferencePhotoMode = .favorites) async -> PresetAnalysis? {
         let references = photos.enumerated().map { index, item in
             ReferencePhoto(id: item.id, localIdentifier: "", image: item.image, selectionOrder: index,
                            focalLength35mm: item.focalLength35mm)
@@ -71,7 +71,7 @@ final class AnalysisSession: ObservableObject {
         // Scene rules (15 Nov): capture date / place / screenshot flag and image similarity.
         let styleInputs = await StyleInputs.collect(photos)
         var analysis = PreferenceAnalyzer.make(profile: profile, results: results, photoCount: photos.count,
-                                               styleInputs: styleInputs)
+                                               styleInputs: styleInputs, mode: mode)
         analysis.evidence = AnalysisEvidenceSummary(photoRuns: results.map { result in
             result.evidence.map { evidence in
                 evidence.runs.map { record in

@@ -1,6 +1,7 @@
 import Foundation
 import CoreGraphics
 import UIKit
+import os
 
 /// Turns a finished analysis (`PreferenceProfile` + per-photo results) into `PresetAnalysis`,
 /// the targets the guided camera uses. The analysis itself runs in `AnalysisSession`:
@@ -14,7 +15,8 @@ enum PreferenceAnalyzer {
 
     nonisolated static func make(profile: PreferenceProfile, results: [PhotoResult],
                                  photoCount: Int, date: Date = Date(),
-                                 styleInputs: StyleInputs = .empty) -> PresetAnalysis {
+                                 styleInputs: StyleInputs = .empty,
+                                 mode: ReferencePhotoMode = .favorites) -> PresetAnalysis {
         var analysis = build(profile: profile, results: results, photoCount: photoCount, date: date, only: nil)
         // One analysis per framing, from that framing's photos only (picked in the preset popover).
         var variants: [String: PresetAnalysis] = [:]
@@ -48,7 +50,8 @@ enum PreferenceAnalyzer {
                 .filter { $0.0.1 == shot && $0.1 != .sitting }.map { $0.0.0 }
             guard !subset.isEmpty else { continue }
             var variant = styled(profile: profile, results: subset, date: date, only: shot.framing,
-                                 shot: shot, key: shot.rawValue, sceneOf: sceneOf, inputs: styleInputs)
+                                 shot: shot, key: shot.rawValue, sceneOf: sceneOf, inputs: styleInputs,
+                                 mode: mode)
             variant.shotSize = shot.rawValue
             variant.cutLevel = analysis.cutLevel
             variant.cutLevelCount = analysis.cutLevelCount
@@ -60,7 +63,7 @@ enum PreferenceAnalyzer {
         if !seated.isEmpty {
             var variant = styled(profile: profile, results: seated, date: date, only: .fullBody,
                                  shot: nil, key: BodyPosture.sitting.rawValue, sceneOf: sceneOf,
-                                 inputs: styleInputs)
+                                 inputs: styleInputs, mode: mode)
             variant.shotSize = PresetAnalysis.ShotSize.full.rawValue
             variant.cutLevel = analysis.cutLevel
             variant.cutLevelCount = analysis.cutLevelCount
@@ -88,11 +91,17 @@ enum PreferenceAnalyzer {
     /// (`status == "ask"`) the most-voted style is used until then; every candidate is kept.
     nonisolated static func styled(profile: PreferenceProfile, results subset: [PhotoResult], date: Date,
                                    only: FramingCategory?, shot: PresetAnalysis.ShotSize?, key: String,
-                                   sceneOf: [String: Int], inputs: StyleInputs) -> PresetAnalysis {
+                                   sceneOf: [String: Int], inputs: StyleInputs,
+                                   mode: ReferencePhotoMode = .favorites) -> PresetAnalysis {
         let plain = { build(profile: profile, results: subset, photoCount: subset.count, date: date,
                             only: only, shot: shot) }
         let photos = subset.map { stylePhoto($0, shot: key, inputs: inputs) }
         let groups = StyleGrouping.group(photos)
+        logStyles(key: key, mode: mode, photos: photos, groups: groups, sceneOf: sceneOf)
+        if mode == .allOfMe {
+            return bracketed(profile: profile, results: subset, date: date, only: only, shot: shot,
+                             sceneOf: sceneOf, photos: photos, groups: groups, key: key, plain: plain)
+        }
         let votes = StyleDecision.votes(groups, sceneOf: sceneOf)
         let status: String
         let order: [Int]
@@ -105,6 +114,7 @@ enum PreferenceAnalyzer {
         case .ask(let o): status = "ask"; order = o
         }
         var candidates: [PresetAnalysis.StyleChoice.Candidate] = []
+        var candidateStyles: [Int] = []   // StyleTrace
         for s in order {
             guard let pick = StyleDecision.target(style: s, groups: groups, photos: photos, sceneOf: sceneOf)
             else { continue }
@@ -115,7 +125,9 @@ enum PreferenceAnalyzer {
             applyTarget(&variant, from: subset.first { $0.id.uuidString == pick.target })
             candidates.append(.init(photoIDs: members.map(\.id.uuidString), targetPhotoID: pick.target,
                                     representativeIDs: pick.representatives, votes: votes[s], analysis: variant))
+            candidateStyles.append(s)   // StyleTrace
         }
+        StyleTraceRecorder.shared.setCandidates(key: key, styles: candidateStyles)   // StyleTrace
         guard var chosen = candidates.first?.analysis else { return plain() }
         var choice = PresetAnalysis.StyleChoice(status: status, chosen: 0,
                                                 candidates: status == "single" ? [] : candidates)
@@ -126,6 +138,77 @@ enum PreferenceAnalyzer {
         }
         chosen.styleChoice = choice
         return chosen
+    }
+
+    /// One line per style (unified log, category "style") so a test run can be read in the
+    /// Xcode console: photos, scenes and the measured values of its target photo.
+    nonisolated static func logStyles(key: String, mode: ReferencePhotoMode, photos: [StylePhoto],
+                                      groups: StyleGroups, sceneOf: [String: Int]) {
+        let votes = StyleDecision.votes(groups, sceneOf: sceneOf)
+        let decision: String
+        switch StyleDecision.decide(votes: votes) {
+        case .none: decision = "none"
+        case .single: decision = "single"
+        case .clear(let s): decision = "clear → style \(s)"
+        case .ask: decision = "ask"
+        }
+        StyleInputs.log.notice("styles \(key, privacy: .public) [\(mode.rawValue, privacy: .public)]: \(photos.count) photos, \(groups.styles.count) styles, \(groups.shared.count) shared, Mode 1 rule says \(decision, privacy: .public)")
+        let byID = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        func f(_ v: Double?) -> String { v.map { String(format: "%.2f", $0) } ?? "–" }
+        let picks = groups.styles.indices.map {
+            StyleDecision.target(style: $0, groups: groups, photos: photos, sceneOf: sceneOf)
+        }
+        StyleTraceRecorder.shared.record(key: key, photos: photos, groups: groups, sceneOf: sceneOf, // StyleTrace
+                                         votes: votes, rule: decision, targets: picks)                  // StyleTrace
+        for s in groups.styles.indices {
+            let pick = picks[s]
+            let t = pick.flatMap { byID[$0.target] }
+            let scenes = Set(groups.styles[s].compactMap { sceneOf[$0] }).count
+            StyleInputs.log.notice("  style \(s): \(groups.styles[s].count) photos, \(scenes) scenes, votes \(f(votes[s]), privacy: .public), target \(String(pick?.target.prefix(8) ?? "–"), privacy: .public) height \(f(t?.vantageFaces), privacy: .public) tilt \(f(t?.pitchDegrees), privacy: .public) centre \(f(t?.centreX), privacy: .public) size \(f(t?.size), privacy: .public)")
+        }
+    }
+
+    /// Mode 2 ("all photos of me", 16 Nov): no votes (how often a style appears says how the
+    /// photographers shot, not what the user likes). Up to 7 styles, the most different from
+    /// each other (`StyleBracketPlan.candidates`), go into a knockout the user answers
+    /// (`StyleBracket`). Until it is decided, the first candidate is used.
+    nonisolated static func bracketed(profile: PreferenceProfile, results subset: [PhotoResult], date: Date,
+                                      only: FramingCategory?, shot: PresetAnalysis.ShotSize?,
+                                      sceneOf: [String: Int], photos: [StylePhoto], groups: StyleGroups,
+                                      key: String = "", plain: () -> PresetAnalysis) -> PresetAnalysis {
+        guard !groups.styles.isEmpty else { return plain() }
+        let picks = groups.styles.indices.map {
+            StyleDecision.target(style: $0, groups: groups, photos: photos, sceneOf: sceneOf)
+        }
+        let byID = Dictionary(photos.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
+        let targets = picks.map { $0.flatMap { byID[$0.target] } }
+        var candidates: [PresetAnalysis.StyleChoice.Candidate] = []
+        var candidateStyles: [Int] = []   // StyleTrace
+        for s in StyleBracketPlan.candidates(targets) {
+            guard let pick = picks[s] else { continue }
+            let members = subset.filter { groups.styles(of: $0.id.uuidString).contains(s) }
+            guard !members.isEmpty else { continue }
+            var variant = build(profile: profile, results: members, photoCount: members.count, date: date,
+                                only: only, shot: shot)
+            applyTarget(&variant, from: subset.first { $0.id.uuidString == pick.target })
+            candidates.append(.init(photoIDs: members.map(\.id.uuidString), targetPhotoID: pick.target,
+                                    representativeIDs: pick.representatives, votes: 0, analysis: variant))
+            candidateStyles.append(s)   // StyleTrace
+        }
+        StyleTraceRecorder.shared.setCandidates(key: key, styles: candidateStyles)   // StyleTrace
+        guard var first = candidates.first?.analysis else { return plain() }
+        guard candidates.count > 1 else {
+            first.styleChoice = PresetAnalysis.StyleChoice(status: "single")
+            return first
+        }
+        var choice = PresetAnalysis.StyleChoice(status: "ask", chosen: 0, candidates: candidates)
+        choice.photoScenes = Dictionary(subset.compactMap { r in
+            sceneOf[r.id.uuidString].map { (r.id.uuidString, $0) }
+        }, uniquingKeysWith: { a, _ in a })
+        choice.bracket = StyleBracket(styles: Array(candidates.indices))
+        StyleInputs.log.notice("  bracket: \(candidates.count) candidates, first question \(choice.bracket?.current ?? [], privacy: .public)")
+        first.styleChoice = choice
+        return first
     }
 
     /// The guide's targets from one photo (the style's medoid) instead of medians: person box,

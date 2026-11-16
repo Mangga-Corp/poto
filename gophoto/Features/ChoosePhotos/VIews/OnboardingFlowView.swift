@@ -80,7 +80,7 @@ struct OnboardingFlowView: View {
     var body: some View {
         ZStack {
             if let style {
-                StyleScreen(summary: style, buttonTitle: styleButtonTitle, onDone: finish)
+                StyleScreen(summary: style, buttonTitle: styleButtonTitle, preferenceID: preferenceID, onDone: finish)
                     .transition(.opacity)
             } else if let failure {
                 AnalysisRetryScreen(failure: failure,
@@ -203,7 +203,8 @@ struct OnboardingFlowView: View {
         guard let question = styleQuestion, !isSavingStyle else { return }
         isSavingStyle = true
         Task {
-            let saved = await PreferencesViewModel.shared.chooseStyle(index, forKey: question.id, of: preferenceID)
+            let saved = await PreferencesViewModel.shared.chooseStyle(index, forKey: question.id, of: preferenceID,
+                                                                    shown: question.options.map(\.id))
             isSavingStyle = false
             guard saved else { return }
             withAnimation(.easeInOut(duration: 0.3)) { styleQuestion = nil }
@@ -265,11 +266,13 @@ private struct AnalysisRetryScreen: View {
 private struct StyleScreen: UIViewControllerRepresentable {
     let summary: StyleSummary
     let buttonTitle: String
+    var preferenceID: UUID? = nil   // StyleTrace
     var onDone: () -> Void
 
     func makeUIViewController(context: Context) -> StyleCardViewController {
         let vc = StyleCardViewController(summary: summary, buttonTitle: buttonTitle)
         vc.onDone = onDone
+        if let preferenceID { StyleTrace.attachButton(to: vc, preferenceID: preferenceID) }   // StyleTrace
         return vc
     }
     func updateUIViewController(_ vc: StyleCardViewController, context: Context) {

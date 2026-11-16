@@ -5,6 +5,7 @@ import SwiftData
 struct MyApp: App {
     init() {
         AppFont.register()
+        Task { await FaceGroupingAvailability.purgeLeftovers() }   // Brian 8245a3e, restored 16 Nov
         #if DEBUG
         DebugFixtures.prepareLaunchState()
         DebugFixtures.seedIfNeeded()

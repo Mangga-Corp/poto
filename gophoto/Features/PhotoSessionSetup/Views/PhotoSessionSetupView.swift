@@ -4,6 +4,13 @@ import SwiftUI
 struct PhotoSessionSetupView: View {
     @State private var selection = PhotoSessionSetupSelection()
     @State private var isPresentingPicker = false
+    /// Brian's "Add Your Photos" flow (66303bd / 8245a3e), restored 16 Nov after merge da8cbd7
+    /// dropped it: choose photos myself, or find my photos for me (face grouping, iOS 27).
+    @State private var isChoosingPhotoSource = false
+    @State private var isShowingFacePicker = false
+    /// Taste rules: "Choose photos myself" = Mode 1 (favorites), "Find my photos for me" = Mode 2
+    /// (all photos of me). Saved per preference when it is created (`ReferencePhotoModeStore`).
+    @State private var photoMode: ReferencePhotoMode = .favorites
     /// The custom preference flow while it is open (a new one each time it opens).
     @State private var customPreferenceFlow: CustomPreferenceFlowModel?
     @State private var updateError: String?
@@ -167,6 +174,26 @@ struct PhotoSessionSetupView: View {
                 SubjectPlacementSelectionView(model: customPreferenceFlow)
             }
         }
+        .navigationDestination(isPresented: $isChoosingPhotoSource) {
+            PhotoSourceChoiceView { source in
+                switch source {
+                case .manual:
+                    photoMode = .favorites
+                    isChoosingPhotoSource = false
+                    openPicker()
+                case .suggested:
+                    photoMode = .allOfMe
+                    isShowingFacePicker = true
+                }
+            }
+            .navigationDestination(isPresented: $isShowingFacePicker) {
+                FacePickerView { items in
+                    selection.replace(with: items)
+                    isShowingFacePicker = false
+                    isChoosingPhotoSource = false
+                }
+            }
+        }
         .onAppear {
             reloadSavedPreference()
             showSubjectWarningIfNeeded()
@@ -214,7 +241,7 @@ struct PhotoSessionSetupView: View {
                     Text("Reference Photos")
                         .font(AppFont.system(size: 22, weight: .bold))
                         .foregroundStyle(GoPhotoDesign.primaryText)
-                    Text("\(selection.photos.count)/20")
+                    Text("\(selection.photos.count)/\(ChoosePhotosViewModel.maxPhotos)")
                         .font(AppFont.system(size: 14, weight: .regular))
                         .foregroundStyle(GoPhotoDesign.secondaryText)
                 }
@@ -428,9 +455,11 @@ struct PhotoSessionSetupView: View {
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
             } else {
-                SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle", action: openPicker)
-                    .padding(.horizontal, GoPhotoDesign.sessionMargin)
-                    .padding(.bottom, 8)
+                SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle") {
+                    if FaceGroupingAvailability.isSupported { isChoosingPhotoSource = true } else { openPicker() }
+                }
+                .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                .padding(.bottom, 8)
 
                 // A saved preference left without photos (all removed as having no person)
                 // gets photos added to it, not a second, custom preference.
@@ -546,6 +575,7 @@ struct PhotoSessionSetupView: View {
             switch result {
             case .success(let id):
                 selection.markPreferenceCreated(id: id, photos: selection.photos)
+                ReferencePhotoModeStore.set(photoMode, for: id)
                 onStartAnalyzing(id)
             case .failure(let error):
                 updateError = error.message

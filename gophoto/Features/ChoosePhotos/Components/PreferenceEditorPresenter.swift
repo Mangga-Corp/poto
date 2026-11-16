@@ -126,6 +126,7 @@ final class PreferenceEditorPresenter {
             card.modalPresentationStyle = .fullScreen
             card.modalTransitionStyle = .crossDissolve
             card.onDone = finish
+            StyleTrace.attachButton(to: card, preferenceID: id)   // StyleTrace
             analyzing.present(card, animated: true)
         }
         host.present(analyzing, animated: true)
@@ -138,7 +139,8 @@ final class PreferenceEditorPresenter {
         let view = StyleChoiceView(question: question) { [weak self, weak host] index in
             guard let self else { return }
             Task { @MainActor in
-                guard await self.preferences.chooseStyle(index, forKey: question.id, of: id) else { return }
+                guard await self.preferences.chooseStyle(index, forKey: question.id, of: id,
+                                                         shown: question.options.map(\.id)) else { return }
                 host?.dismiss(animated: true) { next() }
             }
         }

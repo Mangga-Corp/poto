@@ -37,11 +37,11 @@ struct StyleChoiceView: View {
             }
             ScrollView {
                 LazyVGrid(columns: columns(for: visible.count), spacing: 12) {
-                    ForEach(visible) { option in
-                        Button { onChoose(option.id) } label: { tile(option) }
+                    ForEach(Array(visible.enumerated()), id: \.element.id) { position, option in
+                        Button { onChoose(option.id) } label: { tile(option, letter: letter(position)) }
                             .buttonStyle(.plain)
                             .disabled(isSaving)
-                            .accessibilityLabel("Style \(letter(option.id))")
+                            .accessibilityLabel("Style \(letter(position))")
                     }
                 }
             }
@@ -66,7 +66,7 @@ struct StyleChoiceView: View {
         Self.letters.indices.contains(index) ? Self.letters[index] : "\(index + 1)"
     }
 
-    private func tile(_ option: PreferencesViewModel.StyleQuestion.Option) -> some View {
+    private func tile(_ option: PreferencesViewModel.StyleQuestion.Option, letter: String) -> some View {
         VStack(spacing: 8) {
             Color.clear
                 .aspectRatio(3.0 / 4.0, contentMode: .fit)
@@ -80,7 +80,7 @@ struct StyleChoiceView: View {
                 .clipShape(RoundedRectangle(cornerRadius: GoPhotoDesign.controlCornerRadius))
                 .overlay(RoundedRectangle(cornerRadius: GoPhotoDesign.controlCornerRadius)
                     .stroke(GoPhotoDesign.border, lineWidth: 1))
-            Text(letter(option.id))
+            Text(letter)
                 .font(GoPhotoDesign.cardTitle)
                 .foregroundStyle(GoPhotoDesign.primaryText)
         }

@@ -338,6 +338,17 @@ nonisolated struct PresetAnalysis: Codable, Sendable, Equatable {
         var candidates: [Candidate] = []
         /// Scene index per photo of this shot size, so a question can show photos of one scene.
         var photoScenes: [String: Int] = [:]
+        /// Mode 2 ("all photos of me"): the knockout over `candidates` (indices). Nil in Mode 1.
+        var bracket: StyleBracket? = nil
+        /// Mode 2: every answer (candidates shown, the one picked), kept to evaluate a learned
+        /// model later.
+        var answers: [Answer] = []
+
+        nonisolated struct Answer: Codable, Sendable, Equatable {
+            var shown: [Int]
+            var chosen: Int
+            var at: Date
+        }
 
         nonisolated struct Candidate: Codable, Sendable, Equatable {
             /// Photos of this style (`PhotoItem.id.uuidString`).
@@ -384,6 +395,28 @@ nonisolated struct PresetAnalysis: Codable, Sendable, Equatable {
     /// The shot variant (or the seated one) a style key refers to.
     func styleVariant(forKey key: String) -> PresetAnalysis? {
         key == BodyPosture.sitting.rawValue ? sittingVariant : shotVariants?[key]
+    }
+
+    /// The user's answer for `key`. Mode 1: style `index` is used. Mode 2: the answer moves the
+    /// knockout on; the style is used once it has won the last question.
+    func answeringStyle(_ index: Int, forKey key: String, shown: [Int]) -> PresetAnalysis? {
+        guard let current = styleVariant(forKey: key), var choice = current.styleChoice,
+              choice.candidates.indices.contains(index) else { return nil }
+        guard var bracket = choice.bracket else { return choosingStyle(index, forKey: key) }
+        guard let question = bracket.current, question.contains(index) else { return nil }
+        choice.answers.append(StyleChoice.Answer(shown: shown.isEmpty ? question : shown, chosen: index, at: Date()))
+        bracket.answer(index)
+        choice.bracket = bracket
+        var variant = current
+        variant.styleChoice = choice
+        var updated = self
+        if key == BodyPosture.sitting.rawValue {
+            updated.postureVariants?[key] = variant
+        } else {
+            updated.shotVariants?[key] = variant
+        }
+        if let champion = bracket.champion { return updated.choosingStyle(champion, forKey: key) }
+        return updated
     }
 
     /// This analysis with style `index` used for `key` (the user's answer): that style's own
