@@ -132,7 +132,6 @@ struct GalleryView: View {
                 }
             }
         }
-        .preferredColorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         // Error alert untuk delete
         .alert("Couldn't Delete", isPresented: deleteErrorBinding(when: isSelecting)) {

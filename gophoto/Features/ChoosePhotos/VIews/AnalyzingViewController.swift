@@ -28,7 +28,7 @@ private final class PhotoCardView: UIView {
     private func setupViews() {
         clipsToBounds = false
         // Background solid putih agar gambar di atasnya tidak transparan / nyaru
-        backgroundColor = UIColor(GoPhotoDesign.surface)
+        backgroundColor = Theme.surface
 
         // Image View
         imageView.contentMode = .scaleAspectFill
@@ -38,7 +38,7 @@ private final class PhotoCardView: UIView {
         addSubview(imageView)
 
         // Checkmark badge (Lingkaran ungu dengan ikon ceklis putih di kanan bawah)
-        checkmarkContainer.backgroundColor = UIColor(GoPhotoDesign.primary)
+        checkmarkContainer.backgroundColor = Theme.accent
         checkmarkContainer.clipsToBounds = true
         checkmarkContainer.translatesAutoresizingMaskIntoConstraints = false
         checkmarkContainer.layer.shadowColor = UIColor.black.cgColor
@@ -71,6 +71,10 @@ private final class PhotoCardView: UIView {
         ])
 
         checkmarkContainer.layer.cornerRadius = 12
+
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: PhotoCardView, _) in
+            view.applyBorderColor()
+        }
     }
 
     func configure(with photo: PhotoItem, index: Int) {
@@ -89,8 +93,17 @@ private final class PhotoCardView: UIView {
         self.layer.cornerRadius = cornerRadius
         self.imageView.layer.cornerRadius = cornerRadius
         self.imageView.layer.borderWidth = borderWidth
-        self.imageView.layer.borderColor = borderColor.cgColor
+        self.borderColor = borderColor
         self.checkmarkContainer.alpha = showCheckmark ? 1.0 : 0.0
+    }
+
+    /// Dynamic border token; resolved into the layer's CGColor for the current Light / Dark look.
+    private var borderColor: UIColor = .clear {
+        didSet { applyBorderColor() }
+    }
+
+    private func applyBorderColor() {
+        imageView.layer.borderColor = borderColor.resolvedColor(with: traitCollection).cgColor
     }
 
     func animateCheckmarkAppearance() {
@@ -129,7 +142,7 @@ private final class PulsingOvalView: UIView {
         width: CGFloat = 190,
         height: CGFloat = 200,
         borderWidth: CGFloat = 1.5,
-        color: UIColor = UIColor(GoPhotoDesign.primary),
+        color: UIColor = Theme.accent,
         minScale: CGFloat = 0.80,
         maxScale: CGFloat = 1.30,
         duration: CFTimeInterval = 2.0
@@ -152,19 +165,24 @@ private final class PulsingOvalView: UIView {
         // Primary oval
         primaryOvalLayer.path = ovalPath
         primaryOvalLayer.fillColor = UIColor.clear.cgColor
-        primaryOvalLayer.strokeColor = color.withAlphaComponent(0.50).cgColor
         primaryOvalLayer.lineWidth = borderWidth
         primaryOvalLayer.opacity = 0.70
 
         // Secondary oval (offset phase)
         secondaryOvalLayer.path = ovalPath
         secondaryOvalLayer.fillColor = UIColor.clear.cgColor
-        secondaryOvalLayer.strokeColor = color.withAlphaComponent(0.25).cgColor
         secondaryOvalLayer.lineWidth = borderWidth * 0.7
         secondaryOvalLayer.opacity = 0.50
 
         layer.addSublayer(secondaryOvalLayer)
         layer.addSublayer(primaryOvalLayer)
+
+        // Stroke colors are CGColors: resolve them for the current (and any new) Light / Dark look.
+        applyLayerColors { [primaryOvalLayer, secondaryOvalLayer] view in
+            let resolved = color.resolvedColor(with: view.traitCollection)
+            primaryOvalLayer.strokeColor = resolved.withAlphaComponent(0.50).cgColor
+            secondaryOvalLayer.strokeColor = resolved.withAlphaComponent(0.25).cgColor
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -252,7 +270,7 @@ final class AnalyzingViewController: UIViewController {
         let l = UILabel()
         l.text = "Finding your style"
         l.font = .app(size: 32, weight: .bold)
-        l.textColor = UIColor(GoPhotoDesign.primaryText)
+        l.textColor = Theme.text
         l.textAlignment = .center
         l.numberOfLines = 0
         return l
@@ -273,7 +291,7 @@ final class AnalyzingViewController: UIViewController {
     private let readingLabel: UILabel = {
         let l = UILabel()
         l.font = .app(size: 16, weight: .semibold)
-        l.textColor = UIColor(GoPhotoDesign.primaryText)
+        l.textColor = Theme.text
         l.textAlignment = .center
         return l
     }()
@@ -293,7 +311,7 @@ final class AnalyzingViewController: UIViewController {
     private let checkingLabel: UILabel = {
         let l = UILabel()
         l.font = .app(size: 15, weight: .regular)
-        l.textColor = UIColor(GoPhotoDesign.secondaryText)
+        l.textColor = Theme.secondaryText
         l.textAlignment = .center
         return l
     }()
@@ -302,7 +320,7 @@ final class AnalyzingViewController: UIViewController {
     private let estimateLabel: UILabel = {
         let l = UILabel()
         l.font = .app(size: 13, weight: .regular)
-        l.textColor = UIColor(GoPhotoDesign.secondaryText)
+        l.textColor = Theme.secondaryText
         l.textAlignment = .center
         return l
     }()
@@ -312,7 +330,7 @@ final class AnalyzingViewController: UIViewController {
         let b = UIButton(type: .system)
         b.setTitle("Cancel", for: .normal)
         b.titleLabel?.font = .app(size: 17, weight: .semibold)
-        b.setTitleColor(UIColor(GoPhotoDesign.primary), for: .normal)
+        b.setTitleColor(Theme.accent, for: .normal)
         return b
     }()
 
@@ -334,8 +352,7 @@ final class AnalyzingViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        overrideUserInterfaceStyle = .light
-        view.backgroundColor = UIColor(GoPhotoDesign.background)
+        view.backgroundColor = Theme.background
 
         setupLayout()
         setupSegmentedProgressBar()
@@ -461,7 +478,7 @@ final class AnalyzingViewController: UIViewController {
         progressSegments.removeAll()
         for _ in 0..<photos.count {
             let seg = UIView()
-            seg.backgroundColor = UIColor(GoPhotoDesign.primarySubtle)
+            seg.backgroundColor = Theme.accentSubtle
             seg.layer.cornerRadius = 3.5
             seg.clipsToBounds = true
             seg.translatesAutoresizingMaskIntoConstraints = false
@@ -537,7 +554,7 @@ final class AnalyzingViewController: UIViewController {
         cCard.setAppearance(
             cornerRadius: centerCornerRadius,
             borderWidth: 2.5,
-            borderColor: UIColor(GoPhotoDesign.primary),
+            borderColor: Theme.accent,
             showCheckmark: false,
             alphaVal: 1.0
         )
@@ -641,7 +658,7 @@ final class AnalyzingViewController: UIViewController {
                 movingCenter.setAppearance(
                     cornerRadius: self.centerCornerRadius,
                     borderWidth: 2.5,
-                    borderColor: UIColor(GoPhotoDesign.primary),
+                    borderColor: Theme.accent,
                     showCheckmark: false,
                     alphaVal: 1.0
                 )
@@ -724,8 +741,8 @@ final class AnalyzingViewController: UIViewController {
             let isFilled = index < finishedCount
             UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut]) {
                 segment.backgroundColor = isFilled
-                    ? UIColor(GoPhotoDesign.primary)
-                    : UIColor(GoPhotoDesign.primarySubtle)
+                    ? Theme.accent
+                    : Theme.accentSubtle
             }
         }
     }

@@ -115,7 +115,6 @@ struct PhotoPagerView: View {
                     .zIndex(20)
             }
         }
-        .preferredColorScheme(.light)
         .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(isPresented: $isEditing) {
             editor

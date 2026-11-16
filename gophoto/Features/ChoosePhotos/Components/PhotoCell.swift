@@ -42,6 +42,10 @@ final class PhotoCell: UICollectionViewCell {
         isAccessibilityElement = true
         accessibilityLabel = "Photo"
         refresh()
+        // The border is a CGColor: re-resolve it when Light / Dark changes.
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (cell: PhotoCell, _) in
+            cell.refresh()
+        }
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
@@ -58,7 +62,8 @@ final class PhotoCell: UICollectionViewCell {
         badge.image = UIImage(systemName: picked ? "checkmark.circle.fill" : "circle")
         badge.tintColor = picked ? Theme.accent : Theme.text.withAlphaComponent(0.5)
         contentView.layer.borderWidth = picked ? 3 : 1
-        contentView.layer.borderColor = (picked ? Theme.accent : Theme.stroke).cgColor
+        contentView.layer.borderColor = (picked ? Theme.accent : Theme.stroke)
+            .resolvedColor(with: traitCollection).cgColor
         accessibilityTraits = picked ? [.button, .selected] : .button
     }
 }

@@ -75,7 +75,6 @@ struct AppRootView: View {
                     },
                     onFinish: continueToCamera
                 )
-                .preferredColorScheme(.light)
                 .tint(GoPhotoDesign.primary)
             } else if welcomeOnboardingStarted {
                 NavigationStack {
@@ -90,7 +89,6 @@ struct AppRootView: View {
                         onDiscardPreference: discardOnboardingPreference
                     )
                 }
-                .preferredColorScheme(.light)
                 .tint(GoPhotoDesign.primary)
             } else if !welcomeOnboardingStarted, PreferencesViewModel.shared.hasPreferences {
                 // Older releases completed onboarding without setting the flag: returning users.
@@ -110,7 +108,6 @@ struct AppRootView: View {
             pendingOnboardingPreferenceIDString = ""
             welcomeOnboardingStarted = true
         }
-        .preferredColorScheme(.light)
         .tint(GoPhotoDesign.primary)
     }
 
