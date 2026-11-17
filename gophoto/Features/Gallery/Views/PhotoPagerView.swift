@@ -32,6 +32,7 @@ struct PhotoPagerView: View {
     }()
 
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(photos: [GalleryPhoto],
          startID: String,
@@ -216,13 +217,14 @@ struct PhotoPagerView: View {
             } label: {
                 HStack(spacing: 8) {
                     Image(systemName: "slider.horizontal.2.square")
-                        .font(AppFont.system(size: 16, weight: .semibold))
+                        .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                     Text("Edit")
-                        .font(AppFont.system(size: 15, weight: .semibold))
+                        .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                 }
                 .foregroundStyle(.white)
                 .padding(.horizontal, 28)
-                .frame(height: 48)
+                .padding(.vertical, 12)
+                .frame(minHeight: 48)
                 .background(Color(hex: 0x9A69C9), in: Capsule())
                 .shadow(color: Color(hex: 0x9A69C9).opacity(0.35), radius: 8, y: 4)
             }
@@ -262,30 +264,33 @@ struct PhotoPagerView: View {
             VStack(spacing: 16) {
                 VStack(spacing: 6) {
                     Text("Allow “Pico” to delete\n1 photo?")
-                        .font(AppFont.system(size: 18, weight: .bold))
+                        .font(AppFont.scaled(size: 18, weight: .bold, relativeTo: .headline))
                         .foregroundStyle(Color(GoPhotoDesign.primaryText))
                         .multilineTextAlignment(.center)
 
                     Text("These photos will also be deleted from an album.")
-                        .font(AppFont.system(size: 13, weight: .regular))
+                        .font(AppFont.scaled(size: 13, weight: .regular, relativeTo: .footnote))
                         .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 10)
                 .padding(.horizontal, 16)
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(GoPhotoDesign.secondaryBackground))
+                // At accessibility text sizes the text and buttons need the room: no preview then.
+                if !dynamicTypeSize.isAccessibilitySize {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(GoPhotoDesign.secondaryBackground))
 
-                    DialogThumbnailPreview(
-                        assetID: currentID,
-                        loadThumbnail: loadThumbnail
-                    )
+                        DialogThumbnailPreview(
+                            assetID: currentID,
+                            loadThumbnail: loadThumbnail
+                        )
+                    }
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal, 8)
                 }
-                .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal, 8)
 
                 HStack(spacing: 12) {
                     Button {
@@ -294,10 +299,12 @@ struct PhotoPagerView: View {
                         }
                     } label: {
                         Text("Don’t Allow")
-                            .font(AppFont.system(size: 15, weight: .semibold))
+                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                            .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .padding(.vertical, 12)
+                            .frame(minHeight: 48)
                             .background(Color(.systemGray5), in: Capsule())
                     }
                     .buttonStyle(.plain)
@@ -311,10 +318,12 @@ struct PhotoPagerView: View {
                         }
                     } label: {
                         Text("Delete")
-                            .font(AppFont.system(size: 15, weight: .semibold))
+                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .padding(.vertical, 12)
+                            .frame(minHeight: 48)
                             .background(Color(GoPhotoDesign.error), in: Capsule())
                     }
                     .buttonStyle(.plain)

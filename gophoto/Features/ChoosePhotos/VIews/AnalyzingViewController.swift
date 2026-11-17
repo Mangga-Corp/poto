@@ -264,12 +264,20 @@ final class AnalyzingViewController: UIViewController {
 
     // Container pembungkus seluruh konten tengah agar berada pas di tengah layar
     private let contentContainer = UIView()
+    /// Holds `contentContainer`: centred while it fits, scrollable when Larger Text makes it taller than the screen.
+    private let scrollView: UIScrollView = {
+        let sv = UIScrollView()
+        sv.showsVerticalScrollIndicator = false
+        sv.alwaysBounceVertical = false
+        return sv
+    }()
 
     // Title ("Finding your style")
     private let titleLabel: UILabel = {
         let l = UILabel()
         l.text = "Finding your style"
-        l.font = .app(size: 32, weight: .bold)
+        l.font = .app(size: 32, weight: .bold, relativeTo: .largeTitle)
+        l.adjustsFontForContentSizeCategory = true
         l.textColor = Theme.text
         l.textAlignment = .center
         l.numberOfLines = 0
@@ -290,7 +298,9 @@ final class AnalyzingViewController: UIViewController {
     // Reading label: "Reading photo 3 of 9"
     private let readingLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 16, weight: .semibold)
+        l.font = .app(size: 16, weight: .semibold, relativeTo: .callout)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
         l.textColor = Theme.text
         l.textAlignment = .center
         return l
@@ -310,7 +320,9 @@ final class AnalyzingViewController: UIViewController {
     // Checking description label ("Checking your angles")
     private let checkingLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 15, weight: .regular)
+        l.font = .app(size: 15, weight: .regular, relativeTo: .subheadline)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
         l.textColor = Theme.secondaryText
         l.textAlignment = .center
         return l
@@ -319,7 +331,9 @@ final class AnalyzingViewController: UIViewController {
     // Estimated time label ("This usually takes about 15 seconds")
     private let estimateLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 13, weight: .regular)
+        l.font = .app(size: 13, weight: .regular, relativeTo: .footnote)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
         l.textColor = Theme.secondaryText
         l.textAlignment = .center
         return l
@@ -329,7 +343,8 @@ final class AnalyzingViewController: UIViewController {
     private let cancelButton: UIButton = {
         let b = UIButton(type: .system)
         b.setTitle("Cancel", for: .normal)
-        b.titleLabel?.font = .app(size: 17, weight: .semibold)
+        b.titleLabel?.font = .app(size: 17, weight: .semibold, relativeTo: .body)
+        b.titleLabel?.adjustsFontForContentSizeCategory = true
         b.setTitleColor(Theme.accent, for: .normal)
         return b
     }()
@@ -415,8 +430,17 @@ final class AnalyzingViewController: UIViewController {
         contentContainer.addSubview(checkingLabel)
         contentContainer.addSubview(estimateLabel)
 
-        view.addSubview(contentContainer)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(contentContainer)
+        view.addSubview(scrollView)
         view.addSubview(cancelButton)
+
+        let content = scrollView.contentLayoutGuide
+        let frame = scrollView.frameLayoutGuide
+        // The content is at least as tall as the visible area (so it can be centred there), and exactly
+        // that tall unless the content needs more, which then scrolls.
+        let contentFillsFrame = content.heightAnchor.constraint(equalTo: frame.heightAnchor)
+        contentFillsFrame.priority = .defaultLow
 
         let safe = view.safeAreaLayoutGuide
 
@@ -427,9 +451,20 @@ final class AnalyzingViewController: UIViewController {
             pulsingOvalView.widthAnchor.constraint(equalToConstant: pulsingOvalView.ovalBaseWidth),
             pulsingOvalView.heightAnchor.constraint(equalToConstant: pulsingOvalView.ovalBaseHeight),
 
-            // Content Container diposisikan di tengah vertikal layar
-            contentContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            contentContainer.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -24),
+            // Scroll view between the top and the Cancel button
+            scrollView.topAnchor.constraint(equalTo: safe.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: cancelButton.topAnchor, constant: -8),
+
+            content.widthAnchor.constraint(equalTo: frame.widthAnchor),
+            content.heightAnchor.constraint(greaterThanOrEqualTo: frame.heightAnchor),
+            contentFillsFrame,
+
+            // Content Container di tengah area yang terlihat (scroll bila terlalu tinggi)
+            contentContainer.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+            contentContainer.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: 16),
+            contentContainer.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -16),
             contentContainer.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
 
@@ -447,6 +482,8 @@ final class AnalyzingViewController: UIViewController {
             // 3. "Reading photo X of Y"
             readingLabel.topAnchor.constraint(equalTo: carouselContainer.bottomAnchor, constant: 24),
             readingLabel.centerXAnchor.constraint(equalTo: contentContainer.centerXAnchor),
+            readingLabel.leadingAnchor.constraint(greaterThanOrEqualTo: contentContainer.leadingAnchor, constant: 24),
+            readingLabel.trailingAnchor.constraint(lessThanOrEqualTo: contentContainer.trailingAnchor, constant: -24),
 
             // 4. Segmented Progress Bar
             progressStackView.topAnchor.constraint(equalTo: readingLabel.bottomAnchor, constant: 14),
@@ -470,7 +507,7 @@ final class AnalyzingViewController: UIViewController {
             // 7. Cancel Button di bagian paling bawah
             cancelButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -32),
             cancelButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            cancelButton.heightAnchor.constraint(equalToConstant: 44)
+            cancelButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ])
     }
 

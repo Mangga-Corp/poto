@@ -103,10 +103,8 @@ struct SessionChip: View {
     let onSelectedCard: Bool
 
     var body: some View {
-        Text(text)
-            .font(GoPhotoDesign.smallLabel)
-            .foregroundStyle(GoPhotoDesign.secondaryText)
-            .lineLimit(1)
+        // Running text when the chip is wider than its row (Larger Text).
+        MarqueeText(text: text, font: GoPhotoDesign.smallLabel, color: GoPhotoDesign.secondaryText)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
             .background(onSelectedCard ? GoPhotoDesign.surface : GoPhotoDesign.secondaryBackground, in: Capsule())
@@ -129,7 +127,7 @@ struct ChipFlowLayout: Layout {
         for row in arrange(subviews, width: bounds.width) {
             var x = bounds.minX
             for index in row.indices {
-                let size = subviews[index].sizeThatFits(.unspecified)
+                let size = size(of: subviews[index], maxWidth: bounds.width)
                 subviews[index].place(at: CGPoint(x: x, y: y), proposal: ProposedViewSize(size))
                 x += size.width + spacing
             }
@@ -140,7 +138,7 @@ struct ChipFlowLayout: Layout {
     private func arrange(_ subviews: Subviews, width: CGFloat) -> [(indices: [Int], width: CGFloat, height: CGFloat)] {
         var rows: [(indices: [Int], width: CGFloat, height: CGFloat)] = []
         for index in subviews.indices {
-            let size = subviews[index].sizeThatFits(.unspecified)
+            let size = size(of: subviews[index], maxWidth: width)
             if var last = rows.last, last.width + spacing + size.width <= width {
                 last.indices.append(index)
                 last.width += spacing + size.width
@@ -151,6 +149,14 @@ struct ChipFlowLayout: Layout {
             }
         }
         return rows
+    }
+
+    /// A subview's natural size, narrowed to the row when wider (a chip then truncates or runs as a marquee
+    /// instead of spilling out of the card).
+    private func size(of subview: LayoutSubview, maxWidth: CGFloat) -> CGSize {
+        let ideal = subview.sizeThatFits(.unspecified)
+        guard ideal.width > maxWidth else { return ideal }
+        return subview.sizeThatFits(ProposedViewSize(width: maxWidth, height: nil))
     }
 }
 

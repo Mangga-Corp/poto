@@ -50,6 +50,7 @@ struct GalleryView: View {
     private var photos: [GalleryPhoto]
 
     @Environment(\.openURL) private var openURL
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var photoZoom
 
@@ -315,17 +316,17 @@ struct GalleryView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Gallery")
-                            .font(AppFont.system(size: 34, weight: .bold))
+                            .font(AppFont.scaled(size: 34, weight: .bold, relativeTo: .largeTitle))
                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
 
                         // Subtitle: nama filter aktif & jumlah foto yang dihasilkan
                         HStack(spacing: 5) {
                             Image(systemName: subtitleIcon)
-                                .font(AppFont.system(size: 12, weight: .semibold))
+                                .font(AppFont.scaled(size: 12, weight: .semibold, relativeTo: .footnote))
                             Text(statusSubtitle)
-                                .font(AppFont.system(size: 13, weight: .semibold))
+                                .font(AppFont.scaled(size: 13, weight: .semibold, relativeTo: .footnote))
                             Image(systemName: "chevron.right")
-                                .font(AppFont.system(size: 10, weight: .bold))
+                                .font(AppFont.scaled(size: 10, weight: .bold, relativeTo: .footnote))
                         }
                         .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                     }
@@ -348,10 +349,11 @@ struct GalleryView: View {
                         }
                     } label: {
                         Text(isSelecting ? "Done" : "Select")
-                            .font(AppFont.system(size: 15, weight: .semibold))
+                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
                             .padding(.horizontal, 16)
-                            .frame(height: 38)
+                            .padding(.vertical, 8)
+                            .frame(minHeight: 38)
                             .background(.ultraThinMaterial, in: Capsule())
                             .overlay(
                                 Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
@@ -375,7 +377,7 @@ struct GalleryView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // Judul "Search" di paling atas
                     Text("Search")
-                        .font(AppFont.system(size: 34, weight: .bold))
+                        .font(AppFont.scaled(size: 34, weight: .bold, relativeTo: .largeTitle))
                         .foregroundStyle(Color(GoPhotoDesign.primaryText))
                         .padding(.horizontal, 16)
                         .padding(.top, headerTopPadding)
@@ -385,7 +387,7 @@ struct GalleryView: View {
                         VStack(alignment: .leading, spacing: 14) {
                             HStack {
                                 Text("Recents")
-                                    .font(AppFont.system(size: 22, weight: .bold))
+                                    .font(AppFont.scaled(size: 22, weight: .bold, relativeTo: .title2))
                                     .foregroundStyle(Color(GoPhotoDesign.primaryText))
 
                                 Spacer()
@@ -399,7 +401,7 @@ struct GalleryView: View {
                                             }
                                         } label: {
                                             Text("Clear")
-                                                .font(AppFont.system(size: 14, weight: .semibold))
+                                                .font(AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline))
                                                 .foregroundStyle(GoPhotoDesign.primary)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
@@ -471,7 +473,7 @@ struct GalleryView: View {
                                         isSearchFieldFocused = false
                                     } label: {
                                         Text(query)
-                                            .font(AppFont.system(size: 15, weight: .medium))
+                                            .font(AppFont.scaled(size: 15, weight: .medium, relativeTo: .subheadline))
                                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
@@ -491,17 +493,17 @@ struct GalleryView: View {
                         // Hasil pencarian saat user mengetik
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Results for “\(searchText)”")
-                                .font(AppFont.system(size: 16, weight: .semibold))
+                                .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                                 .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                                 .padding(.horizontal, 16)
 
                             if searchResults.isEmpty {
                                 VStack(spacing: 10) {
                                     Image(systemName: "magnifyingglass")
-                                        .font(AppFont.system(size: 36))
+                                        .font(AppFont.scaled(size: 36, relativeTo: .largeTitle))
                                         .foregroundStyle(Color(GoPhotoDesign.disabledText))
                                     Text("No matching photos found")
-                                        .font(AppFont.system(size: 15))
+                                        .font(AppFont.scaled(size: 15, relativeTo: .subheadline))
                                         .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                                 }
                                 .frame(maxWidth: .infinity)
@@ -557,11 +559,11 @@ struct GalleryView: View {
             // Bar input search di tengah
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
-                    .font(AppFont.system(size: 17))
+                    .font(AppFont.scaled(size: 17, relativeTo: .body))
                     .foregroundStyle(Color(GoPhotoDesign.secondaryText))
 
                 TextField("Search your library...", text: $searchText)
-                    .font(AppFont.system(size: 16))
+                    .font(AppFont.scaled(size: 16, relativeTo: .callout))
                     .foregroundStyle(Color(GoPhotoDesign.primaryText))
                     .focused($isSearchFieldFocused)
                     .submitLabel(.search)
@@ -574,13 +576,13 @@ struct GalleryView: View {
                         searchText = ""
                     } label: {
                         Image(systemName: "xmark.circle.fill")
-                            .font(AppFont.system(size: 16))
+                            .font(AppFont.scaled(size: 16, relativeTo: .callout))
                             .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                     }
                     .buttonStyle(.plain)
                 } else {
                     Image(systemName: "mic.fill")
-                        .font(AppFont.system(size: 16))
+                        .font(AppFont.scaled(size: 16, relativeTo: .callout))
                         .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                 }
             }
@@ -645,10 +647,7 @@ struct GalleryView: View {
                 .frame(height: 60)
                 .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
 
-                Text(title)
-                    .font(AppFont.system(size: 13, weight: .bold))
-                    .foregroundStyle(.white)
-                    .lineLimit(2)
+                MarqueeText(text: title, font: AppFont.scaled(size: 13, weight: .bold, relativeTo: .footnote), color: .white)
                     .padding(10)
             }
             .frame(width: 140, height: 140)
@@ -787,6 +786,10 @@ struct GalleryView: View {
                     .foregroundStyle(currentTab == .library ? GoPhotoDesign.primary : Color(GoPhotoDesign.secondaryText))
                 }
                 .buttonStyle(.plain)
+                // Bar items keep their size (like the system tab bar); long-press shows them large.
+                .accessibilityShowsLargeContentViewer {
+                    Label("Library", systemImage: "photo.stack.fill")
+                }
 
                 // Tab Collections
                 Button {
@@ -817,6 +820,9 @@ struct GalleryView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                .accessibilityShowsLargeContentViewer {
+                    Label("Collections", systemImage: "rectangle.stack.fill")
+                }
             }
             .padding(.horizontal, 28)
             .frame(height: 60)
@@ -845,6 +851,10 @@ struct GalleryView: View {
                     .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Search")
+            .accessibilityShowsLargeContentViewer {
+                Label("Search", systemImage: "magnifyingglass")
+            }
         }
         .padding(.horizontal, 20)
         .padding(.bottom, 12)
@@ -864,6 +874,8 @@ struct GalleryView: View {
                 }
                 .disabled(true)
                 .buttonStyle(.plain)
+                .accessibilityLabel("Share")
+                .accessibilityShowsLargeContentViewer { Label("Share", systemImage: "square.and.arrow.up") }
             } else {
                 ShareLink(
                     items: selectedIDs.map { SharedPhoto(assetID: $0) },
@@ -874,6 +886,8 @@ struct GalleryView: View {
                         .foregroundStyle(Color(GoPhotoDesign.primaryText))
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Share")
+                .accessibilityShowsLargeContentViewer { Label("Share", systemImage: "square.and.arrow.up") }
             }
 
             // Tombol Favorite (Love Warna Ungu GoPhoto)
@@ -890,6 +904,10 @@ struct GalleryView: View {
             }
             .disabled(selectedIDs.isEmpty)
             .buttonStyle(.plain)
+            .accessibilityLabel(isAllSelectedFavorite ? "Remove from Favorites" : "Favorite")
+            .accessibilityShowsLargeContentViewer {
+                Label("Favorite", systemImage: isAllSelectedFavorite ? "heart.fill" : "heart")
+            }
 
             Button {
                 if !selectedIDs.isEmpty {
@@ -904,6 +922,8 @@ struct GalleryView: View {
             }
             .disabled(selectedIDs.isEmpty)
             .buttonStyle(.plain)
+            .accessibilityLabel("Delete")
+            .accessibilityShowsLargeContentViewer { Label("Delete", systemImage: "trash") }
         }
         .padding(.horizontal, 28)
         .frame(height: 56)
@@ -926,7 +946,7 @@ struct GalleryView: View {
                 VStack(alignment: .leading, spacing: 14) {
                     HStack {
                         Text("Albums & Styles")
-                            .font(AppFont.system(size: 20, weight: .bold))
+                            .font(AppFont.scaled(size: 20, weight: .bold, relativeTo: .title3))
                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
 
                         Spacer()
@@ -937,7 +957,7 @@ struct GalleryView: View {
                             }
                         } label: {
                             Image(systemName: isCollectionsCollapsed ? "chevron.down" : "chevron.up")
-                                .font(AppFont.system(size: 13, weight: .semibold))
+                                .font(AppFont.scaled(size: 13, weight: .semibold, relativeTo: .footnote))
                                 .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                         }
                     }
@@ -1035,13 +1055,11 @@ struct GalleryView: View {
             }
             .frame(width: width, height: height)
 
-            Text(title)
-                .font(AppFont.system(size: 14, weight: .semibold))
-                .foregroundStyle(Color(GoPhotoDesign.primaryText))
-                .lineLimit(1)
+            MarqueeText(text: title, font: AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline),
+                        color: Color(GoPhotoDesign.primaryText))
 
             Text("\(count) Photos")
-                .font(AppFont.system(size: 12))
+                .font(AppFont.scaled(size: 12, relativeTo: .caption))
                 .foregroundStyle(Color(GoPhotoDesign.secondaryText))
         }
         .frame(width: width)
@@ -1145,12 +1163,12 @@ struct GalleryView: View {
             VStack(spacing: 6) {
                 if let title {
                     Text(title)
-                        .font(AppFont.system(size: 17, weight: .semibold))
+                        .font(AppFont.scaled(size: 17, weight: .semibold, relativeTo: .headline))
                         .foregroundStyle(Color(GoPhotoDesign.primaryText))
                 }
 
                 Text(message)
-                    .font(AppFont.system(size: 15, weight: .regular))
+                    .font(AppFont.scaled(size: 15, weight: .regular, relativeTo: .subheadline))
                     .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                     .multilineTextAlignment(.center)
             }
@@ -1174,32 +1192,35 @@ struct GalleryView: View {
             VStack(spacing: 16) {
                 VStack(spacing: 6) {
                     Text("Allow “Vacato” to delete\n\(selectedIDs.count) \(selectedIDs.count == 1 ? "photo" : "photos")?")
-                        .font(AppFont.system(size: 18, weight: .bold))
+                        .font(AppFont.scaled(size: 18, weight: .bold, relativeTo: .headline))
                         .foregroundStyle(Color(GoPhotoDesign.primaryText))
                         .multilineTextAlignment(.center)
 
                     Text("These photos will also be deleted from an album.")
-                        .font(AppFont.system(size: 13, weight: .regular))
+                        .font(AppFont.scaled(size: 13, weight: .regular, relativeTo: .footnote))
                         .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                         .multilineTextAlignment(.center)
                 }
                 .padding(.top, 10)
                 .padding(.horizontal, 16)
 
-                ZStack {
-                    RoundedRectangle(cornerRadius: 16, style: .continuous)
-                        .fill(Color(GoPhotoDesign.secondaryBackground))
+                // At accessibility text sizes the text and buttons need the room: no preview then.
+                if !dynamicTypeSize.isAccessibilitySize {
+                    ZStack {
+                        RoundedRectangle(cornerRadius: 16, style: .continuous)
+                            .fill(Color(GoPhotoDesign.secondaryBackground))
 
-                    if let firstSelectedID = selectedIDs.first {
-                        DialogThumbnailPreview(
-                            assetID: firstSelectedID,
-                            loadThumbnail: viewModel.thumbnail
-                        )
+                        if let firstSelectedID = selectedIDs.first {
+                            DialogThumbnailPreview(
+                                assetID: firstSelectedID,
+                                loadThumbnail: viewModel.thumbnail
+                            )
+                        }
                     }
+                    .frame(height: 180)
+                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
+                    .padding(.horizontal, 8)
                 }
-                .frame(height: 180)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                .padding(.horizontal, 8)
 
                 HStack(spacing: 12) {
                     Button {
@@ -1208,10 +1229,12 @@ struct GalleryView: View {
                         }
                     } label: {
                         Text("Don’t Allow")
-                            .font(AppFont.system(size: 15, weight: .semibold))
+                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                            .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .padding(.vertical, 12)
+                            .frame(minHeight: 48)
                             .background(Color(.systemGray5), in: Capsule())
                     }
                     .buttonStyle(.plain)
@@ -1225,10 +1248,12 @@ struct GalleryView: View {
                         }
                     } label: {
                         Text("Delete")
-                            .font(AppFont.system(size: 15, weight: .semibold))
+                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                             .foregroundStyle(.white)
+                            .multilineTextAlignment(.center)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .padding(.vertical, 12)
+                            .frame(minHeight: 48)
                             .background(Color(GoPhotoDesign.error), in: Capsule())
                     }
                     .buttonStyle(.plain)

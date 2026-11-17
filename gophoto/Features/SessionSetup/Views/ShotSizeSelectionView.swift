@@ -27,13 +27,13 @@ struct ShotSizeSelectionView: View {
                     .padding(.top, 8)
 
                 Text("Choose Your Shot")
-                    .font(AppFont.system(size: 32, weight: .bold))
+                    .font(AppFont.scaled(size: 32, weight: .bold, relativeTo: .largeTitle))
                     .foregroundStyle(GoPhotoDesign.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.top, 12)
                 Text("How much of you should show?")
-                    .font(AppFont.system(size: 17))
+                    .font(AppFont.scaled(size: 17, relativeTo: .body))
                     .foregroundStyle(GoPhotoDesign.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
@@ -128,6 +128,14 @@ struct ShotSizeSelectionView: View {
 private struct ShotSizeCard: View {
     let shot: SessionShotSize
     let isSelected: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Title and "Recommended" side by side; stacked at accessibility text sizes, where they don't fit.
+    private var titleLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(spacing: 8))
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -135,21 +143,18 @@ private struct ShotSizeCard: View {
                 .frame(width: 76)
 
             VStack(alignment: .leading, spacing: 5) {
-                HStack(spacing: 8) {
-                    Text(shot.title)
-                        .font(GoPhotoDesign.cardTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
-                        .lineLimit(1)
-                        .fixedSize()
+                titleLayout {
+                    MarqueeText(text: shot.title, font: GoPhotoDesign.cardTitle, color: GoPhotoDesign.primaryText)
                     if shot.isRecommended {
                         Text("Recommended")
-                            .font(AppFont.system(size: 11, weight: .semibold))
+                            .font(AppFont.scaled(size: 11, weight: .semibold, relativeTo: .caption2))
                             .lineLimit(1)
-                            .minimumScaleFactor(0.8)
+                            .fixedSize()
                             .foregroundStyle(GoPhotoDesign.onPrimary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
                             .background(GoPhotoDesign.primary, in: Capsule())
+                            .layoutPriority(1)
                     }
                 }
                 Text(shot.detail)

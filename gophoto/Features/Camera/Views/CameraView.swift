@@ -340,19 +340,17 @@ struct CameraView: View {
             let shape = Capsule(style: .continuous)
             HStack(spacing: 6) {
                 Image(systemName: "sparkle")
-                    .font(AppFont.system(size: 10, weight: .semibold))
+                    .font(AppFont.scaled(size: 10, weight: .semibold, relativeTo: .subheadline))
                     .foregroundStyle(
                         LinearGradient(colors: [.white, GoPhotoDesign.primaryBorder],
                                        startPoint: .top, endPoint: .bottom))
-                Text(name)
-                    .font(AppFont.system(size: 14, weight: .semibold))
-                    .tracking(0.3)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
+                // Runs as a marquee when the name doesn't fit the pill (long name, Larger Text).
+                MarqueeText(text: name, font: AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline),
+                            color: .white)
             }
             .padding(.horizontal, 14)
-            .frame(height: 28)
+            .padding(.vertical, 4)
+            .frame(minHeight: 28)
             .background {
                 shape.fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
                 shape.fill(GoPhotoDesign.primary.opacity(0.32))

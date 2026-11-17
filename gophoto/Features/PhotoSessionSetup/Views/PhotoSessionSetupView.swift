@@ -211,10 +211,10 @@ struct PhotoSessionSetupView: View {
                 // Title and Subtitle
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Reference Photos")
-                        .font(AppFont.system(size: 22, weight: .bold))
+                        .font(AppFont.scaled(size: 22, weight: .bold, relativeTo: .title2))
                         .foregroundStyle(GoPhotoDesign.primaryText)
                     Text("\(selection.photos.count)/20")
-                        .font(AppFont.system(size: 14, weight: .regular))
+                        .font(AppFont.scaled(size: 14, weight: .regular, relativeTo: .footnote))
                         .foregroundStyle(GoPhotoDesign.secondaryText)
                 }
 
@@ -228,7 +228,7 @@ struct PhotoSessionSetupView: View {
                     }
                 } label: {
                     Text(isSelecting ? "Cancel" : "Select")
-                        .font(AppFont.system(size: 17, weight: .medium))
+                        .font(AppFont.scaled(size: 17, weight: .medium, relativeTo: .body))
                         .foregroundStyle(GoPhotoDesign.primaryText)
                         .padding(.horizontal, 26)
                         .padding(.vertical, 14)
@@ -259,11 +259,11 @@ struct PhotoSessionSetupView: View {
     private var privacyNote: some View {
         HStack(spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
-                .font(AppFont.system(size: 18, weight: .semibold))
+                .font(AppFont.scaled(size: 18, weight: .semibold, relativeTo: .body))
                 .foregroundStyle(GoPhotoDesign.primary)
 
             Text("Your photos stay on this iPhone. They're analyzed on your device and never uploaded.")
-                .font(AppFont.system(size: 15, weight: .regular))
+                .font(AppFont.scaled(size: 15, weight: .regular, relativeTo: .subheadline))
                 .foregroundStyle(GoPhotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
@@ -320,12 +320,14 @@ struct PhotoSessionSetupView: View {
                 .overlay {
                     VStack(spacing: 6) {
                         Image(systemName: "plus")
-                            .font(AppFont.system(size: 24, weight: .medium))
+                            .font(AppFont.scaled(size: 24, weight: .medium, relativeTo: .title2))
                             .foregroundStyle(GoPhotoDesign.primary)
                         Text("Add photos")
-                            .font(AppFont.system(size: 12, weight: .medium))
+                            .font(AppFont.scaled(size: 12, weight: .medium, relativeTo: .caption))
                             .foregroundStyle(GoPhotoDesign.primary)
+                            .multilineTextAlignment(.center)
                     }
+                    .padding(8)
                 }
                 .frame(width: width, height: width * 4 / 3)
         }
@@ -392,10 +394,11 @@ struct PhotoSessionSetupView: View {
                         Image(systemName: "trash")
                         Text("Delete \(selectedPhotoIDs.count) Photos")
                     }
-                    .font(AppFont.system(size: 16, weight: .semibold))
+                    .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                     .foregroundStyle(.white)
                     .frame(maxWidth: .infinity)
-                    .frame(height: 52)
+                    .padding(.vertical, 12)
+                    .frame(minHeight: 52)
                     .background(selectedPhotoIDs.isEmpty ? Color.gray : GoPhotoDesign.error, in: Capsule())
                 }
                 .disabled(selectedPhotoIDs.isEmpty)
@@ -411,10 +414,12 @@ struct PhotoSessionSetupView: View {
                     }
                 } label: {
                     Text("Analyze \(selection.photos.count) photo\(selection.photos.count == 1 ? "" : "s")")
-                        .font(AppFont.system(size: 16, weight: .semibold))
+                        .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                         .foregroundStyle(.white)
+                        .multilineTextAlignment(.center)
                         .frame(maxWidth: .infinity)
-                        .frame(height: 54)
+                        .padding(.vertical, 12)
+                        .frame(minHeight: 54)
                         .background(
                             canAnalyze
                                 ? GoPhotoDesign.primary
@@ -460,19 +465,19 @@ struct PhotoSessionSetupView: View {
             // Card
             VStack(alignment: .leading, spacing: 14) {
                 Text("What's this collection for?")
-                    .font(AppFont.system(size: 17, weight: .bold))
+                    .font(AppFont.scaled(size: 17, weight: .bold, relativeTo: .headline))
                     .foregroundStyle(GoPhotoDesign.primaryText)
-                    .lineLimit(2)
+                    .fixedSize(horizontal: false, vertical: true)
 
                 Text("“For example: beach trip, outfit of the day, city, or night out.”")
-                    .font(AppFont.system(size: 13, weight: .regular))
+                    .font(AppFont.scaled(size: 13, weight: .regular, relativeTo: .footnote))
                     .foregroundStyle(GoPhotoDesign.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
 
                 // Input box
                 HStack {
                     TextField("....", text: $collectionName)
-                        .font(AppFont.system(size: 15))
+                        .font(AppFont.scaled(size: 15, relativeTo: .subheadline))
                         .autocorrectionDisabled()
 
                     if !collectionName.isEmpty {
@@ -494,10 +499,11 @@ struct PhotoSessionSetupView: View {
                         isShowingNameModal = false
                     } label: {
                         Text("Cancel")
-                            .font(AppFont.system(size: 16, weight: .semibold))
+                            .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                             .foregroundStyle(GoPhotoDesign.primaryText)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .padding(.vertical, 10)
+                            .frame(minHeight: 48)
                             .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
                     }
 
@@ -508,10 +514,11 @@ struct PhotoSessionSetupView: View {
                         saveAndAnalyze(name: trimmed)
                     } label: {
                         Text("Continue")
-                            .font(AppFont.system(size: 16, weight: .semibold))
+                            .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                             .foregroundStyle(.white)
                             .frame(maxWidth: .infinity)
-                            .frame(height: 48)
+                            .padding(.vertical, 10)
+                            .frame(minHeight: 48)
                             .background(
                                 collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
                                     ? GoPhotoDesign.primary.opacity(0.4)

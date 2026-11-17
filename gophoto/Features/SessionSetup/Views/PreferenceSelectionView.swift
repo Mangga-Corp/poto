@@ -128,7 +128,7 @@ struct PreferenceSelectionView: View {
         Button(action: onAddNew) {
             HStack(spacing: 6) {
                 Image(systemName: "plus")
-                    .font(AppFont.system(size: 13, weight: .bold))
+                    .font(AppFont.scaled(size: 13, weight: .bold, relativeTo: .subheadline))
                 Text("Add Style")
                     .font(AppFont.system(.subheadline, weight: .semibold))
             }
@@ -147,7 +147,7 @@ struct PreferenceSelectionView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "photo.on.rectangle.angled")
-                .font(AppFont.system(size: 30))
+                .font(AppFont.scaled(size: 30, relativeTo: .title))
                 .foregroundStyle(GoPhotoDesign.primary)
             Text("No preferences yet")
                 .font(GoPhotoDesign.cardTitle)

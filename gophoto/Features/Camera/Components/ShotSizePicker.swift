@@ -16,9 +16,17 @@ struct ShotSizePicker: View {
     let onSelect: (PresetAnalysis.ShotSize) -> Void
 
     /// Every option has the same width, so snapping one to the leading content margin centres it.
-    private static let itemWidth: CGFloat = 96
+    /// At least 96, wider when the longest title needs it (Larger Text): titles are never cut.
+    private static let minItemWidth: CGFloat = 96
+    private static let labelPadding: CGFloat = 12
     private static let spacing: CGFloat = 4
-    private static var stride: CGFloat { itemWidth + spacing }
+    private var itemWidth: CGFloat { max(Self.minItemWidth, ceil(labelWidth) + Self.labelPadding * 2) }
+    private var stride: CGFloat { itemWidth + Self.spacing }
+
+    /// Width of the longest title on one line, measured in the current text size.
+    @State private var labelWidth: CGFloat = 0
+    @ScaledMetric(relativeTo: .subheadline) private var itemHeight: CGFloat = 32
+    private static let labelFont = AppFont.subheadline.weight(.semibold)
 
     /// The option centred by the scroll, committed when the scroll comes to rest.
     /// Nil until the first scroll report (then `selection` is used).
@@ -36,7 +44,7 @@ struct ShotSizePicker: View {
     var body: some View {
         VStack(spacing: 6) {
             GeometryReader { geometry in
-                let margin = max(0, (geometry.size.width - Self.itemWidth) / 2)
+                let margin = max(0, (geometry.size.width - itemWidth) / 2)
                 ScrollViewReader { proxy in
                     ScrollView(.horizontal, showsIndicators: false) {
                         HStack(spacing: Self.spacing) {
@@ -51,7 +59,7 @@ struct ShotSizePicker: View {
                     .contentMargins(.horizontal, margin, for: .scrollContent)
                     .scrollTargetBehavior(.viewAligned)
                     .onScrollGeometryChange(for: Int.self) { geo in
-                        Int(((geo.contentOffset.x + geo.contentInsets.leading) / Self.stride).rounded())
+                        Int(((geo.contentOffset.x + geo.contentInsets.leading) / stride).rounded())
                     } action: { _, index in
                         centeredIndex = index
                     }
@@ -63,10 +71,13 @@ struct ShotSizePicker: View {
                     .onAppear { scroll(proxy, animated: false) }
                     .onChange(of: selection) { scroll(proxy, animated: true) }
                     .onChange(of: options) { scroll(proxy, animated: true) }
+                    // Text size changed: the items got wider, keep the selection centred.
+                    .onChange(of: itemWidth) { scroll(proxy, animated: false) }
                 }
             }
-            .frame(height: 34)
+            .frame(height: itemHeight + 2)
         }
+        .background { ShotSizeTitleMeasure(font: Self.labelFont, width: $labelWidth) }
         .animation(.snappy, value: options)
         .accessibilityElement(children: .contain)
         .accessibilityLabel("Shot size")
@@ -78,15 +89,16 @@ struct ShotSizePicker: View {
             onSelect(shot)
         } label: {
             Text(shot.pickerTitle)
-                .font(AppFont.subheadline.weight(.semibold))
+                .font(Self.labelFont)
                 .foregroundStyle(isSelected ? GoPhotoDesign.primaryText : Color.white.opacity(0.5))
                 .lineLimit(1)
-                .padding(.horizontal, 12)
-                .frame(height: 32)
+                .fixedSize()
+                .padding(.horizontal, Self.labelPadding)
+                .frame(height: itemHeight)
                 .background {
                     if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GoPhotoDesign.background).matchedGeometryEffect(id: "shotHighlight", in: highlight) }
                 }
-                .frame(width: Self.itemWidth)
+                .frame(width: itemWidth)
                 .contentShape(Rectangle())
         }
         .buttonStyle(.plain)
@@ -102,5 +114,23 @@ struct ShotSizePicker: View {
         } else {
             proxy.scrollTo(selection, anchor: .center)
         }
+    }
+}
+
+/// Measures the widest shot size title on one line (every case, so the width doesn't jump when the
+/// options change) for the pickers' item width.
+struct ShotSizeTitleMeasure: View {
+    let font: Font
+    @Binding var width: CGFloat
+
+    var body: some View {
+        ZStack {
+            ForEach(PresetAnalysis.ShotSize.allCases, id: \.self) { shot in
+                Text(shot.pickerTitle).font(font).lineLimit(1).fixedSize()
+            }
+        }
+        .hidden()
+        .accessibilityHidden(true)
+        .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { width = $0 }
     }
 }

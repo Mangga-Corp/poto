@@ -10,6 +10,14 @@ import SwiftUI
 struct PreferenceSelectionCard: View {
     let card: PreferenceCardModel
     let isSelected: Bool
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
+
+    /// Name and "Last Used" side by side; stacked at accessibility text sizes so the name keeps its room.
+    private var titleLayout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
+            : AnyLayout(HStackLayout(alignment: .center, spacing: 8))
+    }
 
     var body: some View {
         HStack(spacing: 14) {
@@ -20,14 +28,9 @@ struct PreferenceSelectionCard: View {
             }
 
             VStack(alignment: .leading, spacing: 6) {
-                HStack(alignment: .top, spacing: 8) {
-                    // Name wraps over up to 3 lines (no running text).
-                    Text(card.name)
-                        .font(GoPhotoDesign.cardTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
-                        .lineLimit(3)
-                        .multilineTextAlignment(.leading)
-                        .fixedSize(horizontal: false, vertical: true)
+                titleLayout {
+                    // One line; runs as a marquee when it doesn't fit (Larger Text, "Last Used" beside it).
+                    MarqueeText(text: card.name, font: GoPhotoDesign.cardTitle, color: GoPhotoDesign.primaryText)
                         .frame(maxWidth: .infinity, alignment: .leading)
                         .layoutPriority(0)
                     if card.isLastUsed {
@@ -39,10 +42,7 @@ struct PreferenceSelectionCard: View {
                     }
                 }
 
-                Text(card.summary)
-                    .font(GoPhotoDesign.secondaryBody)
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
-                    .lineLimit(card.isAvailable ? 1 : 2)
+                MarqueeText(text: card.summary, font: GoPhotoDesign.secondaryBody, color: GoPhotoDesign.secondaryText)
 
                 if card.isUpdating {
                     Label("Updating your style…", systemImage: "arrow.triangle.2.circlepath")
@@ -106,7 +106,7 @@ struct AddPreferenceCard: View {
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "chevron.right")
-                    .font(AppFont.system(size: 15, weight: .semibold))
+                    .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
                     .foregroundStyle(GoPhotoDesign.secondaryText)
             }
             .padding(16)
@@ -117,75 +117,74 @@ struct AddPreferenceCard: View {
     }
 }
 
-/// Displays text as static if it fits within the available width; if it overflows, it scrolls continuously in an infinite circular marquee loop.
+/// One line of text that stays still when it fits and scrolls as running text (a looping marquee)
+/// when it doesn't, e.g. with Larger Text. It hugs its text like a plain `Text` and is never wider
+/// than offered, so it drops in wherever a one-line `Text` was. With Reduce Motion on it wraps instead.
 struct MarqueeText: View {
     let text: String
     let font: Font
     let color: Color
+    var gap: CGFloat = 40
+    /// Points per second.
+    var speed: CGFloat = 30
+    /// Rest at the start of every loop, so the beginning can be read.
+    var pause: Double = 1.2
 
-    @State private var startDate = Date()
+    @Environment(\.accessibilityReduceMotion) private var reduceMotion
+    /// The whole text on one line.
+    @State private var fullWidth: CGFloat = 0
+    /// The width the text actually got.
+    @State private var visibleWidth: CGFloat = 0
+    @State private var start = Date()
 
-    private var textWidth: CGFloat {
-        let uiFont = UIFont.app(style: .headline, weight: .semibold)
-        let size = (text as NSString).size(withAttributes: [.font: uiFont])
-        return ceil(size.width)
-    }
-
-    private let gap: CGFloat = 44
-    private let speed: CGFloat = 30 // pt / second
-    private let initialPause: Double = 1.2 // pause at start before scrolling
+    private var overflows: Bool { visibleWidth > 0 && fullWidth > visibleWidth + 0.5 }
 
     var body: some View {
-        GeometryReader { geo in
-            let containerWidth = geo.size.width
-            let overflow = textWidth > containerWidth && containerWidth > 0
-
-            if overflow {
-                let pitch = textWidth + gap
-                let scrollDuration = Double(pitch / speed)
-
-                TimelineView(.animation) { timeline in
-                    let elapsed = max(0, timeline.date.timeIntervalSince(startDate))
-                    let progress: CGFloat = {
-                        if elapsed < initialPause {
-                            return 0
-                        }
-                        let scrollElapsed = elapsed - initialPause
-                        let remainder = scrollElapsed.truncatingRemainder(dividingBy: scrollDuration)
-                        return CGFloat(remainder / scrollDuration)
-                    }()
-                    let currentOffset = -progress * pitch
-
-                    HStack(spacing: gap) {
-                        Text(text)
-                            .font(font)
-                            .foregroundStyle(color)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-
-                        Text(text)
-                            .font(font)
-                            .foregroundStyle(color)
-                            .lineLimit(1)
-                            .fixedSize(horizontal: true, vertical: false)
-                    }
-                    .offset(x: currentOffset)
-                    .frame(width: containerWidth, alignment: .leading)
-                }
-                .clipped()
-                .id(text)
-                .onAppear {
-                    startDate = Date()
-                }
+        Group {
+            if reduceMotion {
+                label(lineLimit: nil)
+                    .fixedSize(horizontal: false, vertical: true)
             } else {
-                Text(text)
-                    .font(font)
-                    .foregroundStyle(color)
-                    .lineLimit(1)
-                    .fixedSize(horizontal: true, vertical: false)
-                    .frame(width: containerWidth, alignment: .leading)
+                // The truncated one-line text sizes the view; it is swapped for the running text when cut.
+                label(lineLimit: 1)
+                    .opacity(overflows ? 0 : 1)
+                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { visibleWidth = $0 }
+                    .background(alignment: .leading) {
+                        label(lineLimit: 1)
+                            .fixedSize()
+                            .hidden()
+                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
+                    }
+                    .overlay(alignment: .leading) {
+                        if overflows { running }
+                    }
+                    .clipped()
             }
         }
-        .frame(height: 22)
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel(text)
+        .onChange(of: text) { start = .now }
+    }
+
+    private var running: some View {
+        TimelineView(.animation) { context in
+            let pitch = fullWidth + gap
+            let cycle = pause + Double(pitch / speed)
+            let t = max(0, context.date.timeIntervalSince(start)).truncatingRemainder(dividingBy: cycle)
+            let offset = t < pause ? 0 : -CGFloat(t - pause) * speed
+
+            HStack(spacing: gap) {
+                label(lineLimit: 1).fixedSize()
+                label(lineLimit: 1).fixedSize()
+            }
+            .offset(x: offset)
+        }
+    }
+
+    private func label(lineLimit: Int?) -> some View {
+        Text(text)
+            .font(font)
+            .foregroundStyle(color)
+            .lineLimit(lineLimit)
     }
 }
