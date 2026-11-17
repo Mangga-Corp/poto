@@ -13,7 +13,7 @@ final class PhotoReviewViewModel {
 
     static let preselectCount = 20
     static let minPhotos = ChoosePhotosViewModel.minPhotos
-    static let maxPhotos = ChoosePhotosViewModel.maxPhotos
+    static let maxPhotos = ReferencePhotoMode.allOfMe.maxPhotos
 
     private(set) var state: State = .grading
     /// Photos that passed the quality gate, best first.

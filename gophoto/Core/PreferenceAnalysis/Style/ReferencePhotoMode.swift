@@ -23,6 +23,15 @@ nonisolated enum ReferencePhotoMode: String, Codable, Sendable, CaseIterable {
         case .allOfMe: "All photos of me"
         }
     }
+
+    /// Most reference photos a preference of this mode can hold (17 Nov). Mode 2 gathers every
+    /// photo of the user, so it gets more room; each loaded photo costs ~3 MB of memory (1024 px).
+    var maxPhotos: Int {
+        switch self {
+        case .favorites: 100
+        case .allOfMe: 200
+        }
+    }
 }
 
 /// Which mode a preference was made with, by preference id (UserDefaults). Missing = favorites

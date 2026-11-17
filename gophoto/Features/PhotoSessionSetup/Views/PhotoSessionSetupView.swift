@@ -51,7 +51,9 @@ struct PhotoSessionSetupView: View {
         let persistedPreference = savedPreference.flatMap { preferences.preference(id: $0.id) }
         _selection = State(initialValue: PhotoSessionSetupSelection(
             photos: persistedPreference?.photos ?? [],
-            preferenceID: persistedPreference?.id
+            preferenceID: persistedPreference?.id,
+            limit: persistedPreference.map { ReferencePhotoModeStore.mode(for: $0.id).maxPhotos }
+                ?? ChoosePhotosViewModel.maxPhotos
         ))
         self.preferences = preferences
         self.onCreatePreference = onCreatePreference
@@ -179,10 +181,12 @@ struct PhotoSessionSetupView: View {
                 switch source {
                 case .manual:
                     photoMode = .favorites
+                    selection.limit = ReferencePhotoMode.favorites.maxPhotos
                     isChoosingPhotoSource = false
                     openPicker()
                 case .suggested:
                     photoMode = .allOfMe
+                    selection.limit = ReferencePhotoMode.allOfMe.maxPhotos
                     isShowingFacePicker = true
                 }
             }
@@ -241,7 +245,7 @@ struct PhotoSessionSetupView: View {
                     Text("Reference Photos")
                         .font(AppFont.system(size: 22, weight: .bold))
                         .foregroundStyle(GoPhotoDesign.primaryText)
-                    Text("\(selection.photos.count)/\(ChoosePhotosViewModel.maxPhotos)")
+                    Text("\(selection.photos.count)/\(max(selection.limit, selection.photos.count))")
                         .font(AppFont.system(size: 14, weight: .regular))
                         .foregroundStyle(GoPhotoDesign.secondaryText)
                 }
@@ -725,6 +729,8 @@ final class PhotoSessionSetupSelection {
     private(set) var photos: [PhotoItem]
     private(set) var preferenceID: UUID?
     var isPersistedPreferenceLoaded: Bool
+    /// Most photos `append` keeps: 100 for picked photos, 200 for "Find my photos for me".
+    var limit: Int
     var isSavingPhotos = false
     var isStartingAnalysis = false
 
@@ -738,9 +744,10 @@ final class PhotoSessionSetupSelection {
         hasSavedPreference && isPersistedPreferenceLoaded && !isSavingPhotos && !photos.isEmpty
     }
 
-    init(photos: [PhotoItem] = [], preferenceID: UUID? = nil) {
+    init(photos: [PhotoItem] = [], preferenceID: UUID? = nil, limit: Int = ChoosePhotosViewModel.maxPhotos) {
         self.photos = photos
         self.preferenceID = preferenceID
+        self.limit = limit
         isPersistedPreferenceLoaded = preferenceID == nil
     }
 
@@ -776,7 +783,7 @@ final class PhotoSessionSetupSelection {
         var assetIdentifiers = Set<String>()
         var itemIdentifiers = Set<UUID>()
         for photo in newPhotos {
-            guard photos.count < ChoosePhotosViewModel.maxPhotos else { return }
+            guard photos.count < limit else { return }
             guard itemIdentifiers.insert(photo.id).inserted else { continue }
             if let sourceAssetIdentifier = photo.sourceAssetIdentifier {
                 guard assetIdentifiers.insert(sourceAssetIdentifier).inserted else { continue }

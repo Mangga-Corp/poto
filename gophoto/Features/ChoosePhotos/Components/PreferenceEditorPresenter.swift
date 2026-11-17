@@ -24,7 +24,8 @@ final class PreferenceEditorPresenter {
     func presentEditor(for id: UUID, from presenter: UIViewController,
                        onComplete: @escaping (_ photosChanged: Bool) -> Void = { _ in }) {
         guard let preference = preferences.preference(id: id) else { return }
-        let editorViewModel = ChoosePhotosViewModel(service: service, preferenceName: preference.name, items: preference.photos)
+        let editorViewModel = ChoosePhotosViewModel(service: service, preferenceName: preference.name, items: preference.photos,
+                                                    limit: ReferencePhotoModeStore.mode(for: id).maxPhotos)
         final class Flag { var value = false }
         let photosChanged = Flag()
         editorViewModel.onPhotosChange = { [weak self] photos in

@@ -279,8 +279,9 @@ final class PreferencesViewModel {
 
         let current = preferences[index]
         let updatedPhotos = mergedPhotos(current.photos, photos)
-        guard updatedPhotos.count <= ChoosePhotosViewModel.maxPhotos else {
-            completion(.failure(PreferenceNameError(message: "You can add up to \(ChoosePhotosViewModel.maxPhotos) photos.")))
+        let limit = ReferencePhotoModeStore.mode(for: id).maxPhotos
+        guard updatedPhotos.count <= limit else {
+            completion(.failure(PreferenceNameError(message: "You can add up to \(limit) photos.")))
             return
         }
         guard updatedPhotos.map(\.id) != current.photos.map(\.id) else {
