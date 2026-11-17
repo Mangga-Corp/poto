@@ -2,48 +2,57 @@
 //  AspectRatioPicker.swift
 //  gophoto
 //
-//  The camera's photo ratio (3:4 / 9:16): a small segmented capsule in the top bar, styled like
-//  the shot-size picker (white capsule = selected) but smaller, so it never competes with the
-//  shutter.
+//  The camera's photo ratio (3:4 / 9:16): a round button to the right of the shutter, balancing
+//  the gallery shortcut on the left. Tapping it opens a native menu (checkmark = in use), so the
+//  choice is one tap away without a permanent control over the image. The ratio in use is also
+//  shown as plain text at the top right of the camera.
 //
 
 import SwiftUI
 
-struct AspectRatioPicker: View {
+struct AspectRatioPicker: View, Equatable {
     let selection: CameraAspectRatio
     var onSelect: (CameraAspectRatio) -> Void
 
-    @Namespace private var highlight
+    /// Same size as the gallery shortcut, so the shutter row stays symmetric.
+    private static let size: CGFloat = 52
+
+    /// The camera screen redraws many times a second (motion, detection); compare only the
+    /// selection so an open menu isn't rebuilt underneath the finger.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.selection == rhs.selection }
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(CameraAspectRatio.allCases) { ratio in
-                let isSelected = ratio == selection
-                Button {
-                    onSelect(ratio)
-                } label: {
-                    Text(ratio.title)
-                        .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.85))
-                        .frame(minWidth: 40, minHeight: 26)
-                        .padding(.horizontal, 4)
-                        .background {
-                            if isSelected {
-                                Capsule().fill(Color.white)
-                                    .matchedGeometryEffect(id: "ratioHighlight", in: highlight)
-                            }
-                        }
-                        .contentShape(Capsule())
+        Menu {
+            Picker("Photo Ratio", selection: Binding(get: { selection }, set: onSelect)) {
+                ForEach(CameraAspectRatio.allCases) { ratio in
+                    Label(ratio.title, systemImage: ratio.symbolName)
+                        .accessibilityLabel(ratio.accessibilityName)
+                        .tag(ratio)
                 }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Photo ratio \(ratio.accessibilityName)")
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
+            .pickerStyle(.inline)
+        } label: {
+            Image(systemName: selection.symbolName)
+                .font(.system(size: 20, weight: .semibold))
+                .foregroundStyle(GoPhotoDesign.tagText)
+                .contentTransition(.symbolEffect(.replace))
+                .frame(width: Self.size, height: Self.size)
+                .background(.white.opacity(0.1), in: Circle())
+                .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 1))
+                .contentShape(Circle())
         }
-        .padding(3)
-        .background(Color.black.opacity(0.35), in: Capsule())
-        .animation(.snappy, value: selection)
-        .accessibilityElement(children: .contain)
+        .menuOrder(.fixed)
         .accessibilityLabel("Photo ratio")
+        .accessibilityValue(selection.accessibilityName)
+        .accessibilityHint("Choose the shape of the photo")
+    }
+}
+
+private extension CameraAspectRatio {
+    var symbolName: String {
+        switch self {
+        case .threeFour: "rectangle.ratio.3.to.4"
+        case .nineSixteen: "rectangle.ratio.9.to.16"
+        }
     }
 }
