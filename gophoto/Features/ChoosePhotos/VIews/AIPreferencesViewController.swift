@@ -209,6 +209,8 @@ final class AIPreferencesViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
+        // Larger Text grows this screen only up to the largest standard size (see AppFont).
+        view.maximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
         view.backgroundColor = Theme.background
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
@@ -318,6 +320,9 @@ final class AIPreferencesViewController: UIViewController {
         }
         moreButton.menu = UIMenu(children: [selectAction, renameAction])
         moreButton.showsMenuAsPrimaryAction = true
+
+        // Like the rest of this screen, the menu stops at the largest standard size (compact, with icons).
+        moreButton.menuMaximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
     }
 
     private func promptRename() {

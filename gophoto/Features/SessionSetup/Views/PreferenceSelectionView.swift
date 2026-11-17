@@ -34,11 +34,20 @@ struct PreferenceSelectionView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
 
-                // "Your Preferences" row with the Add Preferences button.
-                HStack(alignment: .center, spacing: 12) {
-                    preferencesTitle
-                    Spacer(minLength: 8)
-                    addButton
+                // "Your Preferences" with the Add Style button beside it, or below it when both don't
+                // fit on one line (Larger Text): the row never pushes the screen wider than the iPhone.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 12) {
+                        preferencesTitle
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 8)
+                        addButton
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        preferencesTitle
+                            .fixedSize(horizontal: false, vertical: true)
+                        addButton
+                    }
                 }
                 .padding(.top, 28)
 
@@ -120,7 +129,7 @@ struct PreferenceSelectionView: View {
         Text("Your Preferences")
             .font(GoPhotoDesign.sectionTitle)
             .foregroundStyle(GoPhotoDesign.primaryText)
-            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// Opens the same flow the Add New Preference card used to.

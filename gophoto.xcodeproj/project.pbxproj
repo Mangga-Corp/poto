@@ -290,7 +290,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Poto uses the camera so someone can take your photo for you.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Poto uses your approximate location to work out where the sun is and to look up the weather, so it can suggest where to stand and how to light your photo. The location is never saved.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Poto saves the photos you take to your iPhone photos library.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Poto shows the photos you’ve taken in its gallery";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Poto learns your style from the photos you choose and shows the photos you take. Everything stays on this iPhone.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;
@@ -341,7 +341,7 @@
 				INFOPLIST_KEY_NSCameraUsageDescription = "Poto uses the camera so someone can take your photo for you.";
 				INFOPLIST_KEY_NSLocationWhenInUseUsageDescription = "Poto uses your approximate location to work out where the sun is and to look up the weather, so it can suggest where to stand and how to light your photo. The location is never saved.";
 				INFOPLIST_KEY_NSPhotoLibraryAddUsageDescription = "Poto saves the photos you take to your iPhone photos library.";
-				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Poto shows the photos you’ve taken in its gallery";
+				INFOPLIST_KEY_NSPhotoLibraryUsageDescription = "Poto learns your style from the photos you choose and shows the photos you take. Everything stays on this iPhone.";
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphoneos*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSceneManifest_Generation[sdk=iphonesimulator*]" = YES;
 				"INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents[sdk=iphoneos*]" = YES;

@@ -60,19 +60,30 @@ struct LatestPhotoView: View {
     private var topBar: some View {
         ZStack {
             if let photo = currentPhoto {
+                let title = Self.title(for: photo.createdAt)
+                let time = photo.createdAt.formatted(date: .omitted, time: .shortened)
+                // A compact bar title (day + time), like the Photos app's: the same size at every
+                // Larger Text setting, between the two buttons; long-press shows it enlarged.
                 VStack(spacing: 0) {
-                    Text(Self.title(for: photo.createdAt))
+                    Text(title)
                         .font(AppFont.headline)
                         .foregroundStyle(GoPhotoDesign.primaryText)
-                    Text(photo.createdAt.formatted(date: .omitted, time: .shortened))
+                    Text(time)
                         .font(AppFont.caption)
                         .foregroundStyle(GoPhotoDesign.secondaryText)
                 }
+                .lineLimit(1)
+                .padding(.horizontal, 60)   // clear of the 44 pt buttons on both sides
+                .fixedDynamicTypeSize()
+                .accessibilityElement(children: .combine)
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityShowsLargeContentViewer { Text("\(title), \(time)") }
             }
 
             HStack {
                 Button { dismiss() } label: { circleIcon("chevron.left") }
                     .accessibilityLabel("Back")
+                    .accessibilityShowsLargeContentViewer { Label("Back", systemImage: "chevron.left") }
                 Spacer()
                 Button(action: openPhotosApp) {
                     Image(systemName: "photo.on.rectangle")
@@ -82,6 +93,7 @@ struct LatestPhotoView: View {
                         .background(GoPhotoDesign.primary, in: Circle())
                 }
                 .accessibilityLabel("Open Photos")
+                .accessibilityShowsLargeContentViewer { Label("Open Photos", systemImage: "photo.on.rectangle") }
             }
         }
         .buttonStyle(.plain)
@@ -106,6 +118,7 @@ struct LatestPhotoView: View {
                 circleIcon("square.and.arrow.up")
             }
             .accessibilityLabel("Share")
+            .accessibilityShowsLargeContentViewer { Label("Share", systemImage: "square.and.arrow.up") }
             Spacer()
             Button {
                 Task { await deleteCurrent() }
@@ -113,6 +126,7 @@ struct LatestPhotoView: View {
                 circleIcon("trash")
             }
             .accessibilityLabel("Delete")
+            .accessibilityShowsLargeContentViewer { Label("Delete", systemImage: "trash") }
         }
         .buttonStyle(.plain)
         .padding(.horizontal, 24)

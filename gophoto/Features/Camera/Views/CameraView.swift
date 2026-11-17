@@ -112,13 +112,15 @@ struct CameraView: View {
     // One contained layout for every ratio, top to bottom: top bar · image · shot sizes + shutter.
     // The image is as large as its ratio allows between the top bar and the controls, centred,
     // with rounded corners, so 9:16 is a taller, narrower card (never behind the shutter).
-    // The top bar and the controls take their own (Dynamic Type) height and never move when the
-    // ratio changes; only the image's frame animates (the preview layer and session stay alive).
+    // The top bar keeps its designed size whatever the Larger Text setting (it is a compact bar, like
+    // the Camera app's); the controls follow Larger Text up to the largest standard size so they never
+    // crowd the image. Neither moves when the ratio changes; only the image's frame animates (the
+    // preview layer and session stay alive).
 
     private var liveCamera: some View {
         VStack(spacing: 0) {
             topBar
-                .frame(minHeight: Self.topBarHeight)
+                .frame(height: Self.topBarHeight)
 
             cameraPreview
                 .aspectRatio(CGFloat(viewModel.aspectRatio.ratio), contentMode: .fit)
@@ -130,6 +132,7 @@ struct CameraView: View {
 
             controls
                 .padding(.bottom, 12)
+                .dynamicTypeSize(...AppFont.overlayMaximumDynamicTypeSize)
         }
         .animation(.smooth(duration: 0.42), value: viewModel.aspectRatio)
         // Motion runs 30×/s and redraws the camera screen each time: stop it while the gallery
@@ -207,9 +210,11 @@ struct CameraView: View {
             .overlay(alignment: .trailing) { sideBar }
             .overlay(alignment: .top) { instructionPill }
             .overlay { flashOverlay }
+            // Guidance drawn over the image grows with Larger Text only up to the largest standard size.
+            .dynamicTypeSize(...AppFont.overlayMaximumDynamicTypeSize)
     }
 
-    /// The top bar's height at the default text size: one row (close · preference · ratio).
+    /// The top bar's height: one row (close · preference · ratio), the same at every text size.
     private static let topBarHeight: CGFloat = 44
 
     // MARK: Onboarding (first install only)
@@ -292,43 +297,44 @@ struct CameraView: View {
 
     /// One row, like a navigation bar: close (left), the preference name as the title (centre),
     /// the photo ratio in use (right). Both sides get the same width so the title stays centred.
+    /// Fixed size at every Larger Text setting; a long-press shows the Large Content Viewer instead.
     private var topBar: some View {
         HStack(spacing: 8) {
             closeButton
-                .frame(width: topBarSideWidth, alignment: .leading)
+                .frame(width: Self.topBarSideWidth, alignment: .leading)
             preferenceTitle
                 .frame(maxWidth: .infinity)
             aspectRatioLabel
-                .frame(width: topBarSideWidth, alignment: .trailing)
+                .frame(width: Self.topBarSideWidth, alignment: .trailing)
         }
+        .fixedDynamicTypeSize()
     }
 
-    /// Width of each top bar side: room for the close button and "9:16", growing with Larger Text
-    /// (capped, so the title always keeps most of the bar).
-    @ScaledMetric(relativeTo: .body) private var scaledTopBarSide: CGFloat = 64
-    private var topBarSideWidth: CGFloat { min(scaledTopBarSide, 96) }
+    /// Width of each top bar side: room for the close button and "9:16".
+    private static let topBarSideWidth: CGFloat = 64
 
     /// The preference in use, as the screen title: plain text, a label (not a button).
     @ViewBuilder private var preferenceTitle: some View {
         if let name = viewModel.presetName {
             // Runs as a marquee when the name doesn't fit (long name, Larger Text).
-            MarqueeText(text: name, font: AppFont.scaled(size: 17, weight: .semibold, relativeTo: .headline),
-                        color: .white)
+            MarqueeText(text: name, font: AppFont.system(size: 17, weight: .semibold), color: .white)
                 .accessibilityLabel("Preference \(name)")
                 .accessibilityAddTraits(.isHeader)
+                .accessibilityShowsLargeContentViewer { Text(name) }
         }
     }
 
     /// The photo ratio in use (changed with the ratio button next to the shutter).
     private var aspectRatioLabel: some View {
         Text(viewModel.aspectRatio.title)
-            .font(AppFont.scaled(size: 17, weight: .medium, relativeTo: .body).monospacedDigit())
+            .font(AppFont.system(size: 17, weight: .medium).monospacedDigit())
             .foregroundStyle(.white)
             .lineLimit(1)
             .minimumScaleFactor(0.7)
             .contentTransition(.numericText())
             .padding(.trailing, 20)
             .accessibilityLabel("Photo ratio \(viewModel.aspectRatio.accessibilityName)")
+            .accessibilityShowsLargeContentViewer { Text(viewModel.aspectRatio.title) }
     }
 
     @ViewBuilder private var closeButton: some View {
@@ -339,7 +345,7 @@ struct CameraView: View {
                 onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(AppFont.body.weight(.semibold))
+                    .font(AppFont.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -347,6 +353,7 @@ struct CameraView: View {
             .disabled(isClosing)
             .padding(.leading, 8)
             .accessibilityLabel("Close camera")
+            .accessibilityShowsLargeContentViewer { Label("Close", systemImage: "xmark") }
             .accessibilityIdentifier("camera.close")
         }
     }

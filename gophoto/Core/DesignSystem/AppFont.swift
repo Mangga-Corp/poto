@@ -27,6 +27,29 @@ enum AppFont {
     /// Set to 0 for the same sizes as the system font.
     static let sizeBoost: CGFloat = 1.5
 
+    // MARK: Larger Text limits
+    //
+    // Text, icons and `@ScaledMetric` sizes follow the user's Larger Text setting, but only up to
+    // these sizes, so the biggest accessibility sizes (Settings › Accessibility › Larger Text ›
+    // Larger Accessibility Sizes) still give a tidy layout on an iPhone screen. Applied once for the
+    // whole app (`View.appDynamicTypeLimit()` on the root) and for UIKit text (`UIFont.app`).
+
+    /// The largest text size anywhere in the app: the first accessibility size (AX1), clearly larger
+    /// than the largest standard size, without headings and buttons outgrowing the screen.
+    static let maximumDynamicTypeSize: DynamicTypeSize = .accessibility1
+    /// `maximumDynamicTypeSize` for UIKit (AX1).
+    static let maximumContentSizeCategory: UIContentSizeCategory = .accessibilityMedium
+    /// `largestStandardDynamicTypeSize` for UIKit (xxxLarge).
+    static let largestStandardContentSizeCategory: UIContentSizeCategory = .extraExtraExtraLarge
+    /// The largest standard size (xxxLarge, the end of the slider without Larger Accessibility Sizes).
+    static let largestStandardDynamicTypeSize: DynamicTypeSize = .xxxLarge
+    /// Controls drawn over the camera image (shot sizes, guidance pills): they must leave the image
+    /// visible, so they stop at the largest standard size.
+    static let overlayMaximumDynamicTypeSize: DynamicTypeSize = largestStandardDynamicTypeSize
+    /// The camera's Photo Ratio menu (3:4 / 9:16): a small menu over the camera image, so it stops
+    /// at Extra Large (the size the user picked from a screenshot).
+    static let photoRatioMenuMaximumContentSizeCategory: UIContentSizeCategory = .extraLarge
+
     /// Registers the bundled font files. Called once at launch (`MyApp.init`); no Info.plist entry needed.
     static func register() {
         let urls = (Bundle.main.urls(forResourcesWithExtension: "ttf", subdirectory: nil) ?? [])
@@ -89,19 +112,28 @@ enum AppFont {
 }
 
 extension UIFont {
-    /// UIKit text style in the app font (scales with Dynamic Type).
+    /// UIKit text style in the app font (scales with Dynamic Type, up to `AppFont.maximumContentSizeCategory`).
     static func app(style: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> UIFont {
         // The style's size at the default text size; `UIFontMetrics` then scales it once. (The user's
         // current size here would be scaled twice: far too big with Larger Text.)
         let base = UITraitCollection(preferredContentSizeCategory: .large)
         let size = UIFont.preferredFont(forTextStyle: style, compatibleWith: base).pointSize
-        return UIFontMetrics(forTextStyle: style).scaledFont(for: make(size: size + AppFont.sizeBoost, weight: weight))
+        return scaled(make(size: size + AppFont.sizeBoost, weight: weight), relativeTo: style)
     }
 
-    /// The design size at the default text size, scaled with Dynamic Type (Larger Text) like `style`.
+    /// The design size at the default text size, scaled with Dynamic Type (Larger Text) like `style`,
+    /// up to `AppFont.maximumContentSizeCategory`.
     /// Pair it with `adjustsFontForContentSizeCategory = true` so the label follows a change live.
     static func app(size: CGFloat, weight: UIFont.Weight = .regular, relativeTo style: UIFont.TextStyle) -> UIFont {
-        UIFontMetrics(forTextStyle: style).scaledFont(for: make(size: size + AppFont.sizeBoost, weight: weight))
+        scaled(make(size: size + AppFont.sizeBoost, weight: weight), relativeTo: style)
+    }
+
+    /// Scales for the user's text size, capped at the app's largest size. (The window caps it too,
+    /// see `appDynamicTypeLimit()`; this keeps the first layout right before a view is in a window.)
+    private static func scaled(_ font: UIFont, relativeTo style: UIFont.TextStyle) -> UIFont {
+        let category = min(UIApplication.shared.preferredContentSizeCategory, AppFont.maximumContentSizeCategory)
+        return UIFontMetrics(forTextStyle: style)
+            .scaledFont(for: font, compatibleWith: UITraitCollection(preferredContentSizeCategory: category))
     }
 
     /// UIKit fixed size in the app font.
@@ -115,5 +147,66 @@ extension UIFont {
             .traits: [UIFontDescriptor.TraitKey.weight: weight]
         ])
         return UIFont(descriptor: descriptor, size: size)
+    }
+}
+
+// MARK: - Larger Text limit for the whole app
+
+extension View {
+    /// Caps Larger Text at `AppFont.maximumDynamicTypeSize` for this view and everything it shows,
+    /// including UIKit screens presented from it (the style card, the photo editor) and the system's
+    /// menus and alerts: the window and its scene get the same cap. Apply once, on the app's root view.
+    func appDynamicTypeLimit() -> some View {
+        dynamicTypeSize(...AppFont.maximumDynamicTypeSize)
+            .background { WindowContentSizeLimit().allowsHitTesting(false).accessibilityHidden(true) }
+    }
+
+    /// Text and icons that stay at their designed size whatever the Larger Text setting (a compact
+    /// bar over the camera image). Give each item `accessibilityShowsLargeContentViewer` so a
+    /// long-press still shows it enlarged, as Apple's own bars do.
+    func fixedDynamicTypeSize() -> some View {
+        dynamicTypeSize(.large)
+    }
+}
+
+/// Caps the text size of everything UIKit shows for this app at `AppFont.maximumContentSizeCategory`:
+/// the window it lands in (UIKit view controllers presented outside SwiftUI's environment) and the
+/// whole window scene, so the system's own menus (the card's "…" menu, context menus) and alerts
+/// (Rename Preference), which are drawn in separate windows of the scene, stop at the same size too.
+private struct WindowContentSizeLimit: UIViewRepresentable {
+    func makeUIView(context: Context) -> UIView { WindowLimitView() }
+    func updateUIView(_ uiView: UIView, context: Context) {}
+
+    private final class WindowLimitView: UIView {
+        override func didMoveToWindow() {
+            super.didMoveToWindow()
+            guard window != nil else { return }
+            window?.maximumContentSizeCategory = AppFont.maximumContentSizeCategory
+            applySceneLimit()
+            NotificationCenter.default.removeObserver(self, name: UIContentSizeCategory.didChangeNotification, object: nil)
+            NotificationCenter.default.addObserver(self, selector: #selector(contentSizeCategoryDidChange),
+                                                   name: UIContentSizeCategory.didChangeNotification, object: nil)
+        }
+
+        @objc private func contentSizeCategoryDidChange() {
+            applySceneLimit()
+        }
+
+        /// Overrides the scene's text size only while the user's setting (the Larger Text slider) is
+        /// above the app's largest size; below it the scene follows the setting untouched.
+        private func applySceneLimit() {
+            guard let scene = window?.windowScene else { return }
+            let limit = AppFont.maximumContentSizeCategory
+            // Reading an override that isn't set throws (NSInternalInconsistencyException), so
+            // `contains` is checked before reading it.
+            let hasOverride = scene.traitOverrides.contains(UITraitPreferredContentSizeCategory.self)
+            if UIApplication.shared.preferredContentSizeCategory > limit {
+                if !hasOverride || scene.traitOverrides.preferredContentSizeCategory != limit {
+                    scene.traitOverrides.preferredContentSizeCategory = limit
+                }
+            } else if hasOverride {
+                scene.traitOverrides.remove(UITraitPreferredContentSizeCategory.self)
+            }
+        }
     }
 }

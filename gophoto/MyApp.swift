@@ -17,6 +17,7 @@ struct MyApp: App {
         WindowGroup {
             AppRootView()
                 .font(AppFont.body)   // default for any text without its own font
+                .appDynamicTypeLimit() // Larger Text grows up to AX1, so every screen stays tidy
         }
         .modelContainer(AppDatabase.container)
     }

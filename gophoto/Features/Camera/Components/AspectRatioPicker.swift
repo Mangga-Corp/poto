@@ -9,6 +9,7 @@
 //
 
 import SwiftUI
+import UIKit
 
 struct AspectRatioPicker: View, Equatable {
     let selection: CameraAspectRatio
@@ -22,29 +23,47 @@ struct AspectRatioPicker: View, Equatable {
     nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.selection == rhs.selection }
 
     var body: some View {
-        Menu {
-            Picker("Photo Ratio", selection: Binding(get: { selection }, set: onSelect)) {
-                ForEach(CameraAspectRatio.allCases) { ratio in
-                    Label(ratio.title, systemImage: ratio.symbolName)
-                        .accessibilityLabel(ratio.accessibilityName)
-                        .tag(ratio)
-                }
-            }
-            .pickerStyle(.inline)
-        } label: {
-            Image(systemName: selection.symbolName)
-                .font(.system(size: 20, weight: .semibold))
-                .foregroundStyle(GoPhotoDesign.tagText)
-                .contentTransition(.symbolEffect(.replace))
-                .frame(width: Self.size, height: Self.size)
-                .background(.white.opacity(0.1), in: Circle())
-                .overlay(Circle().strokeBorder(.white.opacity(0.15), lineWidth: 1))
-                .contentShape(Circle())
+        RatioMenuButton(selection: selection, onSelect: onSelect)
+            .frame(width: Self.size, height: Self.size)
+            .accessibilityLabel("Photo ratio")
+            .accessibilityValue(selection.accessibilityName)
+            .accessibilityHint("Choose the shape of the photo")
+            .accessibilityShowsLargeContentViewer { Label("Photo ratio \(selection.title)", systemImage: selection.symbolName) }
+    }
+}
+
+/// A UIKit button with a native menu (checkmark = in use). UIKit so the menu's text size can be
+/// limited (`LimitedMenuButton`): a menu of two short items over the camera image stops at
+/// `AppFont.photoRatioMenuMaximumContentSizeCategory` (the ratio is also shown at the top of the camera).
+private struct RatioMenuButton: UIViewRepresentable {
+    let selection: CameraAspectRatio
+    let onSelect: (CameraAspectRatio) -> Void
+
+    func makeUIView(context: Context) -> LimitedMenuButton {
+        let button = LimitedMenuButton(frame: .zero)
+        button.menuMaximumContentSizeCategory = AppFont.photoRatioMenuMaximumContentSizeCategory
+        button.showsMenuAsPrimaryAction = true
+        button.preferredMenuElementOrder = .fixed
+        button.layer.cornerRadius = 26
+        button.layer.borderWidth = 1
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.15).cgColor
+        button.backgroundColor = UIColor.white.withAlphaComponent(0.1)
+        button.tintColor = GoPhotoPalette.tagText
+        return button
+    }
+
+    func updateUIView(_ button: LimitedMenuButton, context: Context) {
+        let symbol = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+        button.setImage(UIImage(systemName: selection.symbolName, withConfiguration: symbol), for: .normal)
+        let onSelect = onSelect
+        let actions = CameraAspectRatio.allCases.map { ratio in
+            let action = UIAction(title: ratio.title,
+                                  image: UIImage(systemName: ratio.symbolName),
+                                  state: ratio == selection ? .on : .off) { _ in onSelect(ratio) }
+            action.accessibilityLabel = ratio.accessibilityName
+            return action
         }
-        .menuOrder(.fixed)
-        .accessibilityLabel("Photo ratio")
-        .accessibilityValue(selection.accessibilityName)
-        .accessibilityHint("Choose the shape of the photo")
+        button.menu = UIMenu(title: "Photo Ratio", options: .displayInline, children: actions)
     }
 }
 
