@@ -20,6 +20,7 @@ struct PhotoSessionSetupView: View {
     /// A photo the person check left out, tapped to see why (and to check again or replace it).
     @State private var inspectedPhoto: InspectedPhoto?
     @Environment(\.dismiss) private var dismiss
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private let preferences: PreferencesViewModel
     let onCreatePreference: ([PhotoItem], String, @escaping (Result<UUID, PreferenceNameError>) -> Void) -> Void
@@ -111,19 +112,35 @@ struct PhotoSessionSetupView: View {
             ZStack {
                 VStack(spacing: 0) {
                     if selection.photos.isEmpty {
-                        headerEmpty
-                            .padding(.top, 8)
-                        Spacer(minLength: 24)
-                        emptyState
-                            .frame(maxWidth: .infinity, maxHeight: .infinity)
-                        Spacer(minLength: 24)
+                        // Scrolls only when Larger Text makes it taller than the screen, so nothing
+                        // runs under the bottom buttons; otherwise the message sits centred.
+                        ScrollView {
+                            VStack(spacing: 0) {
+                                headerEmpty
+                                    .padding(.top, 8)
+                                Spacer(minLength: 24)
+                                emptyState
+                                Spacer(minLength: 24)
+                            }
+                            .frame(maxWidth: .infinity, minHeight: geometry.size.height)
+                        }
+                        .scrollBounceBehavior(.basedOnSize)
+                        .scrollIndicators(.hidden)
+                    } else if dynamicTypeSize.isAccessibilitySize {
+                        // Large text: the header scrolls away with the photos instead of keeping
+                        // half the screen.
+                        selectedPhotos(thumbnailWidth: thumbnailWidth) {
+                            headerWithPhotos
+                                .padding(.top, 8)
+                                .padding(.bottom, 14)
+                        }
                     } else {
                         // Header as in Image 2
                         headerWithPhotos
                             .padding(.top, 8)
                             .padding(.bottom, 14)
 
-                        selectedPhotos(thumbnailWidth: thumbnailWidth)
+                        selectedPhotos(thumbnailWidth: thumbnailWidth) { EmptyView() }
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
@@ -282,6 +299,7 @@ struct PhotoSessionSetupView: View {
             Text("No photos yet")
                 .font(GoPhotoDesign.sectionTitle)
                 .foregroundStyle(GoPhotoDesign.primaryText)
+                .multilineTextAlignment(.center)
 
             Text("Add at least \(ChoosePhotosViewModel.minPhotos) photos you love to begin.")
                 .font(GoPhotoDesign.body)
@@ -292,8 +310,12 @@ struct PhotoSessionSetupView: View {
 
     // MARK: - Selected Photos Grid (3 Columns, 1st item = "+ Add photos" tile)
 
-    private func selectedPhotos(thumbnailWidth: CGFloat) -> some View {
+    private func selectedPhotos<Header: View>(
+        thumbnailWidth: CGFloat,
+        @ViewBuilder header: () -> Header
+    ) -> some View {
         ScrollView(.vertical, showsIndicators: false) {
+            header()
             LazyVGrid(
                 columns: Array(repeating: GridItem(.fixed(thumbnailWidth), spacing: 10), count: 3),
                 spacing: 10

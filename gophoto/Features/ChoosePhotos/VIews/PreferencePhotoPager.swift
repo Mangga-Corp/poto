@@ -50,9 +50,8 @@ struct PreferencePhotoPager: View {
                 }
                 .accessibilityLabel("Close")
                 Spacer()
-                Text(title)
-                    .font(AppFont.subheadline.weight(.semibold))
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                // One line; runs as a marquee if it ever doesn't fit.
+                MarqueeText(text: title, font: AppFont.subheadline.weight(.semibold), color: GoPhotoDesign.primaryText)
                     .padding(.horizontal, 12).padding(.vertical, 6)
                     .background(GoPhotoDesign.primarySubtle, in: Capsule())
                 Spacer()
@@ -60,6 +59,9 @@ struct PreferencePhotoPager: View {
             }
             .padding(.horizontal, 12)
         }
+        // Shown in its own UIHostingController, outside the app's root SwiftUI view, so it gets the
+        // app's Larger Text limit (AX1) here too: ✕ and "2 of 8 · Full body" stay on one line.
+        .dynamicTypeSize(...AppFont.maximumDynamicTypeSize)
         .statusBarHidden(true)
         .onChange(of: current) { _, page in onPageChange(page) }
     }

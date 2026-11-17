@@ -19,8 +19,10 @@ struct CameraAngleSelectionView: View {
             message: "How high or low should the phone be? We'll guide you there.",
             selection: $model.angle,
             isOptionAvailable: { angle in model.isAngleAvailable(angle) },
-            primaryTitle: "Continue",
-            footnote: model.pendingName.map { "Saved to your preferences as “\($0)”" },
+            // The last step: the button names what it does (HIG), and the name it saves under is
+            // shown at the end of the list instead of over the options.
+            primaryTitle: "Create Preference",
+            savedName: model.pendingName,
             isLoading: model.isSaving,
             onPrimary: model.create
         ) { angle in

@@ -12,55 +12,98 @@ struct PreferenceSelectionCard: View {
     let isSelected: Bool
     @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
-    /// Name and "Last Used" side by side; stacked at accessibility text sizes so the name keeps its room.
-    private var titleLayout: AnyLayout {
-        dynamicTypeSize.isAccessibilitySize
-            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-            : AnyLayout(HStackLayout(alignment: .center, spacing: 8))
-    }
-
     var body: some View {
-        HStack(spacing: 14) {
-            if let style = card.customStyle {
-                CustomPreferenceThumbnail(style: style)
+        Group {
+            if dynamicTypeSize.isAccessibilitySize {
+                accessibilityLayout
             } else {
-                PreferenceThumbnail(image: card.thumbnail, cacheKey: card.thumbnailKey)
-            }
-
-            VStack(alignment: .leading, spacing: 6) {
-                titleLayout {
-                    // One line; runs as a marquee when it doesn't fit (Larger Text, "Last Used" beside it).
-                    MarqueeText(text: card.name, font: GoPhotoDesign.cardTitle, color: GoPhotoDesign.primaryText)
-                        .frame(maxWidth: .infinity, alignment: .leading)
-                        .layoutPriority(0)
-                    if card.isLastUsed {
-                        Text("Last Used")
-                            .lineLimit(1)
-                            .fixedSize()
-                            .goPhotoTag()
-                            .layoutPriority(1)
+                HStack(spacing: 14) {
+                    thumbnail
+                    VStack(alignment: .leading, spacing: 6) {
+                        HStack(alignment: .center, spacing: 8) {
+                            name
+                            lastUsedTag
+                        }
+                        summaryAndChips
                     }
-                }
-
-                MarqueeText(text: card.summary, font: GoPhotoDesign.secondaryBody, color: GoPhotoDesign.secondaryText)
-
-                if card.isUpdating {
-                    Label("Updating your style…", systemImage: "arrow.triangle.2.circlepath")
-                        .font(GoPhotoDesign.smallLabel)
-                        .foregroundStyle(GoPhotoDesign.tagText)
-                } else if !card.chips.isEmpty {
-                    ChipFlowLayout {
-                        ForEach(card.chips, id: \.self) { SessionChip(text: $0, onSelectedCard: isSelected) }
-                    }
-                    .padding(.top, 2)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    trailingIndicator
                 }
             }
-            .frame(maxWidth: .infinity, alignment: .leading)
-
-            trailingIndicator
         }
         .padding(14)
         .goPhotoCard(isSelected: isSelected)
+    }
+
+    /// Accessibility text sizes: the name and "Last Used" beside the photo with the selection mark
+    /// under them (level with the photo's bottom), then the summary and chips at the card's full width.
+    private var accessibilityLayout: some View {
+        VStack(alignment: .leading, spacing: 12) {
+            HStack(alignment: .top, spacing: 12) {
+                thumbnail
+                VStack(alignment: .leading, spacing: 8) {
+                    name
+                        // Keeps the name clear of the card's "…" menu in the top corner.
+                        .padding(.trailing, 30)
+                    lastUsedTag
+                    Spacer(minLength: 0)
+                    trailingIndicator
+                        .frame(maxWidth: .infinity, alignment: .trailing)
+                }
+                .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+            }
+            // The column beside the photo is as tall as the photo, so the mark sits at its bottom.
+            .fixedSize(horizontal: false, vertical: true)
+
+            summaryAndChips
+        }
+    }
+
+    @ViewBuilder private var thumbnail: some View {
+        if let style = card.customStyle {
+            CustomPreferenceThumbnail(style: style)
+        } else {
+            PreferenceThumbnail(image: card.thumbnail, cacheKey: card.thumbnailKey)
+        }
+    }
+
+    /// One line; runs as a marquee when it doesn't fit (Larger Text, "Last Used" beside it).
+    private var name: some View {
+        MarqueeText(text: card.name, font: GoPhotoDesign.cardTitle, color: GoPhotoDesign.primaryText)
+            .frame(maxWidth: .infinity, alignment: .leading)
+    }
+
+    @ViewBuilder private var lastUsedTag: some View {
+        if card.isLastUsed {
+            Text("Last Used")
+                .lineLimit(1)
+                .fixedSize()
+                .font(GoPhotoDesign.smallLabel)
+                .foregroundStyle(GoPhotoDesign.tagText)
+                .padding(.horizontal, 10)
+                .padding(.vertical, 5)
+                // On a selected card the usual tag fill matches the card, so it uses the chips' fill.
+                .background(isSelected ? GoPhotoDesign.surface : GoPhotoDesign.tagBackground, in: Capsule())
+                .layoutPriority(1)
+        }
+    }
+
+    private var summaryAndChips: some View {
+        VStack(alignment: .leading, spacing: 6) {
+            MarqueeText(text: card.summary, font: GoPhotoDesign.secondaryBody, color: GoPhotoDesign.secondaryText)
+
+            if card.isUpdating {
+                Label("Updating your style…", systemImage: "arrow.triangle.2.circlepath")
+                    .font(GoPhotoDesign.smallLabel)
+                    .foregroundStyle(GoPhotoDesign.tagText)
+            } else if !card.chips.isEmpty {
+                ChipFlowLayout {
+                    ForEach(card.chips, id: \.self) { SessionChip(text: $0, onSelectedCard: isSelected) }
+                }
+                .padding(.top, 2)
+            }
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
 
     @ViewBuilder private var trailingIndicator: some View {
