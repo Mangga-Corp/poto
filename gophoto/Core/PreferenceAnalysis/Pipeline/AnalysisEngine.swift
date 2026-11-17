@@ -27,7 +27,21 @@ nonisolated protocol PhotoAnalyzing: Sendable {
 /// - Every photo records where its time went (`PhotoScanTiming`) for benchmarking.
 actor AnalysisEngine: PhotoAnalyzing {
 
-    static let maximumConcurrentPhotos = 2
+    nonisolated static let maximumConcurrentPhotos = 2
+    /// The prepared image and the depth / segmentation grids were kept for every photo for
+    /// debug overlays, but nothing reads them, and with 100–200 photos they held ~5 MB+ each
+    /// for as long as the session lived (17 Nov). Off: each photo's pixels are freed as soon as
+    /// its result is built. Turn on only for a debug screen that reads the stores.
+    nonisolated static let keepsDebugArtifacts = false
+
+    /// Photos analysed at the same time: at most `maximumConcurrentPhotos`, one on phones with
+    /// ≤ 4 GB of memory or when the phone is hot (17 Nov, sliding window).
+    nonisolated static func concurrentPhotos() -> Int {
+        let gigabytes = Double(ProcessInfo.processInfo.physicalMemory) / 1_073_741_824
+        let thermal = ProcessInfo.processInfo.thermalState
+        if gigabytes <= 4.5 || thermal == .serious || thermal == .critical { return 1 }
+        return maximumConcurrentPhotos
+    }
 
     private let imageStore: PhotoImageStore
     private let artifactStore: AnalysisArtifactStore
@@ -67,7 +81,7 @@ actor AnalysisEngine: PhotoAnalyzing {
                     }
                 }
 
-                for _ in 0..<Self.maximumConcurrentPhotos { addNext() }
+                for _ in 0..<Self.concurrentPhotos() { addNext() }
                 while let finished = await group.next() {
                     cache[finished.0] = finished.1
                     addNext()
@@ -106,12 +120,14 @@ actor AnalysisEngine: PhotoAnalyzing {
             result = PhotoResultBuilder.unreadable(prepared, reason: reason)
 
         case .ready(let image, let record):
-            images.set(UIImage(cgImage: image, scale: 1, orientation: .up), for: prepared.id)
+            if keepsDebugArtifacts {
+                images.set(UIImage(cgImage: image, scale: 1, orientation: .up), for: prepared.id)
+            }
 
             // Stages B + C. GeoCalib modes skip evidence only the original angle method uses.
             let options = EvidenceOptions(angleMode: source.angleMode)
             let (evidence, grids) = await EvidenceCollector.collect(from: image, models: models, options: options)
-            artifacts.set(grids, for: prepared.id)
+            if keepsDebugArtifacts { artifacts.set(grids, for: prepared.id) }
             let tEvidence = Date()
 
             // Stages D + E
