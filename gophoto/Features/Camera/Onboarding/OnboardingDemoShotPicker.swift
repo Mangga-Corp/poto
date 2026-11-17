@@ -17,13 +17,18 @@ struct OnboardingDemoShotPicker: View {
     @State private var fingerOpacity = 0.0
     @State private var fingerScale: CGFloat = 1
  
-    private static let itemWidth: CGFloat = 96
+    @State private var labelWidth: CGFloat = 0
+    @ScaledMetric(relativeTo: .subheadline) private var itemHeight: CGFloat = 32
+    private static let labelFont = AppFont.subheadline.weight(.semibold)
+    private static let labelPadding: CGFloat = 12
+    /// Same sizing as `ShotSizePicker`: at least 96, wider for a longer title (Larger Text).
+    private var itemWidth: CGFloat { max(96, ceil(labelWidth) + Self.labelPadding * 2) }
     private static let spacing: CGFloat = 4
     private static let swipeDistance: CGFloat = 56
     private static let standing: [PresetAnalysis.ShotSize] = [.full, .threeQuarter, .half]
  
     private var options: [PresetAnalysis.ShotSize] { isSitting ? [.full] : Self.standing }
-    private var stride: CGFloat { Self.itemWidth + Self.spacing }
+    private var stride: CGFloat { itemWidth + Self.spacing }
  
     var body: some View {
         VStack(spacing: 6) {
@@ -35,7 +40,7 @@ struct OnboardingDemoShotPicker: View {
                     }
                 }
                 .frame(width: geometry.size.width, alignment: .leading)
-                .offset(x: (geometry.size.width - Self.itemWidth) / 2 - CGFloat(selectedIndex) * stride)
+                .offset(x: (geometry.size.width - itemWidth) / 2 - CGFloat(selectedIndex) * stride)
                 .animation(.smooth(duration: 0.3), value: selectedIndex)
                 .animation(.snappy, value: options)
  
@@ -47,8 +52,9 @@ struct OnboardingDemoShotPicker: View {
                     .opacity(fingerOpacity)
                     .position(x: geometry.size.width / 2 + fingerOffset, y: geometry.size.height / 2 + 12)
             }
-            .frame(height: 34)
+            .frame(height: itemHeight + 2)
             .clipped()
+            .background { ShotSizeTitleMeasure(font: Self.labelFont, width: $labelWidth) }
         }
         .padding(.vertical, 8)
         .frame(maxWidth: .infinity)
@@ -67,15 +73,16 @@ struct OnboardingDemoShotPicker: View {
         let current = options.indices.contains(selectedIndex) ? options[selectedIndex] : options[0]
         let isSelected = shot == current
         return Text(shot.pickerTitle)
-            .font(AppFont.subheadline.weight(.semibold))
+            .font(Self.labelFont)
             .foregroundStyle(isSelected ? GoPhotoDesign.primaryText : Color.white.opacity(0.5))
             .lineLimit(1)
-            .padding(.horizontal, 12)
-            .frame(height: 32)
+            .fixedSize()
+            .padding(.horizontal, Self.labelPadding)
+            .frame(height: itemHeight)
             .background {
                 if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GoPhotoDesign.background) }
             }
-            .frame(width: Self.itemWidth)
+            .frame(width: itemWidth)
             .animation(.smooth(duration: 0.25), value: isSelected)
     }
  

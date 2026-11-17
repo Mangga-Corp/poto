@@ -123,7 +123,7 @@ struct LatestPhotoView: View {
         VStack(spacing: 8) {
             Spacer()
             Image(systemName: "photo.on.rectangle.angled")
-                .font(AppFont.system(size: 40))
+                .font(AppFont.scaled(size: 40, relativeTo: .largeTitle))
                 .foregroundStyle(GoPhotoDesign.secondaryText)
             Text("No photos yet")
                 .font(GoPhotoDesign.sectionTitle)

@@ -163,17 +163,24 @@ final class SelectPhotoViewController: UIViewController {
             icon.heightAnchor.constraint(equalToConstant: 40),
         ])
 
-        let message = NSMutableAttributedString(
-            string: "You've limited access to selected items. ",
-            attributes: [.font: UIFont.app(style: .subheadline), .foregroundColor: Theme.text])
-        if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-            message.append(NSAttributedString(
-                string: "Settings",
-                attributes: [.font: UIFont.app(style: .subheadline, weight: .semibold), .link: settingsURL]))
+        // Built again when the text size changes: attributed text doesn't follow Larger Text by itself.
+        func message() -> NSAttributedString {
+            let message = NSMutableAttributedString(
+                string: "You've limited access to selected items. ",
+                attributes: [.font: UIFont.app(style: .subheadline), .foregroundColor: Theme.text])
+            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                message.append(NSAttributedString(
+                    string: "Settings",
+                    attributes: [.font: UIFont.app(style: .subheadline, weight: .semibold), .link: settingsURL]))
+            }
+            return message
         }
 
         let text = UITextView()
-        text.attributedText = message
+        text.attributedText = message()
+        text.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UITextView, _) in
+            view.attributedText = message()
+        }
         text.linkTextAttributes = [.foregroundColor: Theme.accent]
         text.isEditable = false
         text.isScrollEnabled = false

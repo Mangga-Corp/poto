@@ -52,6 +52,10 @@ final class PillButton: UIButton {
             configuration.baseForegroundColor = Theme.text
         }
         self.configuration = configuration
+        // The title font is made in the transformer: re-run it when the text size changes (Larger Text).
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (button: PillButton, _) in
+            button.setNeedsUpdateConfiguration()
+        }
         let minimumHeight = prominent && fullWidthHeight ? Theme.buttonHeight : 44
         heightAnchor.constraint(greaterThanOrEqualToConstant: minimumHeight).isActive = true
     }

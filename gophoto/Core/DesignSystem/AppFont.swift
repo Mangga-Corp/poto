@@ -56,6 +56,12 @@ enum AppFont {
         .custom(family, size: size + sizeBoost, relativeTo: textStyle)
     }
 
+    /// The design size at the default text size, scaled with Dynamic Type (Larger Text) like `textStyle`.
+    /// Use this instead of `system(size:)` for any text a user reads.
+    static func scaled(size: CGFloat, weight: Font.Weight = .regular, relativeTo textStyle: Font.TextStyle = .body) -> Font {
+        .custom(family, size: size + sizeBoost, relativeTo: textStyle).weight(weight)
+    }
+
     /// Fixed size (does not scale), like `Font.system(size:weight:)`.
     static func system(size: CGFloat, weight: Font.Weight = .regular, design: Font.Design = .default) -> Font {
         .custom(family, fixedSize: size + sizeBoost).weight(weight)
@@ -85,8 +91,17 @@ enum AppFont {
 extension UIFont {
     /// UIKit text style in the app font (scales with Dynamic Type).
     static func app(style: UIFont.TextStyle, weight: UIFont.Weight = .regular) -> UIFont {
-        let size = UIFont.preferredFont(forTextStyle: style).pointSize
+        // The style's size at the default text size; `UIFontMetrics` then scales it once. (The user's
+        // current size here would be scaled twice: far too big with Larger Text.)
+        let base = UITraitCollection(preferredContentSizeCategory: .large)
+        let size = UIFont.preferredFont(forTextStyle: style, compatibleWith: base).pointSize
         return UIFontMetrics(forTextStyle: style).scaledFont(for: make(size: size + AppFont.sizeBoost, weight: weight))
+    }
+
+    /// The design size at the default text size, scaled with Dynamic Type (Larger Text) like `style`.
+    /// Pair it with `adjustsFontForContentSizeCategory = true` so the label follows a change live.
+    static func app(size: CGFloat, weight: UIFont.Weight = .regular, relativeTo style: UIFont.TextStyle) -> UIFont {
+        UIFontMetrics(forTextStyle: style).scaledFont(for: make(size: size + AppFont.sizeBoost, weight: weight))
     }
 
     /// UIKit fixed size in the app font.
