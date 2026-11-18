@@ -173,8 +173,9 @@ struct PhotoSessionSetupView: View {
         .toolbar {
             // Back button in the navigation bar, like the Custom Preference steps
             // (Choose a Subject Placement). Asks first if there are unsaved photos.
+            // Not shown on first-time onboarding (root of the stack, nothing to go back to).
             ToolbarItem(placement: .topBarLeading) {
-                if !isShowingNameModal {   // hidden while the name card is open
+                if showsBackButton && !isShowingNameModal {   // hidden while the name card is open
                     Button(action: goBack) {
                         Image(systemName: "chevron.left")
                     }

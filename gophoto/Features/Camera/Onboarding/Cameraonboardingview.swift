@@ -13,7 +13,10 @@ struct CameraOnboardingView: View {
     let onFinish: () -> Void
  
     @State private var step: CameraOnboardingStep = .shotCards
- 
+    /// RealityKit (renderer, shader, mesh HP 3D) dibuat sekali di belakang layar selama step shot
+    /// size, supaya pindah ke step animasi pertama (setelah Sitting) tidak freeze.
+    @State private var isPrewarming3D = false
+
     private static let pickerHeight: CGFloat = 72
     /// Jarak card putih ke demo card shot size (ubah angka ini kalau mau lebih dekat / jauh).
     private static let cardGapToPicker: CGFloat = 4
@@ -21,8 +24,12 @@ struct CameraOnboardingView: View {
  
     var body: some View {
         ZStack {
+            if isPrewarming3D && step.cardAbovePicker {
+                prewarm3D
+            }
+
             dimLayer
- 
+
             GeometryReader { proxy in
                 let origin = proxy.frame(in: .global).origin
                 ZStack {
@@ -44,8 +51,27 @@ struct CameraOnboardingView: View {
         }
         .sensoryFeedback(.selection, trigger: step)
         .accessibilityAddTraits(.isModal)
+        .task {
+            // Tunggu card pertama tampil dulu, lalu siapkan 3D selagi user membaca.
+            try? await Task.sleep(for: .milliseconds(600))
+            isPrewarming3D = true
+        }
     }
- 
+
+    /// Height & tilt guidance dalam ukuran kecil, hampir transparan, di bawah layer redup.
+    /// Tidak terlihat dan tidak bisa disentuh; hanya untuk memanaskan RealityKit.
+    private var prewarm3D: some View {
+        HStack(spacing: 0) {
+            HeightGuidanceView(direction: .up, isActive: false)
+            TiltGuidanceView(direction: .down, degrees: GuidanceMotion.tiltFallbackDegrees,
+                             tiltView: GuidanceAnimationStyle.tiltView, isActive: false)
+        }
+        .frame(width: 16, height: 16)
+        .opacity(0.01)
+        .allowsHitTesting(false)
+        .accessibilityHidden(true)
+    }
+
     // MARK: Dim
  
     /// Layar digelapkan. Juga menahan semua sentuhan ke kamera.
