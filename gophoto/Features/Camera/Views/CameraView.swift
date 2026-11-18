@@ -403,8 +403,8 @@ struct CameraView: View {
             .opacity(isLocked ? 0.6 : 1)
             .animation(.easeInOut(duration: 0.25), value: isLocked)
         }
-        .disabled(viewModel.isCapturing)
-        .opacity(viewModel.isCapturing ? 0.5 : 1)
+        // Not disabled or dimmed while photos process: taps keep capturing while the guide is
+        // satisfied (the view model bounds how many are in flight).
         .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: viewModel.lockedShutterTapCount)
         .accessibilityLabel(isLocked ? "Shutter locked" : "Take photo")
         .accessibilityHint(isLocked ? "Complete the camera guide to take the photo" : "")

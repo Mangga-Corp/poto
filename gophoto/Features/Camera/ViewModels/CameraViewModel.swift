@@ -29,7 +29,8 @@ final class CameraViewModel {
 
     // MARK: State the View reads
     private(set) var state: CameraState = .idle
-    private(set) var isCapturing = false
+    /// At least one photo is being taken or processed (the shutter stays usable meanwhile).
+    var isCapturing: Bool { capturesInFlight > 0 }
     private(set) var errorMessage: String?
     private(set) var horizon: HorizonState = .hidden
     private(set) var captureCount = 0
@@ -154,6 +155,63 @@ final class CameraViewModel {
 
     static let lockedShutterMessage = "Adjust your position to complete the guide before taking the photo."
 
+    // MARK: Readiness held through captures
+    //
+    // While a photo is processed the camera service pauses person detection (the photo pipeline
+    // gets the processor), so the guide receives no new evidence and its time windows empty: on
+    // its own it would turn "not ready" after every photo although nothing changed. A capture
+    // taken while ready therefore holds the ready state (the guide's last output, crop included)
+    // until the guide can judge again. The hold ends at once when the phone turns or tilts more
+    // than `holdMotionTolerance` from where it was (a real change the motion sensors still see),
+    // when the guide is ready again by itself, or `holdResumeGrace` after detection resumed if
+    // it is still not ready (then the shutter darkens as usual).
+
+    private struct ReadyHold {
+        var pitch: Double
+        var roll: Double
+        /// When the first detection after the last photo arrived (nil while photos are in flight).
+        var resumedAt: TimeInterval?
+        var awaitingResume = false
+    }
+
+    @ObservationIgnored private var readyHold: ReadyHold?
+    /// Degrees of pitch or roll from the shutter position that end the hold: more than hand
+    /// shake from tapping, less than the guide's tilt and level steps.
+    static let holdMotionTolerance = 3.0
+    /// After detection resumes, time for the guide to refill its 0.8 s window
+    /// (`PhasedParameters.window`) and judge again.
+    static let holdResumeGrace: TimeInterval = 1.2
+
+    /// A capture starts (always while ready): hold that state, or keep holding through a burst.
+    private func holdReadinessForCapture() {
+        if readyHold == nil {
+            readyHold = ReadyHold(pitch: pitch, roll: roll)
+        } else {
+            readyHold?.resumedAt = nil
+            readyHold?.awaitingResume = false
+        }
+    }
+
+    /// The camera returned a photo (or failed): when it was the last one, detection resumes.
+    private func captureReturned() {
+        capturesInFlight = max(0, capturesInFlight - 1)
+        if capturesInFlight == 0 { readyHold?.awaitingResume = true }
+    }
+
+    /// Whether the guide's latest output may be shown (and decide the shutter), ending the hold
+    /// when the reason for it is gone.
+    private func releasesReadyHold(liveReady: Bool, now: TimeInterval) -> Bool {
+        guard let hold = readyHold else { return true }
+        let moved = abs(pitch - hold.pitch) > Self.holdMotionTolerance
+            || abs(roll - hold.roll) > Self.holdMotionTolerance
+        let expired = hold.resumedAt.map { now - $0 > Self.holdResumeGrace } ?? false
+        if moved || liveReady || expired {
+            readyHold = nil
+            return true
+        }
+        return false
+    }
+
     /// A tap on the locked shutter: no photo, one haptic, the hint for a moment.
     private func rejectLockedShutter() {
         lockedShutterTapCount += 1
@@ -217,6 +275,7 @@ final class CameraViewModel {
     func selectShot(_ shot: PresetAnalysis.ShotSize) {
         guard shotOptions.contains(shot), shot != selectedShot else { return }
         selectedShot = shot
+        readyHold = nil   // another framing: the held "ready" no longer applies
         updateInstruction()
     }
 
@@ -367,21 +426,42 @@ final class CameraViewModel {
 
     // MARK: Capture
 
-    /// The photo was taken: flash, haptic and a free shutter (its file is still processing).
-    private func shutterFired() {
-        guard isCapturing else { return }
-        isCapturing = false
+    // Several photos can be in flight at once (one per tap while the guide is satisfied). The
+    // camera service keeps each request apart by its settings ID; each call below keeps its own
+    // crop, ratio and preset. Only the number in flight is bounded (memory: each 48 MP file is
+    // held until saved).
+
+    /// Photos requested and not yet returned by the camera.
+    @ObservationIgnored private var capturesInFlight = 0
+    @ObservationIgnored private var nextCaptureID = 0
+    /// Captures whose shutter moment (flash, haptic) has not been shown yet.
+    @ObservationIgnored private var capturesAwaitingShutter: Set<Int> = []
+    /// Beyond this many photos in flight a tap waits for the camera (no photo, light haptic).
+    static let maxCapturesInFlight = 4
+
+    /// The shutter moment of capture `id`: flash and haptic, once.
+    private func shutterFired(_ id: Int) {
+        guard capturesAwaitingShutter.remove(id) != nil else { return }
         captureCount += 1
     }
 
     func takePhoto() async {
-        guard state == .running, !isCapturing else { return }
+        guard state == .running else { return }
         // Decided here, on the latest guide state, not only by the button's look.
         guard !isShutterLocked else {
             rejectLockedShutter()
             return
         }
-        isCapturing = true
+        guard capturesInFlight < Self.maxCapturesInFlight else {
+            lockedShutterTapCount += 1   // the same soft "not now" haptic, no message
+            return
+        }
+        capturesInFlight += 1
+        holdReadinessForCapture()
+        nextCaptureID += 1
+        let captureID = nextCaptureID
+        capturesAwaitingShutter.insert(captureID)
+        defer { captureReturned() }
         // The crop at the shutter: the final crop when ready; before that the crop valid right now
         // (shaky hands still get a framed photo). Nothing measurable yet = the full photo.
         let wanted = shutterCrop()
@@ -389,14 +469,14 @@ final class CameraViewModel {
         let photo: CapturedPhoto
         do {
             photo = try await camera.capturePhoto(onShutter: { [weak self] in
-                Task { @MainActor in self?.shutterFired() }
+                Task { @MainActor in self?.shutterFired(captureID) }
             })
         } catch {
-            isCapturing = false
+            capturesAwaitingShutter.remove(captureID)
             errorMessage = error.localizedDescription
             return
         }
-        shutterFired()                                    // no-op if the shutter callback came first
+        shutterFired(captureID)                           // no-op if the shutter callback came first
 
         let capturedData = photo.data
         let presetAtShot = presetID
@@ -430,6 +510,7 @@ final class CameraViewModel {
     func selectAspectRatio(_ ratio: CameraAspectRatio) {
         guard ratio != aspectRatio else { return }
         aspectRatio = ratio
+        readyHold = nil   // another framing: the held "ready" no longer applies
         guard var engine = phasedEngine else { return }
         engine.cropShape = ratio.cropShape
         phasedEngine = engine
@@ -506,6 +587,11 @@ extension CameraViewModel {
 
     /// Called for every detection.
     private func recordPhasedDetection(_ detection: PersonDetection?, now: TimeInterval) {
+        // First detection after the last photo: the guide is getting evidence again.
+        if readyHold?.awaitingResume == true, capturesInFlight == 0 {
+            readyHold?.awaitingResume = false
+            readyHold?.resumedAt = now
+        }
         guard let d = detection else {
             phasedCandidates = []
             phasedSubjectLocked = false
@@ -568,8 +654,11 @@ extension CameraViewModel {
         if let zoom = out.zoomRequest { requestPhasedZoom(zoom, now: now) }
 
         let final: PhasedInstruction? = selection.instruction ?? (phasedSubjectLocked ? out.instruction : nil)
-        if out != phased { phased = out }
-        if final != phasedInstruction { phasedInstruction = final }
+        // During a capture burst the last ready output stays shown (see "Readiness held").
+        if releasesReadyHold(liveReady: out.ready && final == .takePhoto, now: now) {
+            if out != phased { phased = out }
+            if final != phasedInstruction { phasedInstruction = final }
+        }
         let guideActive = made.target != nil
         if guideActive != isGuideActive { isGuideActive = guideActive }
         // The shutter just opened: the "complete the guide" hint is no longer true.
