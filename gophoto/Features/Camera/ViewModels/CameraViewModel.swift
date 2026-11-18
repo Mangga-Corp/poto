@@ -138,12 +138,18 @@ final class CameraViewModel {
     // Without a guide target (no preset analysis, or a shot size the guide does not support)
     // there is nothing to complete, so the shutter stays open as before.
 
-    /// The guide has a target for this shot, so its readiness decides the shutter.
+    /// The guide has a target for this shot it can complete, so it decides the shutter. A preset
+    /// without a phone-height or size target can never be "ready": no lock then (18 Nov).
     private(set) var isGuideActive = false
 
-    /// The shutter refuses to take a photo until the guide is complete.
+    /// Latch (18 Nov, Reynard): the guide reached "Take the photo now" for this framing. The
+    /// shutter then stays open, tap after tap as before the lock, until the guide asks for a real
+    /// correction. Missing evidence (detection pauses during every photo) does not lock it again.
+    private(set) var hasCompletedGuide = false
+
+    /// The shutter refuses to take a photo until the guide has been complete once.
     var isShutterLocked: Bool {
-        isGuideActive && !(phased.ready && phasedInstruction == .takePhoto)
+        isGuideActive && !hasCompletedGuide
     }
 
     /// Shown briefly in the guide area after a tap on the locked shutter; cleared when the
@@ -276,6 +282,7 @@ final class CameraViewModel {
         guard shotOptions.contains(shot), shot != selectedShot else { return }
         selectedShot = shot
         readyHold = nil   // another framing: the held "ready" no longer applies
+        hasCompletedGuide = false
         updateInstruction()
     }
 
@@ -337,6 +344,7 @@ final class CameraViewModel {
         guard configuration != sessionConfiguration else { return }
         sessionConfiguration = configuration
         selectedShot = configuration?.effectiveShotSize
+        hasCompletedGuide = false
         updateInstruction()
     }
 
@@ -511,6 +519,7 @@ final class CameraViewModel {
         guard ratio != aspectRatio else { return }
         aspectRatio = ratio
         readyHold = nil   // another framing: the held "ready" no longer applies
+        hasCompletedGuide = false
         guard var engine = phasedEngine else { return }
         engine.cropShape = ratio.cropShape
         phasedEngine = engine
@@ -660,7 +669,14 @@ extension CameraViewModel {
             if final != phasedInstruction { phasedInstruction = final }
         }
         let guideActive = made.target != nil
+            && engine.vantageUnavailable == nil && engine.distanceUnavailable == nil
         if guideActive != isGuideActive { isGuideActive = guideActive }
+        // Latch: opens on "Take the photo now"; only a real correction closes it again.
+        if out.ready && final == .takePhoto {
+            if !hasCompletedGuide { hasCompletedGuide = true }
+        } else if hasCompletedGuide, final?.asksForCorrection == true {
+            hasCompletedGuide = false
+        }
         // The shutter just opened: the "complete the guide" hint is no longer true.
         if !isShutterLocked, lockedShutterHint != nil {
             lockedShutterHintID += 1
@@ -729,4 +745,15 @@ extension CameraViewModel {
     var phasedMotion: GuideInstruction { phasedInstruction?.motion ?? .findPerson }
     /// Pitch error for the tilt animation's swing (only when the tilt follows the reference pitch).
     var phasedPitchError: Double? { phased.tiltSource == "pitch" ? phased.tiltError : nil }
+}
+
+private extension PhasedInstruction {
+    /// The guide asks the photographer to change something (move, raise, tilt, pick a person),
+    /// not only to hold still or take the photo. Closes the shutter latch (18 Nov).
+    var asksForCorrection: Bool {
+        switch self {
+        case .holdIt, .takePhoto: false
+        default: true
+        }
+    }
 }
