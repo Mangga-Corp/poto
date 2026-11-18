@@ -97,7 +97,7 @@ struct CameraView: View {
         }
         .sheet(isPresented: $isShowingAcknowledgements) {
             AcknowledgementsView()
-                .preferredColorScheme(.light)
+                .followsSystemColorScheme()
                 .tint(GoPhotoDesign.primary)
         }
         .fullScreenCover(isPresented: $isShowingGallery) {
@@ -109,38 +109,32 @@ struct CameraView: View {
 
     // MARK: - Layout
     //
-    // Two presentations of one view tree (the preview layer and the camera session stay alive
-    // when the ratio changes; only frames move):
-    // • 3:4 — contained, like the Camera app's 4:3: slim top bar, the image, a big bottom area.
-    // • 9:16 — immersive, like the Camera app's 16:9: the image runs from the top of the safe area
-    //   down behind the controls; top bar and controls float above it on soft gradients.
-    // The shutter area is the same in both, so the shutter never moves when switching.
+    // One contained layout for every ratio, top to bottom: top bar · image · shot sizes + shutter.
+    // The image is as large as its ratio allows between the top bar and the controls, centred,
+    // with rounded corners, so 9:16 is a taller, narrower card (never behind the shutter).
+    // The top bar keeps its designed size whatever the Larger Text setting (it is a compact bar, like
+    // the Camera app's); the controls follow Larger Text up to the largest standard size so they never
+    // crowd the image. Neither moves when the ratio changes; only the image's frame animates (the
+    // preview layer and session stay alive).
 
     private var liveCamera: some View {
-        GeometryReader { geo in
-            let layout = CameraScreenLayout(size: geo.size, ratio: viewModel.aspectRatio,
-                                            topBarHeight: Self.topBarHeight,
-                                            controlsMinHeight: Self.controlsMinHeight)
-            ZStack(alignment: .topLeading) {
-                cameraPreview(coveredTop: layout.coveredTop, coveredBottom: layout.coveredBottom)
-                    .frame(width: layout.preview.width, height: layout.preview.height)
-                    .clipShape(RoundedRectangle(cornerRadius: layout.isImmersive ? 0 : 24, style: .continuous))
-                    .reportOnboardingFrame(.preview, into: $onboardingFrames)
-                    .position(x: layout.preview.midX, y: layout.preview.midY)
+        VStack(spacing: 0) {
+            topBar
+                .frame(height: Self.topBarHeight)
 
-                immersiveScrims(layout)
-                    .opacity(layout.isImmersive ? 1 : 0)
+            cameraPreview
+                .aspectRatio(CGFloat(viewModel.aspectRatio.ratio), contentMode: .fit)
+                .clipShape(RoundedRectangle(cornerRadius: 24, style: .continuous))
+                .reportOnboardingFrame(.preview, into: $onboardingFrames)
+                .padding(.horizontal, 20)
+                .padding(.vertical, 12)
+                .frame(maxWidth: .infinity, maxHeight: .infinity)
 
-                topBar
-                    .frame(width: geo.size.width, height: Self.topBarHeight)
-                    .position(x: geo.size.width / 2, y: Self.topBarHeight / 2)
-
-                controls
-                    .frame(width: layout.controls.width, height: layout.controls.height)
-                    .position(x: layout.controls.midX, y: layout.controls.midY)
-            }
-            .animation(.smooth(duration: 0.42), value: viewModel.aspectRatio)
+            controls
+                .padding(.bottom, 12)
+                .dynamicTypeSize(...AppFont.overlayMaximumDynamicTypeSize)
         }
+        .animation(.smooth(duration: 0.42), value: viewModel.aspectRatio)
         // Motion runs 30×/s and redraws the camera screen each time: stop it while the gallery
         // covers the camera, otherwise the gallery underneath it is rebuilt 30×/s too (lag).
         .task(id: isShowingGallery) {
@@ -165,7 +159,7 @@ struct CameraView: View {
         .sensoryFeedback(.impact(flexibility: .rigid, intensity: 1.0), trigger: viewModel.captureCount)
     }
 
-    /// Shot sizes and shutter, centred in the bottom area (both presentations).
+    /// Shot sizes and shutter, pinned to the bottom (every ratio).
     private var controls: some View {
         VStack(spacing: 12) {
             shotSizePicker
@@ -173,7 +167,8 @@ struct CameraView: View {
         }
     }
 
-    /// Dark rounded panel holding the gallery shortcut and the shutter; stays in 3:4 and 9:16.
+    /// Dark rounded panel: gallery shortcut (left) · shutter (centre) · photo ratio (right),
+    /// like the Camera app's bottom row. Same in 3:4 and 9:16.
     private var controlPanel: some View {
         shutterButton
             .frame(maxWidth: .infinity)
@@ -186,33 +181,19 @@ struct CameraView: View {
                     .matchedTransitionSource(id: "gallery", in: galleryZoom)
                     .padding(.leading, 24)
             }
+            .overlay(alignment: .trailing) {
+                AspectRatioPicker(selection: viewModel.aspectRatio) { viewModel.selectAspectRatio($0) }
+                    .equatable()
+                    .sensoryFeedback(.selection, trigger: viewModel.aspectRatio)
+                    .padding(.trailing, 24)
+            }
             .padding(.horizontal, 20)
-    }
-
-    /// 9:16: soft dark gradients where the top bar and the controls lie over the image, so they
-    /// stay readable. Visual only: the photo is the whole 9:16 image, as the grid shows.
-    private func immersiveScrims(_ layout: CameraScreenLayout) -> some View {
-        // Always laid out (faded in and out by the caller) so switching ratio cross-fades them.
-        let top = max(layout.coveredTop, Self.topBarHeight)
-        let bottom = max(layout.coveredBottom, 100)
-        return ZStack(alignment: .topLeading) {
-            LinearGradient(colors: [.black.opacity(0.45), .clear], startPoint: .top, endPoint: .bottom)
-                .frame(width: layout.preview.width, height: top + 16)
-                .position(x: layout.preview.midX, y: layout.preview.minY + (top + 16) / 2)
-            LinearGradient(colors: [.clear, .black.opacity(0.5)], startPoint: .top, endPoint: .bottom)
-                .frame(width: layout.preview.width, height: bottom + 24)
-                .position(x: layout.preview.midX, y: layout.preview.maxY - (bottom + 24) / 2)
-        }
-        .allowsHitTesting(false)
-        .accessibilityHidden(true)
     }
 
     /// The live preview with every guide layer on top. Each layer is its own property so the
     /// compiler can type-check them one by one instead of one huge overlay chain.
-    /// `coveredTop` / `coveredBottom`: how much of the image the floating top bar and controls
-    /// cover (9:16). Pills, bars and the motion guide stay in the uncovered part; the grid, the
-    /// person dimming / tap and the horizon cover the whole image (the photo).
-    private func cameraPreview(coveredTop: CGFloat, coveredBottom: CGFloat) -> some View {
+    /// The grid, the person dimming / tap and the horizon cover the whole image (the photo).
+    private var cameraPreview: some View {
         CameraPreviewView(session: viewModel.session,
                           videoGravity: .resizeAspectFill)   // 3:4 box has the frame's own shape, so fill = exact; one gravity keeps the ratio change continuous
             .overlay { guideVisuals }
@@ -224,19 +205,17 @@ struct CameraView: View {
                     pitchError: viewModel.phasedPitchError,
                     isEnabled: !isShowingGallery && !showsCameraOnboarding
                 )
-                .padding(.top, coveredTop)
-                .padding(.bottom, coveredBottom)
             }
-            .overlay(alignment: .bottom) { bottomStepCard.padding(.bottom, coveredBottom) }
-            .overlay(alignment: .trailing) { sideBar.padding(.top, coveredTop).padding(.bottom, coveredBottom) }
-            .overlay(alignment: .top) { instructionPill.padding(.top, coveredTop) }
+            .overlay(alignment: .bottom) { bottomStepCard }
+            .overlay(alignment: .trailing) { sideBar }
+            .overlay(alignment: .top) { instructionPill }
             .overlay { flashOverlay }
+            // Guidance drawn over the image grows with Larger Text only up to the largest standard size.
+            .dynamicTypeSize(...AppFont.overlayMaximumDynamicTypeSize)
     }
 
-    /// The top bar's height: close + preference name on top, the ratio picker below.
-    private static let topBarHeight: CGFloat = 76
-    /// Shot-size picker (34) + its note + spacing + control panel (108), with a little room.
-    private static let controlsMinHeight: CGFloat = 170
+    /// The top bar's height: one row (close · preference · ratio), the same at every text size.
+    private static let topBarHeight: CGFloat = 44
 
     // MARK: Onboarding (first install only)
 
@@ -316,58 +295,46 @@ struct CameraView: View {
 
     // MARK: Top bar, shutter, permission
 
-    /// Row 1: close, with the preference name centred on the same line. Row 2: photo ratio.
+    /// One row, like a navigation bar: close (left), the preference name as the title (centre),
+    /// the photo ratio in use (right). Both sides get the same width so the title stays centred.
+    /// Fixed size at every Larger Text setting; a long-press shows the Large Content Viewer instead.
     private var topBar: some View {
-        VStack(spacing: 0) {
-            ZStack {
-                HStack {
-                    closeButton
-                    Spacer()
-                }
-                preferenceNamePill
-            }
-            .frame(height: 44)
-            AspectRatioPicker(selection: viewModel.aspectRatio) { viewModel.selectAspectRatio($0) }
-                .sensoryFeedback(.selection, trigger: viewModel.aspectRatio)
-                .frame(height: 32)
+        HStack(spacing: 8) {
+            closeButton
+                .frame(width: Self.topBarSideWidth, alignment: .leading)
+            preferenceTitle
+                .frame(maxWidth: .infinity)
+            aspectRatioLabel
+                .frame(width: Self.topBarSideWidth, alignment: .trailing)
+        }
+        .fixedDynamicTypeSize()
+    }
+
+    /// Width of each top bar side: room for the close button and "9:16".
+    private static let topBarSideWidth: CGFloat = 64
+
+    /// The preference in use, as the screen title: plain text, a label (not a button).
+    @ViewBuilder private var preferenceTitle: some View {
+        if let name = viewModel.presetName {
+            // Runs as a marquee when the name doesn't fit (long name, Larger Text).
+            MarqueeText(text: name, font: AppFont.system(size: 17, weight: .semibold), color: .white)
+                .accessibilityLabel("Preference \(name)")
+                .accessibilityAddTraits(.isHeader)
+                .accessibilityShowsLargeContentViewer { Text(name) }
         }
     }
 
-    /// The preference in use, centred in the top bar next to the close button (slim, so the ratio picker below stays clear). A frosted capsule with a soft
-    /// purple tint, a small sparkle mark and a fine hairline; a label, not a button, so no solid fill.
-    @ViewBuilder private var preferenceNamePill: some View {
-        if let name = viewModel.presetName {
-            let shape = Capsule(style: .continuous)
-            HStack(spacing: 6) {
-                Image(systemName: "sparkle")
-                    .font(AppFont.system(size: 10, weight: .semibold))
-                    .foregroundStyle(
-                        LinearGradient(colors: [.white, GoPhotoDesign.primaryBorder],
-                                       startPoint: .top, endPoint: .bottom))
-                Text(name)
-                    .font(AppFont.system(size: 14, weight: .semibold))
-                    .tracking(0.3)
-                    .foregroundStyle(.white)
-                    .lineLimit(1)
-                    .truncationMode(.tail)
-            }
-            .padding(.horizontal, 14)
-            .frame(height: 28)
-            .background {
-                shape.fill(.ultraThinMaterial).environment(\.colorScheme, .dark)
-                shape.fill(GoPhotoDesign.primary.opacity(0.32))
-            }
-            .overlay(
-                shape.strokeBorder(
-                    LinearGradient(colors: [.white.opacity(0.45), GoPhotoDesign.primaryBorder.opacity(0.12)],
-                                   startPoint: .top, endPoint: .bottom),
-                    lineWidth: 0.7))
-            .shadow(color: .black.opacity(0.22), radius: 6, y: 2)
-            .frame(maxWidth: 220)
-            .allowsHitTesting(false)
-            .accessibilityElement(children: .ignore)
-            .accessibilityLabel("Preference \(name)")
-        }
+    /// The photo ratio in use (changed with the ratio button next to the shutter).
+    private var aspectRatioLabel: some View {
+        Text(viewModel.aspectRatio.title)
+            .font(AppFont.system(size: 17, weight: .medium).monospacedDigit())
+            .foregroundStyle(.white)
+            .lineLimit(1)
+            .minimumScaleFactor(0.7)
+            .contentTransition(.numericText())
+            .padding(.trailing, 20)
+            .accessibilityLabel("Photo ratio \(viewModel.aspectRatio.accessibilityName)")
+            .accessibilityShowsLargeContentViewer { Text(viewModel.aspectRatio.title) }
     }
 
     @ViewBuilder private var closeButton: some View {
@@ -378,7 +345,7 @@ struct CameraView: View {
                 onClose()
             } label: {
                 Image(systemName: "xmark")
-                    .font(AppFont.body.weight(.semibold))
+                    .font(AppFont.system(size: 17, weight: .semibold))
                     .foregroundStyle(.white)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
@@ -386,6 +353,7 @@ struct CameraView: View {
             .disabled(isClosing)
             .padding(.leading, 8)
             .accessibilityLabel("Close camera")
+            .accessibilityShowsLargeContentViewer { Label("Close", systemImage: "xmark") }
             .accessibilityIdentifier("camera.close")
         }
     }
@@ -437,49 +405,4 @@ struct CameraView: View {
 
 #Preview {
     CameraView()
-}
-
-/// Where the preview, the top bar and the controls go in the camera's safe area.
-private struct CameraScreenLayout {
-    /// The image (the photo's framing), safe-area coordinates.
-    let preview: CGRect
-    /// The bottom area: shot sizes and shutter, centred in it. 9:16: the same area, lifted so
-    /// its bottom meets the image's bottom edge (the shutter sits on the image, as in the Camera
-    /// app); never off screen, since the image never extends past the safe area.
-    let controls: CGRect
-    /// 9:16: the image runs behind the top bar and the controls.
-    let isImmersive: Bool
-    /// Height of the image under the top bar / under the controls (0 when contained).
-    let coveredTop: CGFloat
-    let coveredBottom: CGFloat
-
-    init(size: CGSize, ratio: CameraAspectRatio, topBarHeight: CGFloat, controlsMinHeight: CGFloat) {
-        let full = CGFloat(CameraAspectRatio.threeFour.ratio)
-        // The contained 3:4 image: full width, below the top bar, leaving the controls their
-        // minimum (smaller iPhones: narrower, centred). The controls take the rest.
-        let containedHeight = max(0, min((size.width - 40) / full, size.height - topBarHeight - controlsMinHeight))
-        let controlsTop = topBarHeight + containedHeight
-        let containedControls = CGRect(x: 0, y: controlsTop, width: size.width,
-                                       height: max(0, size.height - controlsTop))
-
-        if ratio.showsWholeFrame {
-            let width = containedHeight * full
-            preview = CGRect(x: (size.width - width) / 2, y: topBarHeight, width: width, height: containedHeight)
-            controls = containedControls
-            isImmersive = false
-            coveredTop = 0
-            coveredBottom = 0
-        } else {
-            // Immersive: as large as the whole safe area allows, from its top, centred.
-            let r = CGFloat(ratio.ratio)
-            var width = size.width
-            var height = width / r
-            if height > size.height { height = size.height; width = height * r }
-            preview = CGRect(x: (size.width - width) / 2, y: 0, width: width, height: height)
-            controls = containedControls.offsetBy(dx: 0, dy: min(0, preview.maxY - containedControls.maxY))
-            isImmersive = true
-            coveredTop = max(0, min(topBarHeight, preview.maxY) - preview.minY)
-            coveredBottom = max(0, preview.maxY - controls.minY)
-        }
-    }
 }

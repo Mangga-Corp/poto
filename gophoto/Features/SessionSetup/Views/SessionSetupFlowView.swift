@@ -99,7 +99,6 @@ struct SessionSetupFlowView: View {
                             return nil
                         }
                     )
-                    .preferredColorScheme(.light)
                     .tint(GoPhotoDesign.primary)
                 case .addMorePhotos(let preferenceID):
                     // The same preference: added photos are saved to it, and Analyze runs it
@@ -124,8 +123,6 @@ struct SessionSetupFlowView: View {
                 }
             }
         }
-        // This flow only: the camera (another root) keeps its dark look.
-        .preferredColorScheme(.light)
         .tint(GoPhotoDesign.primary)
     }
 

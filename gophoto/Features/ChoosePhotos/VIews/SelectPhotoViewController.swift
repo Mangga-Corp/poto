@@ -48,10 +48,22 @@ final class SelectPhotoViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        overrideUserInterfaceStyle = .light
         view.backgroundColor = Theme.background
 
-        let title = UILabel.make("Select Photo", style: .headline)
+        // A compact bar title, like a navigation bar's: the same size at every Larger Text setting
+        // (it sits between the two buttons); long-press shows it enlarged (Large Content Viewer).
+        let title = UILabel()
+        title.text = "Select Photo"
+        title.font = .app(size: 17, weight: .semibold)
+        title.textColor = Theme.text
+        title.textAlignment = .center
+        title.numberOfLines = 1
+        title.lineBreakMode = .byTruncatingTail
+        title.accessibilityTraits.insert(.header)
+        title.isUserInteractionEnabled = true
+        title.showsLargeContentViewer = true
+        title.largeContentTitle = title.text
+        title.addInteraction(UILargeContentViewerInteraction())
         collectionView.backgroundColor = .clear
         collectionView.allowsMultipleSelection = true
         collectionView.dataSource = self
@@ -88,6 +100,8 @@ final class SelectPhotoViewController: UIViewController {
             closeButton.heightAnchor.constraint(equalToConstant: 48),
             title.centerXAnchor.constraint(equalTo: view.centerXAnchor),
             title.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
+            title.leadingAnchor.constraint(greaterThanOrEqualTo: closeButton.trailingAnchor, constant: 8),
+            title.trailingAnchor.constraint(lessThanOrEqualTo: doneButton.leadingAnchor, constant: -8),
             doneButton.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
             doneButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
             doneButton.widthAnchor.constraint(equalToConstant: 48),
@@ -164,17 +178,24 @@ final class SelectPhotoViewController: UIViewController {
             icon.heightAnchor.constraint(equalToConstant: 40),
         ])
 
-        let message = NSMutableAttributedString(
-            string: "You've limited access to selected items. ",
-            attributes: [.font: UIFont.app(style: .subheadline), .foregroundColor: Theme.text])
-        if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-            message.append(NSAttributedString(
-                string: "Settings",
-                attributes: [.font: UIFont.app(style: .subheadline, weight: .semibold), .link: settingsURL]))
+        // Built again when the text size changes: attributed text doesn't follow Larger Text by itself.
+        func message() -> NSAttributedString {
+            let message = NSMutableAttributedString(
+                string: "You've limited access to selected items. ",
+                attributes: [.font: UIFont.app(style: .subheadline), .foregroundColor: Theme.text])
+            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
+                message.append(NSAttributedString(
+                    string: "Settings",
+                    attributes: [.font: UIFont.app(style: .subheadline, weight: .semibold), .link: settingsURL]))
+            }
+            return message
         }
 
         let text = UITextView()
-        text.attributedText = message
+        text.attributedText = message()
+        text.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UITextView, _) in
+            view.attributedText = message()
+        }
         text.linkTextAttributes = [.foregroundColor: Theme.accent]
         text.isEditable = false
         text.isScrollEnabled = false

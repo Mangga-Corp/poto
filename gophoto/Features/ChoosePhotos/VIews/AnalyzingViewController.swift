@@ -28,7 +28,7 @@ private final class PhotoCardView: UIView {
     private func setupViews() {
         clipsToBounds = false
         // Background solid putih agar gambar di atasnya tidak transparan / nyaru
-        backgroundColor = UIColor(GoPhotoDesign.surface)
+        backgroundColor = Theme.surface
 
         // Image View
         imageView.contentMode = .scaleAspectFill
@@ -38,7 +38,7 @@ private final class PhotoCardView: UIView {
         addSubview(imageView)
 
         // Checkmark badge (Lingkaran ungu dengan ikon ceklis putih di kanan bawah)
-        checkmarkContainer.backgroundColor = UIColor(GoPhotoDesign.primary)
+        checkmarkContainer.backgroundColor = Theme.accent
         checkmarkContainer.clipsToBounds = true
         checkmarkContainer.translatesAutoresizingMaskIntoConstraints = false
         checkmarkContainer.layer.shadowColor = UIColor.black.cgColor
@@ -71,6 +71,10 @@ private final class PhotoCardView: UIView {
         ])
 
         checkmarkContainer.layer.cornerRadius = 12
+
+        registerForTraitChanges([UITraitUserInterfaceStyle.self]) { (view: PhotoCardView, _) in
+            view.applyBorderColor()
+        }
     }
 
     func configure(with photo: PhotoItem, index: Int) {
@@ -89,8 +93,17 @@ private final class PhotoCardView: UIView {
         self.layer.cornerRadius = cornerRadius
         self.imageView.layer.cornerRadius = cornerRadius
         self.imageView.layer.borderWidth = borderWidth
-        self.imageView.layer.borderColor = borderColor.cgColor
+        self.borderColor = borderColor
         self.checkmarkContainer.alpha = showCheckmark ? 1.0 : 0.0
+    }
+
+    /// Dynamic border token; resolved into the layer's CGColor for the current Light / Dark look.
+    private var borderColor: UIColor = .clear {
+        didSet { applyBorderColor() }
+    }
+
+    private func applyBorderColor() {
+        imageView.layer.borderColor = borderColor.resolvedColor(with: traitCollection).cgColor
     }
 
     func animateCheckmarkAppearance() {
@@ -129,7 +142,7 @@ private final class PulsingOvalView: UIView {
         width: CGFloat = 190,
         height: CGFloat = 200,
         borderWidth: CGFloat = 1.5,
-        color: UIColor = UIColor(GoPhotoDesign.primary),
+        color: UIColor = Theme.accent,
         minScale: CGFloat = 0.80,
         maxScale: CGFloat = 1.30,
         duration: CFTimeInterval = 2.0
@@ -152,19 +165,24 @@ private final class PulsingOvalView: UIView {
         // Primary oval
         primaryOvalLayer.path = ovalPath
         primaryOvalLayer.fillColor = UIColor.clear.cgColor
-        primaryOvalLayer.strokeColor = color.withAlphaComponent(0.50).cgColor
         primaryOvalLayer.lineWidth = borderWidth
         primaryOvalLayer.opacity = 0.70
 
         // Secondary oval (offset phase)
         secondaryOvalLayer.path = ovalPath
         secondaryOvalLayer.fillColor = UIColor.clear.cgColor
-        secondaryOvalLayer.strokeColor = color.withAlphaComponent(0.25).cgColor
         secondaryOvalLayer.lineWidth = borderWidth * 0.7
         secondaryOvalLayer.opacity = 0.50
 
         layer.addSublayer(secondaryOvalLayer)
         layer.addSublayer(primaryOvalLayer)
+
+        // Stroke colors are CGColors: resolve them for the current (and any new) Light / Dark look.
+        applyLayerColors { [primaryOvalLayer, secondaryOvalLayer] view in
+            let resolved = color.resolvedColor(with: view.traitCollection)
+            primaryOvalLayer.strokeColor = resolved.withAlphaComponent(0.50).cgColor
+            secondaryOvalLayer.strokeColor = resolved.withAlphaComponent(0.25).cgColor
+        }
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -246,13 +264,21 @@ final class AnalyzingViewController: UIViewController {
 
     // Container pembungkus seluruh konten tengah agar berada pas di tengah layar
     private let contentContainer = UIView()
+    /// Holds `contentContainer`: centred while it fits, scrollable when Larger Text makes it taller than the screen.
+    private let scrollView: UIScrollView = {
+        let sv = UIScrollView()
+        sv.showsVerticalScrollIndicator = false
+        sv.alwaysBounceVertical = false
+        return sv
+    }()
 
     // Title ("Finding your style")
     private let titleLabel: UILabel = {
         let l = UILabel()
         l.text = "Finding your style"
-        l.font = .app(size: 32, weight: .bold)
-        l.textColor = UIColor(GoPhotoDesign.primaryText)
+        l.font = .app(size: 32, weight: .bold, relativeTo: .largeTitle)
+        l.adjustsFontForContentSizeCategory = true
+        l.textColor = Theme.text
         l.textAlignment = .center
         l.numberOfLines = 0
         return l
@@ -272,8 +298,10 @@ final class AnalyzingViewController: UIViewController {
     // Reading label: "Reading photo 3 of 9"
     private let readingLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 16, weight: .semibold)
-        l.textColor = UIColor(GoPhotoDesign.primaryText)
+        l.font = .app(size: 16, weight: .semibold, relativeTo: .callout)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
+        l.textColor = Theme.text
         l.textAlignment = .center
         return l
     }()
@@ -292,8 +320,10 @@ final class AnalyzingViewController: UIViewController {
     // Checking description label ("Checking your angles")
     private let checkingLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 15, weight: .regular)
-        l.textColor = UIColor(GoPhotoDesign.secondaryText)
+        l.font = .app(size: 15, weight: .regular, relativeTo: .subheadline)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
+        l.textColor = Theme.secondaryText
         l.textAlignment = .center
         return l
     }()
@@ -301,8 +331,10 @@ final class AnalyzingViewController: UIViewController {
     // Estimated time label ("This usually takes about 15 seconds")
     private let estimateLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 13, weight: .regular)
-        l.textColor = UIColor(GoPhotoDesign.secondaryText)
+        l.font = .app(size: 13, weight: .regular, relativeTo: .footnote)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
+        l.textColor = Theme.secondaryText
         l.textAlignment = .center
         return l
     }()
@@ -311,8 +343,9 @@ final class AnalyzingViewController: UIViewController {
     private let cancelButton: UIButton = {
         let b = UIButton(type: .system)
         b.setTitle("Cancel", for: .normal)
-        b.titleLabel?.font = .app(size: 17, weight: .semibold)
-        b.setTitleColor(UIColor(GoPhotoDesign.primary), for: .normal)
+        b.titleLabel?.font = .app(size: 17, weight: .semibold, relativeTo: .body)
+        b.titleLabel?.adjustsFontForContentSizeCategory = true
+        b.setTitleColor(Theme.accent, for: .normal)
         return b
     }()
 
@@ -334,8 +367,7 @@ final class AnalyzingViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        overrideUserInterfaceStyle = .light
-        view.backgroundColor = UIColor(GoPhotoDesign.background)
+        view.backgroundColor = Theme.background
 
         setupLayout()
         setupSegmentedProgressBar()
@@ -398,8 +430,17 @@ final class AnalyzingViewController: UIViewController {
         contentContainer.addSubview(checkingLabel)
         contentContainer.addSubview(estimateLabel)
 
-        view.addSubview(contentContainer)
+        scrollView.translatesAutoresizingMaskIntoConstraints = false
+        scrollView.addSubview(contentContainer)
+        view.addSubview(scrollView)
         view.addSubview(cancelButton)
+
+        let content = scrollView.contentLayoutGuide
+        let frame = scrollView.frameLayoutGuide
+        // The content is at least as tall as the visible area (so it can be centred there), and exactly
+        // that tall unless the content needs more, which then scrolls.
+        let contentFillsFrame = content.heightAnchor.constraint(equalTo: frame.heightAnchor)
+        contentFillsFrame.priority = .defaultLow
 
         let safe = view.safeAreaLayoutGuide
 
@@ -410,9 +451,20 @@ final class AnalyzingViewController: UIViewController {
             pulsingOvalView.widthAnchor.constraint(equalToConstant: pulsingOvalView.ovalBaseWidth),
             pulsingOvalView.heightAnchor.constraint(equalToConstant: pulsingOvalView.ovalBaseHeight),
 
-            // Content Container diposisikan di tengah vertikal layar
-            contentContainer.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            contentContainer.centerYAnchor.constraint(equalTo: view.centerYAnchor, constant: -24),
+            // Scroll view between the top and the Cancel button
+            scrollView.topAnchor.constraint(equalTo: safe.topAnchor),
+            scrollView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
+            scrollView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
+            scrollView.bottomAnchor.constraint(equalTo: cancelButton.topAnchor, constant: -8),
+
+            content.widthAnchor.constraint(equalTo: frame.widthAnchor),
+            content.heightAnchor.constraint(greaterThanOrEqualTo: frame.heightAnchor),
+            contentFillsFrame,
+
+            // Content Container di tengah area yang terlihat (scroll bila terlalu tinggi)
+            contentContainer.centerYAnchor.constraint(equalTo: content.centerYAnchor),
+            contentContainer.topAnchor.constraint(greaterThanOrEqualTo: content.topAnchor, constant: 16),
+            contentContainer.bottomAnchor.constraint(lessThanOrEqualTo: content.bottomAnchor, constant: -16),
             contentContainer.leadingAnchor.constraint(equalTo: safe.leadingAnchor),
             contentContainer.trailingAnchor.constraint(equalTo: safe.trailingAnchor),
 
@@ -430,6 +482,8 @@ final class AnalyzingViewController: UIViewController {
             // 3. "Reading photo X of Y"
             readingLabel.topAnchor.constraint(equalTo: carouselContainer.bottomAnchor, constant: 24),
             readingLabel.centerXAnchor.constraint(equalTo: contentContainer.centerXAnchor),
+            readingLabel.leadingAnchor.constraint(greaterThanOrEqualTo: contentContainer.leadingAnchor, constant: 24),
+            readingLabel.trailingAnchor.constraint(lessThanOrEqualTo: contentContainer.trailingAnchor, constant: -24),
 
             // 4. Segmented Progress Bar
             progressStackView.topAnchor.constraint(equalTo: readingLabel.bottomAnchor, constant: 14),
@@ -453,7 +507,7 @@ final class AnalyzingViewController: UIViewController {
             // 7. Cancel Button di bagian paling bawah
             cancelButton.bottomAnchor.constraint(equalTo: safe.bottomAnchor, constant: -32),
             cancelButton.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            cancelButton.heightAnchor.constraint(equalToConstant: 44)
+            cancelButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 44)
         ])
     }
 
@@ -461,7 +515,7 @@ final class AnalyzingViewController: UIViewController {
         progressSegments.removeAll()
         for _ in 0..<photos.count {
             let seg = UIView()
-            seg.backgroundColor = UIColor(GoPhotoDesign.primarySubtle)
+            seg.backgroundColor = Theme.accentSubtle
             seg.layer.cornerRadius = 3.5
             seg.clipsToBounds = true
             seg.translatesAutoresizingMaskIntoConstraints = false
@@ -537,7 +591,7 @@ final class AnalyzingViewController: UIViewController {
         cCard.setAppearance(
             cornerRadius: centerCornerRadius,
             borderWidth: 2.5,
-            borderColor: UIColor(GoPhotoDesign.primary),
+            borderColor: Theme.accent,
             showCheckmark: false,
             alphaVal: 1.0
         )
@@ -641,7 +695,7 @@ final class AnalyzingViewController: UIViewController {
                 movingCenter.setAppearance(
                     cornerRadius: self.centerCornerRadius,
                     borderWidth: 2.5,
-                    borderColor: UIColor(GoPhotoDesign.primary),
+                    borderColor: Theme.accent,
                     showCheckmark: false,
                     alphaVal: 1.0
                 )
@@ -724,8 +778,8 @@ final class AnalyzingViewController: UIViewController {
             let isFilled = index < finishedCount
             UIView.animate(withDuration: 0.35, delay: 0, options: [.curveEaseInOut]) {
                 segment.backgroundColor = isFilled
-                    ? UIColor(GoPhotoDesign.primary)
-                    : UIColor(GoPhotoDesign.primarySubtle)
+                    ? Theme.accent
+                    : Theme.accentSubtle
             }
         }
     }

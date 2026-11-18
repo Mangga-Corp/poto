@@ -10,7 +10,8 @@ import UIKit
 /// Round icon button (SF Symbol). Liquid Glass on iOS 26, system gray before that. At least 44 x 44 pt.
 /// Pass `tint: Theme.destructive` for destructive actions, `prominent: true` for primary purple background, or `glassTint:` for a softly tinted Liquid Glass
 /// (e.g. `Theme.accent.withAlphaComponent(0.6)`) that keeps the icon color neutral.
-final class CircleButton: UIButton {
+/// Set `menuMaximumContentSizeCategory` to stop its `menu` growing past a Larger Text size.
+final class CircleButton: LimitedMenuButton {
     init(symbol: String, accessibilityLabel label: String, tint: UIColor? = nil, prominent: Bool = false, glassTint: UIColor? = nil) {
         super.init(frame: .zero)
         var configuration: UIButton.Configuration
@@ -31,6 +32,12 @@ final class CircleButton: UIButton {
         configuration.preferredSymbolConfigurationForImage = UIImage.SymbolConfiguration(pointSize: 18, weight: .bold)
         self.configuration = configuration
         accessibilityLabel = label
+        // The icon keeps its size at every Larger Text setting; long-press shows it enlarged.
+        showsLargeContentViewer = true
+        largeContentTitle = label
+        largeContentImage = UIImage(systemName: symbol)
+        scalesLargeContentImage = true
+        addInteraction(UILargeContentViewerInteraction())
 
         if prominent {
             configurationUpdateHandler = { button in

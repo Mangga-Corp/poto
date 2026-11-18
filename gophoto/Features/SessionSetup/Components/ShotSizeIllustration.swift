@@ -30,15 +30,20 @@ struct ShotSizeIllustration: View {
         }
     }
 
+    // Unselected tile: neutral gradient and figure (light grays in Light Mode, charcoal in Dark Mode).
+    private static let idleTop = Color(uiColor: .adaptive(light: 0xF5F5F5, dark: 0x2C2C2E))
+    private static let idleBottom = Color(uiColor: .adaptive(light: 0xE3E3E3, dark: 0x1C1C1E))
+    private static let idleFigure = Color(uiColor: .adaptive(light: 0x4D4D4D, dark: 0xBDBDBD))
+
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let figureColor = isSelected ? GoPhotoDesign.primary : Color(white: 0.30)
+            let figureColor = isSelected ? GoPhotoDesign.primary : Self.idleFigure
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected
-                          ? AnyShapeStyle(Color.white)
-                          : AnyShapeStyle(LinearGradient(colors: [Color(white: 0.96), Color(white: 0.89)],
+                          ? AnyShapeStyle(GoPhotoDesign.surface)
+                          : AnyShapeStyle(LinearGradient(colors: [Self.idleTop, Self.idleBottom],
                                                          startPoint: .top, endPoint: .bottom)))
 
                 // Body outside the frame: faint, so the crop is visible.

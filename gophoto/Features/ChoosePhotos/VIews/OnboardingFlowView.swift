@@ -226,7 +226,7 @@ private struct AnalysisRetryScreen: View {
         VStack(spacing: 18) {
             Image(systemName: failure == .noUsableFraming ? "person.fill.questionmark"
                                                           : "exclamationmark.triangle")
-                .font(AppFont.system(size: 36))
+                .font(AppFont.scaled(size: 36, relativeTo: .largeTitle))
                 .foregroundStyle(failure == .noUsableFraming ? GoPhotoDesign.secondaryText : GoPhotoDesign.warning)
             Text(failure == .noUsableFraming ? "We couldn't find a person in these photos."
                                              : "We couldn't read your photos.")

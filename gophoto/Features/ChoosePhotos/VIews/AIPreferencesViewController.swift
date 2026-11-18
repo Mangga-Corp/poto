@@ -31,16 +31,19 @@ final class AIPreferencesViewController: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.font = .app(size: 28, weight: .bold)
+        label.font = .app(size: 28, weight: .bold, relativeTo: .title1)
+        label.adjustsFontForContentSizeCategory = true
         label.textColor = Theme.text
         label.textAlignment = .left
-        label.numberOfLines = 1
+        label.numberOfLines = 0
         return label
     }()
 
     private let subtitleLabel: UILabel = {
         let label = UILabel()
-        label.font = .app(size: 15, weight: .semibold)
+        label.font = .app(size: 15, weight: .semibold, relativeTo: .subheadline)
+        label.adjustsFontForContentSizeCategory = true
+        label.numberOfLines = 0
         label.textColor = Theme.text
         label.textAlignment = .left
         return label
@@ -48,7 +51,9 @@ final class AIPreferencesViewController: UIViewController {
 
     private let guidanceLabel: UILabel = {
         let label = UILabel()
-        label.font = .app(size: 13, weight: .regular)
+        label.font = .app(size: 13, weight: .regular, relativeTo: .footnote)
+        label.adjustsFontForContentSizeCategory = true
+        label.numberOfLines = 0
         label.textColor = Theme.secondaryText
         label.text = "Clear, full-body photos work best."
         label.textAlignment = .left
@@ -59,7 +64,9 @@ final class AIPreferencesViewController: UIViewController {
 
     private lazy var privacyBanner: UIView = {
         let icon = UIImageView(image: UIImage(systemName: "lock.shield.fill"))
-        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
+        // Follows the text size, like the label next to it.
+        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .body)
+            .applying(UIImage.SymbolConfiguration(weight: .semibold))
         icon.tintColor = Theme.accent
         icon.contentMode = .center
         icon.setContentHuggingPriority(.required, for: .horizontal)
@@ -67,7 +74,8 @@ final class AIPreferencesViewController: UIViewController {
 
         let label = UILabel()
         label.text = "Your photos stay on this iPhone. Nothing is uploaded."
-        label.font = .app(size: 13, weight: .regular)
+        label.font = .app(size: 13, weight: .regular, relativeTo: .footnote)
+        label.adjustsFontForContentSizeCategory = true
         label.textColor = Theme.text
         label.numberOfLines = 0
 
@@ -80,7 +88,10 @@ final class AIPreferencesViewController: UIViewController {
         stack.backgroundColor = Theme.tagBackground
         stack.layer.cornerRadius = 14
         stack.layer.borderWidth = 1
-        stack.layer.borderColor = Theme.accentBorder.withAlphaComponent(0.3).cgColor
+        stack.applyLayerColors {
+            $0.layer.borderColor = Theme.accentBorder.withAlphaComponent(0.3)
+                .resolvedColor(with: $0.traitCollection).cgColor
+        }
         return stack
     }()
 
@@ -198,7 +209,8 @@ final class AIPreferencesViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        overrideUserInterfaceStyle = .light
+        // Larger Text grows this screen only up to the largest standard size (see AppFont).
+        view.maximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
         view.backgroundColor = Theme.background
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
@@ -249,8 +261,13 @@ final class AIPreferencesViewController: UIViewController {
             view.addSubview($0)
         }
 
+        // 50 pt, taller only when the text needs it (Larger Text).
+        let addButtonHeight = wideAddPhotosButton.heightAnchor.constraint(equalToConstant: 50)
+        addButtonHeight.priority = .defaultLow
+
         let safe = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
+            addButtonHeight,
             // Top navigation row
             backButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 8),
             backButton.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
@@ -276,7 +293,7 @@ final class AIPreferencesViewController: UIViewController {
             headerStack.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
 
             // Wide add photos button height
-            wideAddPhotosButton.heightAnchor.constraint(equalToConstant: 50),
+            wideAddPhotosButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
 
             // Grid CollectionView below header stack
             collectionView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 14),
@@ -303,6 +320,9 @@ final class AIPreferencesViewController: UIViewController {
         }
         moreButton.menu = UIMenu(children: [selectAction, renameAction])
         moreButton.showsMenuAsPrimaryAction = true
+
+        // Like the rest of this screen, the menu stops at the largest standard size (compact, with icons).
+        moreButton.menuMaximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
     }
 
     private func promptRename() {
@@ -448,7 +468,8 @@ private final class WideAddPhotosButton: UIControl {
 
     private let plusIcon: UIImageView = {
         let iv = UIImageView(image: UIImage(systemName: "plus"))
-        iv.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 18, weight: .medium)
+        iv.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .subheadline)
+            .applying(UIImage.SymbolConfiguration(weight: .medium))
         iv.tintColor = Theme.accent
         iv.contentMode = .scaleAspectFit
         return iv
@@ -457,7 +478,10 @@ private final class WideAddPhotosButton: UIControl {
     private let titleLabel: UILabel = {
         let lbl = UILabel()
         lbl.text = "Add photos"
-        lbl.font = .app(size: 15, weight: .semibold)
+        lbl.font = .app(size: 15, weight: .semibold, relativeTo: .subheadline)
+        lbl.adjustsFontForContentSizeCategory = true
+        lbl.numberOfLines = 0
+        lbl.textAlignment = .center
         lbl.textColor = Theme.accent
         return lbl
     }()
@@ -468,7 +492,9 @@ private final class WideAddPhotosButton: UIControl {
         layer.cornerRadius = 14
         clipsToBounds = true
 
-        dashedLayer.strokeColor = Theme.accentBorder.cgColor
+        applyLayerColors { [dashedLayer] view in
+            dashedLayer.strokeColor = Theme.accentBorder.resolvedColor(with: view.traitCollection).cgColor
+        }
         dashedLayer.fillColor = UIColor.clear.cgColor
         dashedLayer.lineWidth = 1.5
         dashedLayer.lineDashPattern = [6, 4]
@@ -484,6 +510,9 @@ private final class WideAddPhotosButton: UIControl {
         NSLayoutConstraint.activate([
             stack.centerXAnchor.constraint(equalTo: centerXAnchor),
             stack.centerYAnchor.constraint(equalTo: centerYAnchor),
+            // Grows with the text instead of clipping it.
+            stack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 10),
+            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12),
         ])
     }
 
@@ -510,14 +539,18 @@ private final class SectionHeaderView: UICollectionReusableView {
 
     private let titleLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 16, weight: .bold)
+        l.font = .app(size: 16, weight: .bold, relativeTo: .callout)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
         l.textColor = Theme.text
         return l
     }()
 
     private let countLabel: UILabel = {
         let l = UILabel()
-        l.font = .app(size: 14, weight: .regular)
+        l.font = .app(size: 14, weight: .regular, relativeTo: .subheadline)
+        l.adjustsFontForContentSizeCategory = true
+        l.numberOfLines = 0
         l.textColor = Theme.secondaryText
         return l
     }()

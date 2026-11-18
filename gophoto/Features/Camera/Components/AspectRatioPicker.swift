@@ -2,48 +2,76 @@
 //  AspectRatioPicker.swift
 //  gophoto
 //
-//  The camera's photo ratio (3:4 / 9:16): a small segmented capsule in the top bar, styled like
-//  the shot-size picker (white capsule = selected) but smaller, so it never competes with the
-//  shutter.
+//  The camera's photo ratio (3:4 / 9:16): a round button to the right of the shutter, balancing
+//  the gallery shortcut on the left. Tapping it opens a native menu (checkmark = in use), so the
+//  choice is one tap away without a permanent control over the image. The ratio in use is also
+//  shown as plain text at the top right of the camera.
 //
 
 import SwiftUI
+import UIKit
 
-struct AspectRatioPicker: View {
+struct AspectRatioPicker: View, Equatable {
     let selection: CameraAspectRatio
     var onSelect: (CameraAspectRatio) -> Void
 
-    @Namespace private var highlight
+    /// Same size as the gallery shortcut, so the shutter row stays symmetric.
+    private static let size: CGFloat = 52
+
+    /// The camera screen redraws many times a second (motion, detection); compare only the
+    /// selection so an open menu isn't rebuilt underneath the finger.
+    nonisolated static func == (lhs: Self, rhs: Self) -> Bool { lhs.selection == rhs.selection }
 
     var body: some View {
-        HStack(spacing: 2) {
-            ForEach(CameraAspectRatio.allCases) { ratio in
-                let isSelected = ratio == selection
-                Button {
-                    onSelect(ratio)
-                } label: {
-                    Text(ratio.title)
-                        .font(.caption.weight(.semibold).monospacedDigit())
-                        .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.85))
-                        .frame(minWidth: 40, minHeight: 26)
-                        .padding(.horizontal, 4)
-                        .background {
-                            if isSelected {
-                                Capsule().fill(Color.white)
-                                    .matchedGeometryEffect(id: "ratioHighlight", in: highlight)
-                            }
-                        }
-                        .contentShape(Capsule())
-                }
-                .buttonStyle(.plain)
-                .accessibilityLabel("Photo ratio \(ratio.accessibilityName)")
-                .accessibilityAddTraits(isSelected ? .isSelected : [])
-            }
+        RatioMenuButton(selection: selection, onSelect: onSelect)
+            .frame(width: Self.size, height: Self.size)
+            .accessibilityLabel("Photo ratio")
+            .accessibilityValue(selection.accessibilityName)
+            .accessibilityHint("Choose the shape of the photo")
+            .accessibilityShowsLargeContentViewer { Label("Photo ratio \(selection.title)", systemImage: selection.symbolName) }
+    }
+}
+
+/// A UIKit button with a native menu (checkmark = in use). UIKit so the menu's text size can be
+/// limited (`LimitedMenuButton`): a menu of two short items over the camera image stops at
+/// `AppFont.photoRatioMenuMaximumContentSizeCategory` (the ratio is also shown at the top of the camera).
+private struct RatioMenuButton: UIViewRepresentable {
+    let selection: CameraAspectRatio
+    let onSelect: (CameraAspectRatio) -> Void
+
+    func makeUIView(context: Context) -> LimitedMenuButton {
+        let button = LimitedMenuButton(frame: .zero)
+        button.menuMaximumContentSizeCategory = AppFont.photoRatioMenuMaximumContentSizeCategory
+        button.showsMenuAsPrimaryAction = true
+        button.preferredMenuElementOrder = .fixed
+        button.layer.cornerRadius = 26
+        button.layer.borderWidth = 1
+        button.layer.borderColor = UIColor.white.withAlphaComponent(0.15).cgColor
+        button.backgroundColor = UIColor.white.withAlphaComponent(0.1)
+        button.tintColor = GoPhotoPalette.tagText
+        return button
+    }
+
+    func updateUIView(_ button: LimitedMenuButton, context: Context) {
+        let symbol = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
+        button.setImage(UIImage(systemName: selection.symbolName, withConfiguration: symbol), for: .normal)
+        let onSelect = onSelect
+        let actions = CameraAspectRatio.allCases.map { ratio in
+            let action = UIAction(title: ratio.title,
+                                  image: UIImage(systemName: ratio.symbolName),
+                                  state: ratio == selection ? .on : .off) { _ in onSelect(ratio) }
+            action.accessibilityLabel = ratio.accessibilityName
+            return action
         }
-        .padding(3)
-        .background(Color.black.opacity(0.35), in: Capsule())
-        .animation(.snappy, value: selection)
-        .accessibilityElement(children: .contain)
-        .accessibilityLabel("Photo ratio")
+        button.menu = UIMenu(title: "Photo Ratio", options: .displayInline, children: actions)
+    }
+}
+
+private extension CameraAspectRatio {
+    var symbolName: String {
+        switch self {
+        case .threeFour: "rectangle.ratio.3.to.4"
+        case .nineSixteen: "rectangle.ratio.9.to.16"
+        }
     }
 }

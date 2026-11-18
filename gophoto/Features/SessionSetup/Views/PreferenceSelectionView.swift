@@ -34,11 +34,20 @@ struct PreferenceSelectionView: View {
             VStack(alignment: .leading, spacing: 0) {
                 header
 
-                // "Your Preferences" row with the Add Preferences button.
-                HStack(alignment: .center, spacing: 12) {
-                    preferencesTitle
-                    Spacer(minLength: 8)
-                    addButton
+                // "Your Preferences" with the Add Style button beside it, or below it when both don't
+                // fit on one line (Larger Text): the row never pushes the screen wider than the iPhone.
+                ViewThatFits(in: .horizontal) {
+                    HStack(alignment: .center, spacing: 12) {
+                        preferencesTitle
+                            .fixedSize(horizontal: true, vertical: false)
+                        Spacer(minLength: 8)
+                        addButton
+                    }
+                    VStack(alignment: .leading, spacing: 12) {
+                        preferencesTitle
+                            .fixedSize(horizontal: false, vertical: true)
+                        addButton
+                    }
                 }
                 .padding(.top, 28)
 
@@ -120,7 +129,7 @@ struct PreferenceSelectionView: View {
         Text("Your Preferences")
             .font(GoPhotoDesign.sectionTitle)
             .foregroundStyle(GoPhotoDesign.primaryText)
-            .fixedSize(horizontal: true, vertical: false)
+            .accessibilityAddTraits(.isHeader)
     }
 
     /// Opens the same flow the Add New Preference card used to.
@@ -128,7 +137,7 @@ struct PreferenceSelectionView: View {
         Button(action: onAddNew) {
             HStack(spacing: 6) {
                 Image(systemName: "plus")
-                    .font(AppFont.system(size: 13, weight: .bold))
+                    .font(AppFont.scaled(size: 13, weight: .bold, relativeTo: .subheadline))
                 Text("Add Style")
                     .font(AppFont.system(.subheadline, weight: .semibold))
             }
@@ -147,7 +156,7 @@ struct PreferenceSelectionView: View {
     private var emptyState: some View {
         VStack(spacing: 10) {
             Image(systemName: "photo.on.rectangle.angled")
-                .font(AppFont.system(size: 30))
+                .font(AppFont.scaled(size: 30, relativeTo: .title))
                 .foregroundStyle(GoPhotoDesign.primary)
             Text("No preferences yet")
                 .font(GoPhotoDesign.cardTitle)

@@ -20,8 +20,9 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
     @Binding var selection: Option?
     var isOptionAvailable: ((Option) -> Bool)? = nil
     let primaryTitle: String
-    /// Shown above the primary button (e.g. the name the preference will be saved with).
-    var footnote: String?
+    /// The name the preference will be saved with, once the choices are made: shown after the
+    /// options, in the content (not in the bottom bar, where it would cover the options).
+    var savedName: String?
     var isLoading = false
     let onPrimary: () -> Void
     /// Drawn when the option has no photo in the asset catalog.
@@ -55,10 +56,15 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
                         }
                     }
                 }
+                if let savedName {
+                    SavedNameNote(name: savedName)
+                        .transition(.opacity)
+                }
             }
             .padding(.horizontal, GoPhotoDesign.sessionMargin)
             .padding(.top, 8)
             .padding(.bottom, 24)
+            .animation(.snappy, value: savedName)
             .coordinateSpace(.named(Self.contentSpace))
         }
         .scrollIndicators(.hidden)
@@ -72,18 +78,11 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
         .background(GoPhotoDesign.background.ignoresSafeArea())
         .sensoryFeedback(.selection, trigger: selection)
         .sessionBottomBar {
-            VStack(spacing: 10) {
-                if let footnote {
-                    Text(footnote)
-                        .font(AppFont.footnote)
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
-                        .multilineTextAlignment(.center)
-                        .fixedSize(horizontal: false, vertical: true)
-                }
-                SessionPrimaryButton(title: primaryTitle, isEnabled: selection != nil && !isLoading,
-                                     isLoading: isLoading, action: onPrimary)
-                    .accessibilityHint(selection == nil ? "Choose an option first" : "")
-            }
+            SessionPrimaryButton(title: primaryTitle, isEnabled: selection != nil && !isLoading,
+                                 isLoading: isLoading, action: onPrimary)
+                .accessibilityHint(selection == nil
+                                   ? "Choose an option first"
+                                   : savedName.map { "Saves it as \($0)" } ?? "")
         }
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
@@ -137,17 +136,50 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
     }
 }
 
-/// One option: its photo on the left, name and description on the right.
+/// The name the new preference gets, as a quiet note after the options: it says what Create
+/// Preference will do without competing with the choices above it.
+private struct SavedNameNote: View {
+    let name: String
+
+    var body: some View {
+        HStack(alignment: .firstTextBaseline, spacing: 10) {
+            Image(systemName: "bookmark")
+                .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
+                .foregroundStyle(GoPhotoDesign.primary)
+                .accessibilityHidden(true)
+            VStack(alignment: .leading, spacing: 2) {
+                Text("Saves as “\(name)”")
+                    .font(GoPhotoDesign.secondaryBody.weight(.semibold))
+                    .foregroundStyle(GoPhotoDesign.primaryText)
+            }
+            .fixedSize(horizontal: false, vertical: true)
+        }
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .padding(.horizontal, 4)
+        .padding(.top, 4)
+        .accessibilityElement(children: .combine)
+    }
+}
+
+/// One option: its photo on the left, name and description on the right (photo on top at
+/// accessibility text sizes, so the text keeps the card's full width).
 private struct CustomStyleOptionCard<Option: CustomStyleOption, Artwork: View>: View {
     let option: Option
     let isSelected: Bool
     var isAvailable: Bool = true
     @ViewBuilder let artwork: () -> Artwork
+    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     private static var photoSize: CGSize { CGSize(width: 108, height: 144) }   // 3:4, like a portrait photo
 
+    private var layout: AnyLayout {
+        dynamicTypeSize.isAccessibilitySize
+            ? AnyLayout(VStackLayout(alignment: .leading, spacing: 12))
+            : AnyLayout(HStackLayout(alignment: .top, spacing: 14))
+    }
+
     var body: some View {
-        HStack(alignment: .top, spacing: 14) {
+        layout {
             CustomStyleOptionPhoto(option: option, fallback: artwork)
                 .frame(width: Self.photoSize.width, height: Self.photoSize.height)
                 .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

@@ -23,17 +23,17 @@ final class StyleCardViewController: UIViewController {
         self.summary = summary
         self.buttonTitle = buttonTitle
         super.init(nibName: nil, bundle: nil)
-        overrideUserInterfaceStyle = .light
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        let background = UIColor(GoPhotoDesign.background)
-        let primaryText = UIColor(GoPhotoDesign.primaryText)
-        let secondaryText = UIColor(GoPhotoDesign.secondaryText)
-        let accent = UIColor(GoPhotoDesign.primary)
-        overrideUserInterfaceStyle = .light
+        // Larger Text grows this screen only up to the largest standard size (see AppFont).
+        view.maximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
+        let background = Theme.background
+        let primaryText = Theme.text
+        let secondaryText = Theme.secondaryText
+        let accent = Theme.accent
         view.backgroundColor = background
 
         let kicker = UILabel.make("YOUR STYLE", style: .footnote)
@@ -140,20 +140,20 @@ final class StyleCardViewController: UIViewController {
 
     private func makeTraitRow(_ trait: StyleSummary.Trait) -> UIView {
         let icon = UIImageView(image: UIImage(systemName: trait.symbol))
-        icon.tintColor = UIColor(GoPhotoDesign.primary)
+        icon.tintColor = Theme.accent
         icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .title2)
         icon.contentMode = .scaleAspectFit
         icon.setContentHuggingPriority(.required, for: .horizontal)
         icon.widthAnchor.constraint(equalToConstant: 32).isActive = true
 
         let title = UILabel.make(trait.title, style: .headline)
-        title.textColor = UIColor(GoPhotoDesign.primaryText)
+        title.textColor = Theme.text
         let line = UILabel.make(trait.line, style: .subheadline)
-        line.textColor = UIColor(GoPhotoDesign.secondaryText)
+        line.textColor = Theme.secondaryText
         var texts: [UIView] = [title, line]
         if let evidence = trait.evidence {
             let label = UILabel.make(evidence, style: .footnote)
-            label.textColor = UIColor(GoPhotoDesign.primary)
+            label.textColor = Theme.accent
             texts.append(label)
         }
         for case let label as UILabel in texts { label.textAlignment = .natural }
@@ -166,7 +166,7 @@ final class StyleCardViewController: UIViewController {
         row.alignment = .center
         row.isLayoutMarginsRelativeArrangement = true
         row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
-        row.backgroundColor = UIColor(GoPhotoDesign.primarySubtle)
+        row.backgroundColor = Theme.accentSubtle
         row.layer.cornerRadius = GoPhotoDesign.cardCornerRadius
 
         row.isAccessibilityElement = true
