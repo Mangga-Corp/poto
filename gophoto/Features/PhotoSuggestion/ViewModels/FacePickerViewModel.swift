@@ -1,5 +1,6 @@
 import Observation
 import UIKit
+import os
 
 @Observable
 final class FacePickerViewModel {
