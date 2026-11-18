@@ -227,7 +227,10 @@ nonisolated final class FaceGroupAnalyzerService: FaceGrouping {
                 continuation.resume(returning: image)
             }
         }
-        guard let data = image?.jpegData(compressionQuality: 0.9) else { return nil }
+        // One pool per photo: up to 1,500 run on Swift's task threads, where autoreleased encoding
+        // buffers are only freed when the thread goes idle (same fix as ChoosePhotosService, 18 Nov).
+        let encoded = autoreleasepool { image?.jpegData(compressionQuality: 0.9) }
+        guard let data = encoded else { return nil }
         let url = imagesDirectory.appending(path: fileName(for: asset.localIdentifier) + ".jpg")
         do {
             try data.write(to: url, options: .atomic)
