@@ -53,7 +53,7 @@ nonisolated struct PhasedParameters: Sendable, Equatable {
     // Vantage (phone height).
     var vantageFacesEnter = 0.4, vantageFacesExit = 0.6, vantageFacesReopen = 1.0
     var vantageDegreesEnter = 3.0, vantageDegreesExit = 5.0, vantageDegreesReopen = 8.0
-    /// Highest phone position above the subject's eyes asked for, in face heights (≈ 30 cm / 20 cm).
+    /// Highest phone position above the subject's eyes asked for, in face heights (1.5 × 18 cm ≈ 27 cm).
     var maxLiftFaces = 1.5
     /// Faces smaller than this (frame height) are too small to read the eye line.
     var minFaceHeight = 0.022

@@ -195,7 +195,9 @@ struct StyleTraceView: View {
 
     private func values(_ p: StyleTraceData.Photo) -> String {
         func f(_ v: Double?, _ unit: String = "") -> String { v.map { String(format: "%.2f", $0) + unit } ?? "–" }
-        return "height \(f(p.vantageFaces, " faces")) · tilt \(f(p.pitchDegrees, "°")) · centre \(f(p.centreX)) · size \(f(p.size))"
+        // 1 head = one face box ≈ 18 cm (`PhasedMeasure.faceMeters`).
+        let cm = p.vantageFaces.map { String(format: " (≈ %.0f cm)", $0 * PhasedMeasure.faceMeters * 100) } ?? ""
+        return "height \(f(p.vantageFaces, " head"))\(cm) · tilt \(f(p.pitchDegrees, "°")) · centre \(f(p.centreX)) · size \(f(p.size))"
             + (p.isScreenshot ? " · screenshot" : "")
     }
 

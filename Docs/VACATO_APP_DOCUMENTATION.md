@@ -943,7 +943,7 @@ String yang tampil ke user:
   1. **Preprocess:** sisi pendek 320, crop ke kelipatan 32, sisi panjang ∈ {320, 384, 416, 480, 544}. Fungsi model `h{H}_w{W}` dipilih sesuai ukuran (mis. `h416_w320`).
   2. **Network:** `GeoCalibNet_fp16` (`.cpuAndGPU`, fallback CPU) menghasilkan `up_field`, `up_confidence`, `latitude_field`, `latitude_confidence`.
   3. **Optimizer LM** (Swift): 30 langkah, Huber 1e-2, λ0 = 0.1, f0 = 0.7·max(H,W). Hasilnya roll, pitch, dan focal ± σ.
-  4. **Elevasi kamera terhadap mata:** `e = −elevation(eyePoint)`, dengan + berarti kamera di atas mata. Focal EXIF dipakai bila ada (diagonal 43.27 mm). σ dihitung dari pitch, focal, dan error titik mata (0.05 / 0.15 tinggi kepala). Pitch dipakai bila σ ≤5°.
+  4. **Elevasi kamera terhadap mata:** `e = −elevation(eyePoint)`, dengan + berarti kamera di atas mata. Focal EXIF dipakai bila ada (diagonal 43.27 mm). σ dihitung dari pitch, focal, dan error titik mata (0.05 / 0.15 tinggi wajah). Pitch dipakai bila σ ≤5°.
   5. **Kategori** (`CameraAngleRule`):
 
      | Elevasi e | Kategori |
@@ -1328,7 +1328,7 @@ Sebelum 13 Nov, di kedua mode `guideMode` dipaksa `.heightFirstCrop` ("B · Heig
 - Tanpa analisis tidak ada target. Postur duduk memaksa shot `.full`. Shot `.quarter` tidak didukung.
 - `span` = `analysis.subjectBox.height`. Untuk full, ini tinggi box orang; untuk 3/4 dan half, dari puncak kepala ke tepi bawah frame.
 - `top` = `subjectBox.minY`, `midX` = `subjectBox.midX`.
-- `vantageFaces` = `analysis.eyeOffsetFaces`: tinggi kamera relatif mata dalam satuan tinggi wajah (+ = kamera di atas mata). Fallback ke `vantageDegrees = analysis.eyeElevation`.
+- `vantageFaces` = `analysis.eyeOffsetFaces`: tinggi kamera relatif mata dalam satuan tinggi wajah (+ = kamera di atas mata). 1 wajah ≈ 18 cm (`PhasedMeasure.faceMeters`). Fallback ke `vantageDegrees = analysis.eyeElevation`.
 - `pitch` = pitch ke bawah dari `analysis.angle` bila nilainya `.match(_, down)`.
 - Data cahaya dan lingkungan **tidak** dipakai oleh Phased.
 
@@ -2081,6 +2081,7 @@ Board `UserFlowMangga.jpg` juga memuat sisa template yang tidak relevan ("As an 
 | **Phased guide / PhasedEngine** | Guide utama dengan 5 fase berurutan: acquire → distance → vantage → tilt → framing |
 | **Vantage** | Tinggi kamera relatif garis mata subjek (fase "Raise/Lower the phone") |
 | **Eye offset faces (`eyeOffsetFaces`)** | Tinggi kamera relatif mata dalam satuan tinggi wajah (+ = di atas mata) |
+| **Satuan wajah / "kepala"** | 1 satuan = tinggi kotak wajah Vision (alis–dagu) ≈ 18 cm (`PhasedMeasure.faceMeters`, 18 Nov). Di kode bernama `faces` / `headHeight`; label ke orang: "kepala" (docs) / "head" (UI). Kepala utuh puncak–bahu ≈ 32 cm (`headFaceRatio` 0.55) |
 | **Vantage range** | Target tinggi kamera sebagai rentang + keyakinan (agree / varied / twoGroups / uncertain), dari σ tiap foto referensi. Tampilan saja (12 Nov) |
 | **Face unit lock** | Tinggi wajah yang dikunci saat fase vantage selesai, dipakai sebagai satuan "wajah" di fase tilt/framing supaya tangan di wajah atau wajah berpaling tidak menggeser angka vantage |
 | **r (size ratio)** | Besar orang di layar dibagi besar orang di foto referensi. Makin besar r, makin dekat. Jarak berbanding terbalik dengan r |
