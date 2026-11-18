@@ -386,24 +386,22 @@ struct CameraView: View {
         }
     }
 
-    /// Locked until the guide is complete: dimmed centre with a lock, still tappable (the view
-    /// model refuses the photo, explains why and gives a light haptic). Ready: the usual shutter.
+    /// Locked until the guide is complete: the shutter darkened, still tappable (the view model
+    /// refuses the photo, explains why and gives a light haptic). Ready: the usual shutter.
     private var shutterButton: some View {
         let isLocked = viewModel.isShutterLocked
         return Button {
             Task { await viewModel.takePhoto() }
         } label: {
             ZStack {
-                Circle().fill(.white.opacity(isLocked ? 0.3 : 1)).frame(width: 68, height: 68)
+                Circle().fill(.white).frame(width: 68, height: 68)
                 Circle().stroke(.white, lineWidth: 4).frame(width: 80, height: 80)
-                if isLocked {
-                    Image(systemName: "lock.fill")
-                        .font(.system(size: 22, weight: .semibold))
-                        .foregroundStyle(.white)
-                        .transition(.opacity)
-                }
             }
-            .animation(.easeOut(duration: 0.2), value: isLocked)
+            // Locked: the same shutter, darker (less bright, less opaque), so it reads as "not
+            // yet", not as a broken camera. No icon. Ready: unchanged.
+            .brightness(isLocked ? -0.4 : 0)
+            .opacity(isLocked ? 0.6 : 1)
+            .animation(.easeInOut(duration: 0.25), value: isLocked)
         }
         .disabled(viewModel.isCapturing)
         .opacity(viewModel.isCapturing ? 0.5 : 1)
