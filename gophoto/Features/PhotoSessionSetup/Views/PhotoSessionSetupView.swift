@@ -224,6 +224,7 @@ struct PhotoSessionSetupView: View {
             PhotoSessionPhotoPicker(
                 initialPhotos: selection.photos,
                 canRemove: !selection.hasSavedPreference,
+                limit: selection.limit,
                 onSelection: selectedPhotosChanged,
                 onFinish: { isPresentingPicker = false }
             )

@@ -13,6 +13,8 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
     private let onCreatePreference: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?
     private let onFinish: () -> Void
     private var canRemove = false
+    /// Most photos the picker allows: the preference mode's limit (100 or 200, 18 Nov).
+    private var limit = ChoosePhotosViewModel.maxPhotos
 
     init(onSave: @escaping ([PhotoItem], String) -> String?, onFinish: @escaping () -> Void) {
         mode = .createPreference
@@ -24,11 +26,13 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
     init(
         initialPhotos: [PhotoItem],
         canRemove: Bool = false,
+        limit: Int = ChoosePhotosViewModel.maxPhotos,
         onSelection: @escaping ([PhotoItem]) -> Void,
         onFinish: @escaping () -> Void
     ) {
         mode = .selectPhotos(initialPhotos: initialPhotos, onSelection: onSelection)
         self.canRemove = canRemove
+        self.limit = limit
         onSave = { _, _ in nil }
         onCreatePreference = nil
         self.onFinish = onFinish
@@ -49,6 +53,7 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
         PhotoPreferencePickerEntryViewController(
             mode: mode,
             canRemove: canRemove,
+            limit: limit,
             onSave: onSave,
             onCreatePreference: onCreatePreference,
             onFinish: onFinish
@@ -64,6 +69,7 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
 final class PhotoPreferencePickerEntryViewController: UIViewController {
     private let mode: PhotoSessionPickerEntryMode
     private let canRemove: Bool
+    private let limit: Int
     private let onSave: ([PhotoItem], String) -> String?
     private let onCreatePreference: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?
     private let onFinish: () -> Void
@@ -72,12 +78,14 @@ final class PhotoPreferencePickerEntryViewController: UIViewController {
     init(
         mode: PhotoSessionPickerEntryMode,
         canRemove: Bool = false,
+        limit: Int = ChoosePhotosViewModel.maxPhotos,
         onSave: @escaping ([PhotoItem], String) -> String?,
         onCreatePreference: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?,
         onFinish: @escaping () -> Void
     ) {
         self.mode = mode
         self.canRemove = canRemove
+        self.limit = limit
         self.onSave = onSave
         self.onCreatePreference = onCreatePreference
         self.onFinish = onFinish
@@ -143,7 +151,8 @@ final class PhotoPreferencePickerEntryViewController: UIViewController {
             service: ChoosePhotosService(),
             preferenceName: "New Preference",
             items: items,
-            mode: mode
+            mode: mode,
+            limit: limit
         )
         viewModel.validateNewName = { preferences.nameError(for: $0) }
         return viewModel
