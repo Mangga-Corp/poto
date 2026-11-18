@@ -140,6 +140,13 @@ final class AnalyzingViewModel {
         checkingTask?.cancel()
     }
 
+    /// The Cancel button: `cancel()` stops only this screen's progress (the run would go on in
+    /// the background), so this also stops the run in `PreferencesViewModel` (18 Nov).
+    func cancelAnalysis() {
+        cancel()
+        if let preferenceID { preferences.cancelAnalysis(for: preferenceID) }
+    }
+
     @MainActor
     private func advanceProgress(to target: Double, over duration: TimeInterval) async {
         let start = progress

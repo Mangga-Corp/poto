@@ -561,6 +561,14 @@ final class PreferencesViewModel {
         analyzingIDs.contains(id) ? analysisTasks[id] : nil
     }
 
+    /// Cancel on the analysing screen (18 Nov): stops the run (photos in progress finish, no new
+    /// ones start) and drops its result. The preference and its photos stay saved.
+    func cancelAnalysis(for id: UUID) {
+        sessions[id]?.cancel()
+        analysisTasks[id]?.cancel()
+        cancelCurrentAnalysis(for: id)
+    }
+
     func session(for id: UUID) -> AnalysisSession? { sessions[id] }
     func isAnalyzing(_ id: UUID) -> Bool { analyzingIDs.contains(id) }
 
