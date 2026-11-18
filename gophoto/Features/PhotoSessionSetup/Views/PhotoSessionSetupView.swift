@@ -401,6 +401,16 @@ struct PhotoSessionSetupView: View {
                 }
         }
         .buttonStyle(.plain)
+        // Voice Control: "Tap Photo 3". The photo had no name, and the state shown only by the
+        // check mark or the warning badge was not exposed.
+        .accessibilityLabel("Photo \((selection.photos.firstIndex { $0.id == photo.id } ?? 0) + 1)")
+        .accessibilityValue(photoAccessibilityValue(for: photo))
+        .accessibilityAddTraits(isSelecting && isChecked ? .isSelected : [])
+    }
+
+    private func photoAccessibilityValue(for photo: PhotoItem) -> String {
+        guard let status = subjectStatus(of: photo), !status.isValid else { return "" }
+        return Self.badgeLabel(for: status)
     }
 
     // MARK: - Bottom Actions (Floating purple pill button)
@@ -424,6 +434,7 @@ struct PhotoSessionSetupView: View {
                     .background(selectedPhotoIDs.isEmpty ? Color.gray : GoPhotoDesign.error, in: Capsule())
                 }
                 .disabled(selectedPhotoIDs.isEmpty)
+                .accessibilityInputLabels(["Delete", "Delete photos", "Delete selected photos"])
                 .padding(.horizontal, GoPhotoDesign.sessionMargin)
                 .padding(.bottom, 12)
             } else if !selection.photos.isEmpty {
@@ -451,6 +462,7 @@ struct PhotoSessionSetupView: View {
                         .shadow(color: GoPhotoDesign.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .disabled(!canAnalyze)
+                .accessibilityInputLabels(["Analyze", "Analyze photos"])
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
             } else {
@@ -501,6 +513,8 @@ struct PhotoSessionSetupView: View {
                     TextField("....", text: $collectionName)
                         .font(AppFont.scaled(size: 15, relativeTo: .subheadline))
                         .autocorrectionDisabled()
+                        .accessibilityLabel("Collection name")
+                        .accessibilityInputLabels(["Collection name", "Name"])
 
                     if !collectionName.isEmpty {
                         Button {
@@ -509,6 +523,7 @@ struct PhotoSessionSetupView: View {
                             Image(systemName: "xmark.circle.fill")
                                 .foregroundStyle(GoPhotoDesign.secondaryText)
                         }
+                        .accessibilityLabel("Clear name")
                     }
                 }
                 .padding(.horizontal, 14)
@@ -556,6 +571,8 @@ struct PhotoSessionSetupView: View {
             .background(GoPhotoDesign.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
             .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 8)
             .padding(.horizontal, 28)
+            // Hides what is behind the card from VoiceOver / Voice Control ("Show numbers").
+            .accessibilityAddTraits(.isModal)
         }
     }
 

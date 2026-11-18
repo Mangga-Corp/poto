@@ -75,7 +75,7 @@ struct FacePickerView: View {
     private var people: some View {
         VStack(alignment: .leading, spacing: 12) {
             LazyVGrid(columns: Array(repeating: GridItem(.flexible(), spacing: 16), count: 3), spacing: 16) {
-                ForEach(viewModel.shownGroups) { group in
+                ForEach(Array(viewModel.shownGroups.enumerated()), id: \.element.id) { index, group in
                     Button {
                         viewModel.pick(group)
                         isShowingReview = true
@@ -88,6 +88,10 @@ struct FacePickerView: View {
                         }
                     }
                     .buttonStyle(.plain)
+                    // Voice Control: "Tap Person 2". Every group was just "N photos", so the
+                    // names were all different counts or all the same.
+                    .accessibilityLabel("Person \(index + 1), \(group.assetIDs.count) photos")
+                    .accessibilityInputLabels(["Person \(index + 1)"])
                 }
             }
             if viewModel.hasMoreGroups {

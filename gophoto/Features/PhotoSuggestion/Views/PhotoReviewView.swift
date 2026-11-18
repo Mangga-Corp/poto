@@ -52,12 +52,13 @@ struct PhotoReviewView: View {
                     if let items = await viewModel.loadSelection() { onContinue(items) }
                 }
             }
+            .accessibilityInputLabels(["Continue", "Continue with photos"])
         }
     }
 
     private func grid(width: CGFloat) -> some View {
         LazyVGrid(columns: Array(repeating: GridItem(.fixed(width), spacing: 10), count: 3), spacing: 10) {
-            ForEach(viewModel.photos) { photo in
+            ForEach(Array(viewModel.photos.enumerated()), id: \.element.id) { index, photo in
                 let isSelected = viewModel.isSelected(photo.id)
                 Button { viewModel.toggle(photo.id) } label: {
                     PhotoThumbnail(url: photo.thumbnailURL, width: width)
@@ -67,6 +68,8 @@ struct PhotoReviewView: View {
                         .opacity(isSelected || !viewModel.isFull ? 1 : 0.5)
                 }
                 .buttonStyle(.plain)
+                // Voice Control: "Tap Photo 3".
+                .accessibilityLabel("Photo \(index + 1)")
                 .accessibilityAddTraits(isSelected ? .isSelected : [])
             }
         }

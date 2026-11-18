@@ -54,6 +54,9 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
                         .onTapGesture {
                             if isAvailable { select(option) }
                         }
+                        // Voice Control: "Tap <option name>" (the spoken label also holds the summary).
+                        .accessibilityAction { if isAvailable { select(option) } }
+                        .accessibilityInputLabels([option.title])
                     }
                 }
                 if let savedName {

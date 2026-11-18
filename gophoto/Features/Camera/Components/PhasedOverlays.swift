@@ -40,6 +40,9 @@ struct PhasedPreviewLayer: View {
     let isReady: Bool
     /// The preview's ratio: the box shows its band of the camera frame (3:4 = the whole frame).
     var aspectRatio: CameraAspectRatio = .threeFour
+    /// The people to choose from (frame units). Each becomes its own VoiceOver / Voice Control
+    /// target ("Tap Person 2"), because a spoken command cannot tap a point on the screen.
+    var personBoxes: [CGRect] = []
     /// Point in frame units (origin top-left).
     var onTap: (CGPoint) -> Void
 
@@ -71,6 +74,20 @@ struct PhasedPreviewLayer: View {
                         }
                         .accessibilityLabel("Tap the person to photograph")
                         .accessibilityAddTraits(.isButton)
+                        // Replaced by one target per person while they are known.
+                        .accessibilityHidden(!personBoxes.isEmpty)
+
+                    ForEach(Array(personBoxes.enumerated()), id: \.offset) { index, box in
+                        let rect = aspectRatio.previewRect(fromFrame: box)
+                        Color.clear
+                            .frame(width: rect.width * geo.size.width, height: rect.height * geo.size.height)
+                            .position(x: rect.midX * geo.size.width, y: rect.midY * geo.size.height)
+                            .allowsHitTesting(false)   // touches still go to the tap area above
+                            .accessibilityElement()
+                            .accessibilityLabel("Person \(index + 1)")
+                            .accessibilityAddTraits(.isButton)
+                            .accessibilityAction { onTap(CGPoint(x: box.midX, y: box.midY)) }
+                    }
                 }
             }
         }
