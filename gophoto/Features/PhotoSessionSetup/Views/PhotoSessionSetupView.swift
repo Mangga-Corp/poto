@@ -262,7 +262,7 @@ struct PhotoSessionSetupView: View {
                         .font(AppFont.scaled(size: 22, weight: .bold, relativeTo: .title2))
                         .foregroundStyle(GoPhotoDesign.primaryText)
                     Text("\(selection.photos.count)/\(max(selection.limit, selection.photos.count))")
-                        .font(AppFont.system(size: 14, weight: .regular))
+                        .font(AppFont.scaled(size: 14, weight: .regular, relativeTo: .footnote))
                         .foregroundStyle(GoPhotoDesign.secondaryText)
                 }
 
