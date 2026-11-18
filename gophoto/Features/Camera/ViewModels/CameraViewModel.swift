@@ -129,6 +129,44 @@ final class CameraViewModel {
     /// The photo is ready to take ("Take the photo now").
     var isReady: Bool { phased.ready }
 
+    // MARK: Guided shutter lock
+    //
+    // The guide engine is the only judge: the shutter opens exactly when it says "Take the photo
+    // now" (`phased.ready`, which the engine sets when distance, phone height, tilt, the Auto crop,
+    // a fresh detection, turning and level are all satisfied) and that is the instruction shown.
+    // Without a guide target (no preset analysis, or a shot size the guide does not support)
+    // there is nothing to complete, so the shutter stays open as before.
+
+    /// The guide has a target for this shot, so its readiness decides the shutter.
+    private(set) var isGuideActive = false
+
+    /// The shutter refuses to take a photo until the guide is complete.
+    var isShutterLocked: Bool {
+        isGuideActive && !(phased.ready && phasedInstruction == .takePhoto)
+    }
+
+    /// Shown briefly in the guide area after a tap on the locked shutter; cleared when the
+    /// shutter opens (and after a few seconds).
+    private(set) var lockedShutterHint: String?
+    /// Taps on the locked shutter (drives one subtle haptic per tap).
+    private(set) var lockedShutterTapCount = 0
+    @ObservationIgnored private var lockedShutterHintID = 0
+
+    static let lockedShutterMessage = "Adjust your position to complete the guide before taking the photo."
+
+    /// A tap on the locked shutter: no photo, one haptic, the hint for a moment.
+    private func rejectLockedShutter() {
+        lockedShutterTapCount += 1
+        lockedShutterHint = Self.lockedShutterMessage
+        lockedShutterHintID += 1
+        let id = lockedShutterHintID
+        Task { [weak self] in
+            try? await Task.sleep(for: .seconds(2.5))
+            guard let self, self.lockedShutterHintID == id else { return }
+            self.lockedShutterHint = nil
+        }
+    }
+
     // MARK: Session, preset and shot size
 
     /// The session the camera guides with, set by the view (`apply(sessionConfiguration:)`).
@@ -338,6 +376,11 @@ final class CameraViewModel {
 
     func takePhoto() async {
         guard state == .running, !isCapturing else { return }
+        // Decided here, on the latest guide state, not only by the button's look.
+        guard !isShutterLocked else {
+            rejectLockedShutter()
+            return
+        }
         isCapturing = true
         // The crop at the shutter: the final crop when ready; before that the crop valid right now
         // (shaky hands still get a framed photo). Nothing measurable yet = the full photo.
@@ -527,6 +570,13 @@ extension CameraViewModel {
         let final: PhasedInstruction? = selection.instruction ?? (phasedSubjectLocked ? out.instruction : nil)
         if out != phased { phased = out }
         if final != phasedInstruction { phasedInstruction = final }
+        let guideActive = made.target != nil
+        if guideActive != isGuideActive { isGuideActive = guideActive }
+        // The shutter just opened: the "complete the guide" hint is no longer true.
+        if !isShutterLocked, lockedShutterHint != nil {
+            lockedShutterHintID += 1
+            lockedShutterHint = nil
+        }
         publishPersonChoices(final == .tapPerson ? phasedCandidates : [])
         for event in events where event.kind == "phase" { flashPhaseDone(event.detail) }
     }
