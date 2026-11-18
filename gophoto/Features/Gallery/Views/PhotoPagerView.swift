@@ -85,6 +85,7 @@ struct PhotoPagerView: View {
                                     .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
                                     .padding(.trailing, 20)
                                     .padding(.bottom, 14)
+                                    .accessibilityHidden(true)   // the Favorite button in the top bar says it
                                     .transition(.scale.combined(with: .opacity))
                             }
                         }
@@ -145,6 +146,7 @@ struct PhotoPagerView: View {
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Back")
 
             Spacer()
 
@@ -165,6 +167,7 @@ struct PhotoPagerView: View {
                             .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Remove from Favorites")
                     .transition(.scale.combined(with: .opacity))
                 }
 
@@ -185,6 +188,7 @@ struct PhotoPagerView: View {
                         .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                 }
                 .buttonStyle(.plain)
+                .accessibilityLabel("Delete")
             }
         }
         .padding(.horizontal, 16)
@@ -210,6 +214,8 @@ struct PhotoPagerView: View {
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
             .buttonStyle(.plain)
+            // Does nothing yet: not offered to VoiceOver / Voice Control until it has an action.
+            .accessibilityHidden(true)
 
             // 2. Edit Button (Purple Pill Button menggantikan ikon pen)
             Button {
@@ -246,6 +252,7 @@ struct PhotoPagerView: View {
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Share")
         }
     }
 
@@ -338,6 +345,8 @@ struct PhotoPagerView: View {
                     .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
             )
             .padding(.horizontal, 32)
+            // Hides the photo screen behind the card from VoiceOver / Voice Control.
+            .accessibilityAddTraits(.isModal)
         }
     }
 

@@ -306,6 +306,8 @@ extension SelectPhotoViewController: UICollectionViewDataSource, UICollectionVie
         else { return UICollectionViewCell() }
         let id = viewModel.identifier(at: ip.item)
         cell.assetID = id
+        // Voice Control says "Tap Photo 3": each photo needs its own name.
+        cell.accessibilityLabel = "Photo \(ip.item + 1)"
         cell.cancelLoad = viewModel.loadThumbnail(at: ip.item, side: 120 * traitCollection.displayScale) { [weak cell] image in
             guard cell?.assetID == id else { return }
             cell?.imageView.image = image

@@ -431,6 +431,8 @@ extension AIPreferencesViewController: UICollectionViewDataSource, UICollectionV
               let index = itemIndex(at: ip)
         else { return UICollectionViewCell() }
         cell.imageView.image = viewModel.items[index].image
+        // Voice Control says "Tap Photo 3": each photo needs its own name.
+        cell.accessibilityLabel = "Photo \(index + 1)"
         cell.selectMode = viewModel.isSelecting
         cell.isChecked = viewModel.isChecked(at: index)
         return cell
@@ -491,6 +493,12 @@ private final class WideAddPhotosButton: UIControl {
         backgroundColor = Theme.accentSubtle
         layer.cornerRadius = 14
         clipsToBounds = true
+        // A custom UIControl is not an accessibility element by default: without this,
+        // VoiceOver and Voice Control ("Tap Add photos") cannot reach it.
+        isAccessibilityElement = true
+        accessibilityLabel = "Add photos"
+        accessibilityUserInputLabels = ["Add photos"]
+        accessibilityTraits = .button
 
         applyLayerColors { [dashedLayer] view in
             dashedLayer.strokeColor = Theme.accentBorder.resolvedColor(with: view.traitCollection).cgColor
@@ -529,6 +537,14 @@ private final class WideAddPhotosButton: UIControl {
         didSet {
             alpha = isHighlighted ? 0.6 : 1.0
         }
+    }
+
+    /// VoiceOver double-tap and Voice Control "Tap Add photos" activate the control without a touch:
+    /// run the same action a tap runs.
+    override func accessibilityActivate() -> Bool {
+        guard isEnabled, isUserInteractionEnabled else { return false }
+        sendActions(for: .touchUpInside)
+        return true
     }
 }
 

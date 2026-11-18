@@ -45,6 +45,8 @@ struct ShotSizeSelectionView: View {
                             .accessibilityElement(children: .combine)
                             .accessibilityAddTraits(model.selectedShotSize == shot ? [.isButton, .isSelected] : .isButton)
                             .accessibilityIdentifier("shotSizeCard.\(shot.rawValue)")
+                            .accessibilityAction { model.select(shot) }
+                            .accessibilityInputLabels([shot.title])
                     }
                 }
                 .padding(.top, 26)

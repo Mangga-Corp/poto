@@ -91,6 +91,7 @@ struct CapturedPhotoView: View {
                         .frame(width: 72, height: 56)
                         .contentShape(Rectangle())
                     }
+                    .accessibilityInputLabels(["Retake"])
 
                     Button {
                         onSave()
@@ -107,6 +108,7 @@ struct CapturedPhotoView: View {
                     }
                     // Saving mid-enhance would quietly write the original.
                     .disabled(isEnhancing || isSaving)
+                    .accessibilityInputLabels(["Save"])
                     .opacity(isEnhancing || isSaving ? 0.4 : 1)
                 }
                 .padding(.bottom, 36)
@@ -239,7 +241,12 @@ struct CapturedPhotoView: View {
                             onPressingChanged: { isHoldingOriginal = $0 })
         .accessibilityElement(children: .ignore)
         .accessibilityLabel("Hold to see the original photo")
+        .accessibilityValue(isHoldingOriginal ? "Showing the original" : "")
         .accessibilityAddTraits(.isButton)
+        // A spoken "Tap" cannot hold a finger down: activating it switches between the original
+        // and the enhanced photo instead.
+        .accessibilityAction { isHoldingOriginal.toggle() }
+        .accessibilityInputLabels(["Hold", "Compare", "Show original", "Hold to see the original photo"])
     }
 
     // MARK: - Reveal
@@ -334,6 +341,20 @@ private struct ZoomablePhoto<Content: View>: View {
                 }
             }
             .accessibilityHint("Pinch or double-tap to zoom")
+            // Zoom without a pinch: VoiceOver's zoom gesture, and Voice Control's "Zoom in" / "Zoom out".
+            .accessibilityZoomAction { action in
+                withAnimation(.easeInOut(duration: 0.2)) {
+                    switch action.direction {
+                    case .zoomIn:
+                        scale = min(max(scale, 1) * 1.5, maxScale)
+                        baseScale = scale
+                    case .zoomOut:
+                        scale = max(scale / 1.5, 1)
+                        baseScale = scale
+                        if scale <= 1 { reset() }
+                    }
+                }
+            }
     }
 
     private var magnify: some Gesture {

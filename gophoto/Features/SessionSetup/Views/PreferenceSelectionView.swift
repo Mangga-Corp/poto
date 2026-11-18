@@ -136,8 +136,10 @@ struct PreferenceSelectionView: View {
     private var addButton: some View {
         Button(action: onAddNew) {
             HStack(spacing: 6) {
+                // The "+" has its own automatic name, "Add": Voice Control showed and heard just that.
                 Image(systemName: "plus")
                     .font(AppFont.scaled(size: 13, weight: .bold, relativeTo: .subheadline))
+                    .accessibilityHidden(true)
                 Text("Add Style")
                     .font(AppFont.system(.subheadline, weight: .semibold))
             }
@@ -149,6 +151,8 @@ struct PreferenceSelectionView: View {
         }
         .buttonStyle(.plain)
         .accessibilityLabel("Add Style")
+        // The first name is the one Voice Control shows with "Show names".
+        .accessibilityInputLabels(["Add Style"])
         .accessibilityHint("Opens the photo picker to create a preference")
         .accessibilityIdentifier("preferenceSelection.addNew")
     }
@@ -181,6 +185,9 @@ struct PreferenceSelectionView: View {
             .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
             .accessibilityHint(card.isAvailable ? "Selects this preference" : card.summary)
             .accessibilityIdentifier("preferenceCard.\(card.name)")
+            // Voice Control: "Tap <preference name>" (the spoken label also holds the summary and chips).
+            .accessibilityAction { selection.select(card.id) }
+            .accessibilityInputLabels([card.name])
             .accessibilityAction(named: "Rename") { startRename(card) }
             .accessibilityActions {
                 if card.canEditPhotos {

@@ -236,7 +236,8 @@ struct CameraView: View {
                            isChoosing: viewModel.phasedInstruction == .tapPerson,
                            cropWindow: nil,
                            isReady: viewModel.phased.ready,
-                           aspectRatio: viewModel.aspectRatio) { point in
+                           aspectRatio: viewModel.aspectRatio,
+                           personBoxes: viewModel.personChoices) { point in
             viewModel.tapPreview(at: point)
         }
     }
@@ -353,6 +354,7 @@ struct CameraView: View {
             .disabled(isClosing)
             .padding(.leading, 8)
             .accessibilityLabel("Close camera")
+            .accessibilityInputLabels(["Close camera", "Close"])
             .accessibilityShowsLargeContentViewer { Label("Close", systemImage: "xmark") }
             .accessibilityIdentifier("camera.close")
         }
@@ -384,6 +386,7 @@ struct CameraView: View {
         .disabled(viewModel.isCapturing)
         .opacity(viewModel.isCapturing ? 0.5 : 1)
         .accessibilityLabel("Take photo")
+        .accessibilityInputLabels(["Take photo", "Shutter", "Capture", "Take picture"])
     }
 
     private var permissionDenied: some View {
