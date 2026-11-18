@@ -46,7 +46,7 @@ final class ChoosePhotosService {
             let loaded = await Self.loadWindowed(ids)
             var items: [PhotoItem] = []
             for (id, photo) in zip(ids, loaded) {
-                guard let photo, let image = UIImage(contentsOfFile: photo.url.path) else {
+                guard let photo, let image = UncachedImage.load(contentsOf: photo.url) else {
                     completion(.failure(PhotoError.loadFailed))
                     return
                 }
@@ -118,7 +118,10 @@ final class ChoosePhotosService {
                     continuation.resume(returning: image)
                 }
             }
-            guard let data = image?.jpegData(compressionQuality: 0.9) else { return nil }
+            // Encoding leaves autoreleased buffers behind. On Swift's task threads they are only freed
+            // when the thread goes idle, so without a pool they pile up until every photo is loaded.
+            let encoded = autoreleasepool { image?.jpegData(compressionQuality: 0.9) }
+            guard let data = encoded else { return nil }
             jpeg = data
         }
 
