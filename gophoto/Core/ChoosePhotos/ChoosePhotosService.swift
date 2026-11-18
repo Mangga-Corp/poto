@@ -39,52 +39,115 @@ final class ChoosePhotosService {
     func cancel(_ id: PHImageRequestID) { imageManager.cancelImageRequest(id) }
 
     /// Loads selected assets (max 1024 px) in the same order as `assets`.
+    /// A few at a time, each written to disk as JPG, so they are not all held decoded in memory.
     func loadItems(for assets: [PHAsset], completion: @escaping (Result<[PhotoItem], Error>) -> Void) {
-        var results = [PhotoItem?](repeating: nil, count: assets.count)
-        var failed = false
-        let group = DispatchGroup()
-        let options = PHImageRequestOptions()
-        options.deliveryMode = .highQualityFormat
-        options.isNetworkAccessAllowed = true
-
-        var focals = [Double?](repeating: nil, count: assets.count)
-        let dataOptions = PHImageRequestOptions()
-        dataOptions.isNetworkAccessAllowed = true
-
-        for (index, asset) in assets.enumerated() {
-            group.enter()
-            imageManager.requestImage(for: asset, targetSize: CGSize(width: 1024, height: 1024),
-                                      contentMode: .aspectFit, options: options) { image, info in
-                if (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
-                DispatchQueue.main.async {
-                    if let image {
-                        results[index] = PhotoItem(image: image, sourceAssetIdentifier: asset.localIdentifier)
-                    } else {
-                        failed = true
-                    }
-                    group.leave()
+        let ids = assets.map(\.localIdentifier)
+        Task {
+            let loaded = await Self.loadWindowed(ids)
+            var items: [PhotoItem] = []
+            for (id, photo) in zip(ids, loaded) {
+                guard let photo, let image = UIImage(contentsOfFile: photo.url.path) else {
+                    completion(.failure(PhotoError.loadFailed))
+                    return
                 }
+                var item = PhotoItem(image: image, sourceAssetIdentifier: id)
+                // Only an uncropped 4:3 frame keeps the EXIF field of view.
+                let w = image.size.width, h = image.size.height
+                let aspect = max(w, h) / max(min(w, h), 1)
+                if let focal = photo.focal, abs(aspect - 4.0 / 3.0) < 0.02 { item.focalLength35mm = focal }
+                items.append(item)
             }
-            // EXIF focal length, for the camera-vs-eyes angle. Optional: a failure is ignored.
-            group.enter()
-            imageManager.requestImageDataAndOrientation(for: asset, options: dataOptions) { data, _, _, _ in
-                let focal = data.flatMap { LensMetadataReader.focalLength35mm(imageData: $0) }
-                DispatchQueue.main.async {
-                    focals[index] = focal
-                    group.leave()
-                }
+            completion(.success(items))
+        }
+    }
+
+    // MARK: - Sliding window (18 Nov)
+
+    nonisolated struct LoadedPhoto: Sendable {
+        let url: URL
+        let focal: Double?
+    }
+
+    /// Picked photos as JPG files, so they are not all held decoded in memory.
+    nonisolated static let pickedFolder = URL.applicationSupportDirectory
+        .appending(path: "PickedPhotos", directoryHint: .isDirectory)
+
+    /// Photos loaded at the same time: 10, or 4 on phones with ≤ 4.5 GB of memory.
+    nonisolated static func loadWindow() -> Int {
+        ProcessInfo.processInfo.physicalMemory <= 4_831_838_208 ? 4 : 10
+    }
+
+    /// Results in the order of `ids`; nil = that photo could not be loaded.
+    nonisolated static func loadWindowed(_ ids: [String]) async -> [LoadedPhoto?] {
+        let folder = pickedFolder
+        try? FileManager.default.createDirectory(at: folder, withIntermediateDirectories: true)
+        removeOldPickedFiles(in: folder)
+        var results = [LoadedPhoto?](repeating: nil, count: ids.count)
+        await withTaskGroup(of: (Int, LoadedPhoto?).self) { group in
+            var next = 0
+            func addNext() {
+                guard next < ids.count else { return }
+                let index = next, id = ids[index]
+                next += 1
+                group.addTask { (index, await Self.loadOne(id, into: folder)) }
+            }
+            for _ in 0..<Self.loadWindow() { addNext() }
+            while let result = await group.next() {
+                results[result.0] = result.1
+                addNext()
             }
         }
-        group.notify(queue: .main) {
-            if failed { completion(.failure(PhotoError.loadFailed)); return }
-            for index in results.indices {
-                guard let item = results[index], let focal = focals[index] else { continue }
-                // Only an uncropped 4:3 frame keeps the EXIF field of view.
-                let w = item.image.size.width, h = item.image.size.height
-                let aspect = max(w, h) / max(min(w, h), 1)
-                if abs(aspect - 4.0 / 3.0) < 0.02 { results[index]?.focalLength35mm = focal }
+        return results
+    }
+
+    /// One photo: 1024 px image → JPG on disk, plus the EXIF focal length (the original data is
+    /// dropped right after). Nothing of it stays in memory after this returns.
+    nonisolated private static func loadOne(_ id: String, into folder: URL) async -> LoadedPhoto? {
+        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else { return nil }
+        let manager = PHImageManager.default()
+
+        let jpeg: Data
+        do {
+            let options = PHImageRequestOptions()
+            options.deliveryMode = .highQualityFormat
+            options.isNetworkAccessAllowed = true
+            let image: UIImage? = await withCheckedContinuation { continuation in
+                manager.requestImage(for: asset, targetSize: CGSize(width: 1024, height: 1024),
+                                     contentMode: .aspectFit, options: options) { image, info in
+                    if (info?[PHImageResultIsDegradedKey] as? Bool) == true { return }
+                    continuation.resume(returning: image)
+                }
             }
-            completion(.success(results.compactMap { $0 }))
+            guard let data = image?.jpegData(compressionQuality: 0.9) else { return nil }
+            jpeg = data
+        }
+
+        // EXIF focal length, for the camera-vs-eyes angle. Optional: a failure is ignored.
+        let dataOptions = PHImageRequestOptions()
+        dataOptions.isNetworkAccessAllowed = true
+        let focal: Double? = await withCheckedContinuation { continuation in
+            manager.requestImageDataAndOrientation(for: asset, options: dataOptions) { data, _, _, _ in
+                continuation.resume(returning: data.flatMap { LensMetadataReader.focalLength35mm(imageData: $0) })
+            }
+        }
+
+        let url = folder.appending(path: UUID().uuidString + ".jpg")
+        do {
+            try jpeg.write(to: url, options: .atomic)
+        } catch {
+            return nil
+        }
+        return LoadedPhoto(url: url, focal: focal)
+    }
+
+    /// Files from earlier picks (older than a day). Recent ones may still be on screen.
+    nonisolated private static func removeOldPickedFiles(in folder: URL) {
+        let manager = FileManager.default
+        let dayAgo = Date.now.addingTimeInterval(-86_400)
+        let files = (try? manager.contentsOfDirectory(at: folder, includingPropertiesForKeys: [.contentModificationDateKey])) ?? []
+        for file in files {
+            let modified = (try? file.resourceValues(forKeys: [.contentModificationDateKey]))?.contentModificationDate
+            if let modified, modified < dayAgo { try? manager.removeItem(at: file) }
         }
     }
 
