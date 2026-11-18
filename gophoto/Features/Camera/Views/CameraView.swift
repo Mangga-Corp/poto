@@ -271,6 +271,17 @@ struct CameraView: View {
                 .frame(maxWidth: .infinity, minHeight: 44)
                 .background(.black.opacity(0.35))
                 .animation(.snappy, value: viewModel.phasedInstruction)
+            if let hint = viewModel.lockedShutterHint {
+                // Tapped the locked shutter: below the guide's own instruction, which stays first.
+                Label(hint, systemImage: "lock.fill")
+                    .font(AppFont.footnote.weight(.semibold))
+                    .foregroundStyle(.white)
+                    .multilineTextAlignment(.center)
+                    .padding(.horizontal, 14).padding(.vertical, 8)
+                    .background(Color.black.opacity(0.6), in: Capsule())
+                    .padding(.horizontal, 24)
+                    .transition(.opacity)
+            }
             if let flash = viewModel.phasedFlash {
                 // A phase just finished.
                 Label(flash, systemImage: "checkmark.circle.fill")
@@ -282,6 +293,7 @@ struct CameraView: View {
             }
         }
         .animation(.snappy, value: viewModel.phasedFlash)
+        .animation(.easeOut(duration: 0.2), value: viewModel.lockedShutterHint)
         .sensoryFeedback(.success, trigger: viewModel.phasedFlash) { _, new in new != nil }
     }
 
@@ -374,18 +386,30 @@ struct CameraView: View {
         }
     }
 
+    /// Locked until the guide is complete: dimmed centre with a lock, still tappable (the view
+    /// model refuses the photo, explains why and gives a light haptic). Ready: the usual shutter.
     private var shutterButton: some View {
-        Button {
+        let isLocked = viewModel.isShutterLocked
+        return Button {
             Task { await viewModel.takePhoto() }
         } label: {
             ZStack {
-                Circle().fill(.white).frame(width: 68, height: 68)
+                Circle().fill(.white.opacity(isLocked ? 0.3 : 1)).frame(width: 68, height: 68)
                 Circle().stroke(.white, lineWidth: 4).frame(width: 80, height: 80)
+                if isLocked {
+                    Image(systemName: "lock.fill")
+                        .font(.system(size: 22, weight: .semibold))
+                        .foregroundStyle(.white)
+                        .transition(.opacity)
+                }
             }
+            .animation(.easeOut(duration: 0.2), value: isLocked)
         }
         .disabled(viewModel.isCapturing)
         .opacity(viewModel.isCapturing ? 0.5 : 1)
-        .accessibilityLabel("Take photo")
+        .sensoryFeedback(.impact(flexibility: .soft, intensity: 0.5), trigger: viewModel.lockedShutterTapCount)
+        .accessibilityLabel(isLocked ? "Shutter locked" : "Take photo")
+        .accessibilityHint(isLocked ? "Complete the camera guide to take the photo" : "")
         .accessibilityInputLabels(["Take photo", "Shutter", "Capture", "Take picture"])
     }
 
