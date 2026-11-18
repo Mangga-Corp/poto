@@ -145,9 +145,14 @@ struct FacePickerView: View {
                     .accessibilityInputLabels(["Person \(index + 1)"])
                 }
             }
+            // New people fade in below instead of popping in.
+            .animation(.easeOut(duration: 0.25), value: viewModel.shownGroups.count)
             if viewModel.hasMoreGroups {
-                Button("Not here? Show more people") { viewModel.showAllGroups() }
-                    .buttonStyle(.goPhotoText)
+                Button(viewModel.isLoadingMoreGroups ? "Loading…" : "Not here? Show more people") {
+                    Task { await viewModel.showMoreGroups() }
+                }
+                .buttonStyle(.goPhotoText)
+                .disabled(viewModel.isLoadingMoreGroups)
             }
             Text("\(viewModel.groups.count) people from \(viewModel.faceCount) faces in \(viewModel.photosChecked) photos")
                 .font(GoPhotoDesign.caption)
