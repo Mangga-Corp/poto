@@ -55,6 +55,8 @@ struct PhotoSourceChoiceView: View {
                 ForEach(PhotoPickMethod.allCases) { source in
                     PhotoSourceCard(source: source, isSelected: source == selected)
                         .onTapGesture { selected = source }
+                        .accessibilityAction { selected = source }
+                        .accessibilityInputLabels([source.title])
                 }
             }
             .padding(.top, 28)

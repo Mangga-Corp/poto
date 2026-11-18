@@ -104,6 +104,9 @@ final class CameraViewModel {
     private(set) var phasedInstruction: PhasedInstruction?
     /// Selection UI: dims everything but people (nil = no dimming).
     private(set) var selectionDimMask: CGImage?
+    /// The people to choose from while the camera asks which one to photograph (frame units, origin
+    /// top-left); empty otherwise. Lets VoiceOver / Voice Control pick "Person 2" without a screen tap.
+    private(set) var personChoices: [CGRect] = []
     /// A phase just finished: green confirmation for about a second ("Distance ✓"), else nil.
     private(set) var phasedFlash: String?
     @ObservationIgnored private var phasedFlashID = 0
@@ -524,7 +527,17 @@ extension CameraViewModel {
         let final: PhasedInstruction? = selection.instruction ?? (phasedSubjectLocked ? out.instruction : nil)
         if out != phased { phased = out }
         if final != phasedInstruction { phasedInstruction = final }
+        publishPersonChoices(final == .tapPerson ? phasedCandidates : [])
         for event in events where event.kind == "phase" { flashPhaseDone(event.detail) }
+    }
+
+    /// Updates `personChoices` only when the people change (count, or a box moved noticeably), so
+    /// jitter in the detections does not redraw the camera screen on every frame.
+    private func publishPersonChoices(_ boxes: [CGRect]) {
+        let moved = boxes.count != personChoices.count || zip(boxes, personChoices).contains {
+            hypot($0.midX - $1.midX, $0.midY - $1.midY) > 0.03
+        }
+        if moved { personChoices = boxes }
     }
 
     /// Green confirmation when a phase is finished (not when the guide moves back).

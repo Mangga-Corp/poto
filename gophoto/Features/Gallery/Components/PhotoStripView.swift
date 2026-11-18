@@ -22,8 +22,8 @@ struct PhotoStripView: View {
         GeometryReader { proxy in
             ScrollView(.horizontal) {
                 LazyHStack(spacing: 2) {
-                    ForEach(photos, id: \.assetID) { photo in
-                        thumbnail(for: photo)
+                    ForEach(Array(photos.enumerated()), id: \.element.assetID) { index, photo in
+                        thumbnail(for: photo, number: index + 1)
                     }
                 }
                 .scrollTargetLayout()
@@ -41,7 +41,7 @@ struct PhotoStripView: View {
                 set: { if let id = $0, id != currentID { currentID = id } })
     }
 
-    private func thumbnail(for photo: GalleryPhoto) -> some View {
+    private func thumbnail(for photo: GalleryPhoto, number: Int) -> some View {
         let isCurrent = photo.assetID == currentID
         return Button {
             withAnimation(.snappy) { currentID = photo.assetID }
@@ -66,5 +66,7 @@ struct PhotoStripView: View {
         }
         .buttonStyle(.plain)
         .accessibilityAddTraits(isCurrent ? .isSelected : [])
+        // Voice Control: "Tap Photo 12" (the spoken label is a long date).
+        .accessibilityInputLabels(["Photo \(number)"])
     }
 }

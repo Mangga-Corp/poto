@@ -221,8 +221,8 @@ struct GalleryView: View {
 
                         // Grid 5 kolom edge-to-edge
                         LazyVGrid(columns: columns, spacing: 2) {
-                            ForEach(filteredPhotos) { photo in
-                                cell(for: photo)
+                            ForEach(Array(filteredPhotos.enumerated()), id: \.element.id) { index, photo in
+                                cell(for: photo, number: index + 1)
                             }
                         }
                         .padding(.horizontal, 0)
@@ -312,6 +312,7 @@ struct GalleryView: View {
                                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                         }
                         .buttonStyle(.plain)
+                        .accessibilityLabel("Back")
                     }
 
                     VStack(alignment: .leading, spacing: 3) {
@@ -510,8 +511,8 @@ struct GalleryView: View {
                                 .padding(.top, 40)
                             } else {
                                 LazyVGrid(columns: columns, spacing: 2) {
-                                    ForEach(searchResults) { photo in
-                                        cell(for: photo)
+                                    ForEach(Array(searchResults.enumerated()), id: \.element.id) { index, photo in
+                                        cell(for: photo, number: index + 1)
                                     }
                                 }
                                 .padding(.horizontal, 0)
@@ -555,6 +556,7 @@ struct GalleryView: View {
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Back to gallery")
 
             // Bar input search di tengah
             HStack(spacing: 8) {
@@ -563,6 +565,7 @@ struct GalleryView: View {
                     .foregroundStyle(Color(GoPhotoDesign.secondaryText))
 
                 TextField("Search your library...", text: $searchText)
+                    .accessibilityLabel("Search")
                     .font(AppFont.scaled(size: 16, relativeTo: .callout))
                     .foregroundStyle(Color(GoPhotoDesign.primaryText))
                     .focused($isSearchFieldFocused)
@@ -580,10 +583,13 @@ struct GalleryView: View {
                             .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                     }
                     .buttonStyle(.plain)
+                    .accessibilityLabel("Clear search text")
                 } else {
+                    // Decorative: it is not a button, so it must not be offered as one.
                     Image(systemName: "mic.fill")
                         .font(AppFont.scaled(size: 16, relativeTo: .callout))
                         .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                        .accessibilityHidden(true)
                 }
             }
             .padding(.horizontal, 14)
@@ -613,6 +619,7 @@ struct GalleryView: View {
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
             .buttonStyle(.plain)
+            .accessibilityLabel("Close search")
         }
         .padding(.horizontal, 16)
         .padding(.bottom, 12)
@@ -763,6 +770,8 @@ struct GalleryView: View {
                     .foregroundStyle(Color(GoPhotoDesign.primaryText))
             }
         }
+        .accessibilityLabel("Filter and sort")
+        .accessibilityInputLabels(["Filter and sort", "Filter", "Sort"])
     }
 
     // MARK: - Floating Bottom Bar (Library & Collections Capsule + Search Circle)
@@ -787,6 +796,7 @@ struct GalleryView: View {
                 }
                 .buttonStyle(.plain)
                 // Bar items keep their size (like the system tab bar); long-press shows them large.
+                .accessibilityAddTraits(currentTab == .library ? .isSelected : [])
                 .accessibilityShowsLargeContentViewer {
                     Label("Library", systemImage: "photo.stack.fill")
                 }
@@ -820,6 +830,9 @@ struct GalleryView: View {
                     }
                 }
                 .buttonStyle(.plain)
+                // The red "1" badge would otherwise be read (and spoken to Voice Control) as part of the name.
+                .accessibilityLabel("Collections")
+                .accessibilityAddTraits(currentTab == .collections ? .isSelected : [])
                 .accessibilityShowsLargeContentViewer {
                     Label("Collections", systemImage: "rectangle.stack.fill")
                 }
@@ -960,6 +973,7 @@ struct GalleryView: View {
                                 .font(AppFont.scaled(size: 13, weight: .semibold, relativeTo: .footnote))
                                 .foregroundStyle(Color(GoPhotoDesign.secondaryText))
                         }
+                        .accessibilityLabel(isCollectionsCollapsed ? "Expand albums" : "Collapse albums")
                     }
                     .padding(.horizontal, 16)
 
@@ -1016,6 +1030,7 @@ struct GalleryView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityInputLabels(["All Photos"])
     }
 
     private func prefAlbumCard(pref: Preference, width: CGFloat?, height: CGFloat) -> some View {
@@ -1033,6 +1048,7 @@ struct GalleryView: View {
             )
         }
         .buttonStyle(.plain)
+        .accessibilityInputLabels([pref.name])
     }
 
     private func albumCard(title: String, count: Int, firstAssetID: String?, width: CGFloat?, height: CGFloat) -> some View {
@@ -1068,7 +1084,7 @@ struct GalleryView: View {
     // MARK: - Cell View (Native Square Tile with Spacing)
 
     @ViewBuilder
-    private func cell(for photo: GalleryPhoto) -> some View {
+    private func cell(for photo: GalleryPhoto, number: Int) -> some View {
         let isSelected = selectedIDs.contains(photo.assetID)
         let isFavorited = favoriteIDs.contains(photo.assetID)
         let thumbnail = GalleryThumbnailView(
@@ -1121,6 +1137,9 @@ struct GalleryView: View {
             }
             .buttonStyle(.plain)
             .accessibilityAddTraits(isSelected ? .isSelected : [])
+            // Voice Control: "Tap Photo 3" (the spoken label is a long date).
+            .accessibilityInputLabels(["Photo \(number)"])
+            .accessibilityValue(isFavorited ? "Favorite" : "")
         } else {
             NavigationLink(value: photo) {
                 ZStack(alignment: .bottomTrailing) {
@@ -1139,6 +1158,8 @@ struct GalleryView: View {
             }
             .buttonStyle(.plain)
             .matchedTransitionSource(id: photo.assetID, in: photoZoom)
+            .accessibilityInputLabels(["Photo \(number)"])
+            .accessibilityValue(isFavorited ? "Favorite" : "")
         }
     }
 
@@ -1268,6 +1289,8 @@ struct GalleryView: View {
                     .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
             )
             .padding(.horizontal, 32)
+            // Hides the gallery behind the card from VoiceOver / Voice Control.
+            .accessibilityAddTraits(.isModal)
         }
     }
 
