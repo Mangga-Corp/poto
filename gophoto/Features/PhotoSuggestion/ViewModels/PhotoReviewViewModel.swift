@@ -1,4 +1,6 @@
 import Observation
+import UIKit
+import os
 
 @Observable
 final class PhotoReviewViewModel {
@@ -11,7 +13,7 @@ final class PhotoReviewViewModel {
 
     static let preselectCount = 20
     static let minPhotos = ChoosePhotosViewModel.minPhotos
-    static let maxPhotos = ChoosePhotosViewModel.maxPhotos
+    static let maxPhotos = ReferencePhotoMode.allOfMe.maxPhotos
 
     private(set) var state: State = .grading
     /// Photos that passed the quality gate, best first.
@@ -38,11 +40,41 @@ final class PhotoReviewViewModel {
     func grade() async {
         guard state == .grading else { return }
         let qualities = await meter.measure(candidates)
-        let kept = PhotoQualityGate.rank(qualities.filter(PhotoQualityGate.passes))
-        droppedCount = qualities.count - kept.count
+        // Taste rules, Mode 2 (16 Nov, with Reynard): only junk is dropped (utility images, very
+        // low aesthetics). Face capture quality no longer drops or limits photos: it scores small
+        // or turned faces low (full body, side poses), which would remove whole styles. Bursts
+        // are merged (`PhotoDedupe`) and every photo left is selected (up to `maxPhotos`), so all
+        // styles reach the analysis; the user can still unselect any.
+        let usable = qualities.filter { quality in
+            !quality.isUtility && (quality.aesthetic.map { $0 >= PhotoQualityGate.minimumAesthetic } ?? true)
+        }
+        let ranked = PhotoQualityGate.rank(usable)
         let byID = Dictionary(uniqueKeysWithValues: candidates.map { ($0.id, $0) })
-        photos = kept.compactMap { byID[$0.assetID] }
-        selectedIDs = Set(photos.prefix(Self.preselectCount).map(\.id))
+        let thumbnails = ranked.compactMap { quality in
+            byID[quality.assetID]?.thumbnailURL.map { (id: quality.assetID, url: $0) }
+        }
+        let items = ranked.map {
+            PhotoDedupe.Item(id: $0.assetID, takenAt: $0.creationDate, quality: $0.faceQuality.map(Double.init))
+        }
+        let limit = Self.maxPhotos
+        let dedupe = await Task.detached(priority: .userInitiated) {
+            let images = thumbnails.compactMap { thumb in
+                FaceCrop.thumbnail(at: thumb.url)?.cgImage.map { (id: thumb.id, image: $0) }
+            }
+            var inputs = StyleInputs()
+            inputs.distances = StyleInputs.featureDistances(images)
+            return PhotoDedupe.run(items, parameters: PhotoDedupe.Parameters(maxPhotos: limit)) {
+                inputs.distance($0, $1)
+            }
+        }.value
+        let kept = Set(dedupe.kept)
+        StyleInputs.log.notice("review: \(qualities.count) candidates, \(qualities.count - usable.count) junk dropped, \(dedupe.merged.reduce(0) { $0 + $1.count - 1 }) merged in \(dedupe.merged.count) bursts, \(dedupe.dropped.count) over the limit, \(kept.count) selected")
+        StyleTraceRecorder.shared.setReview(.init(candidates: qualities.count, junk: qualities.count - usable.count, // StyleTrace
+                                                  bursts: dedupe.merged, overLimit: dedupe.dropped.count,
+                                                  selected: kept.count))
+        droppedCount = qualities.count - usable.count
+        photos = ranked.compactMap { kept.contains($0.assetID) ? byID[$0.assetID] : nil }
+        selectedIDs = Set(photos.map(\.id))
         state = .ready
     }
 

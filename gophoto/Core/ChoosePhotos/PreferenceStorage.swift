@@ -107,7 +107,7 @@ final class PreferencesStorage {
         removeUnreferencedPhotoFiles(keeping: referencedFiles)
         let preferences = snapshot.entries.map { entry in
             let photos = unique(entry.photoIDs).compactMap { id -> PhotoItem? in
-                guard let image = UIImage(contentsOfFile: photoURL(id).path) else { return nil }
+                guard let image = UncachedImage.load(contentsOf: photoURL(id)) else { return nil }
                 return PhotoItem(
                     id: id,
                     image: image,
@@ -187,10 +187,14 @@ final class PreferencesStorage {
             for photo in uniquePhotosByID.values {
                 let destination = photoURL(photo.id)
                 guard !fileManager.fileExists(atPath: destination.path) else { continue }
-                guard let imageData = photo.image.jpegData(compressionQuality: 0.85) else {
-                    throw PreferenceStorageError.photoEncodingFailed
+                // One pool per photo: this loop runs as a single ioQueue work item, so without it
+                // every photo's encoding buffers stay until the whole save ends (18 Nov).
+                try autoreleasepool {
+                    guard let imageData = photo.image.jpegData(compressionQuality: 0.85) else {
+                        throw PreferenceStorageError.photoEncodingFailed
+                    }
+                    try imageData.write(to: destination, options: .atomic)
                 }
-                try imageData.write(to: destination, options: .atomic)
                 filesCreatedByThisSave.append(destination)
             }
 
@@ -219,7 +223,7 @@ final class PreferencesStorage {
         var seen = Set<UUID>()
         let photoIDs = entry.photoIDs.filter { seen.insert($0).inserted }
         let photos = try photoIDs.map { photoID -> PhotoItem in
-            guard let image = UIImage(contentsOfFile: photoURL(photoID).path) else {
+            guard let image = UncachedImage.load(contentsOf: photoURL(photoID)) else {
                 throw PreferenceStorageError.photoReadFailed
             }
             return PhotoItem(

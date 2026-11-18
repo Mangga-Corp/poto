@@ -279,8 +279,9 @@ final class PreferencesViewModel {
 
         let current = preferences[index]
         let updatedPhotos = mergedPhotos(current.photos, photos)
-        guard updatedPhotos.count <= ChoosePhotosViewModel.maxPhotos else {
-            completion(.failure(PreferenceNameError(message: "You can add up to \(ChoosePhotosViewModel.maxPhotos) photos.")))
+        let limit = ReferencePhotoModeStore.mode(for: id).maxPhotos
+        guard updatedPhotos.count <= limit else {
+            completion(.failure(PreferenceNameError(message: "You can add up to \(limit) photos.")))
             return
         }
         guard updatedPhotos.map(\.id) != current.photos.map(\.id) else {
@@ -653,22 +654,24 @@ final class PreferencesViewModel {
             let photos = validation.validatedPhotos
 
             self.analysisRunCount += 1
+            StyleTraceRecorder.shared.begin()   // StyleTrace
             #if DEBUG
             // UI tests only (`-GoPhotoFakeAnalysis <mode>`): a stand-in result instead of Vision.
             var analysis: PresetAnalysis?
             if let fake = await DebugFixtures.fakeAnalysis(for: photos) {
                 analysis = fake
             } else {
-                analysis = await session.analyze(photos)
+                analysis = await session.analyze(photos, mode: ReferencePhotoModeStore.mode(for: id))
             }
             #else
-            var analysis = await session.analyze(photos)
+            var analysis = await session.analyze(photos, mode: ReferencePhotoModeStore.mode(for: id))
             #endif
             analysis?.analyzedPhotoIDs = photos.map(\.id.uuidString)
             guard self.analysisTokens[id] == token else { return }
             if let analysis, !(await self.setAnalysisPersisted(analysis, for: id)) {
                 self.logger.error("Could not persist analysis for preference \(id)")
             }
+            if analysis != nil { StyleTrace.saveRecorded(for: id) }   // StyleTrace
             self.analyzingIDs.remove(id)
         }
         analysisChain = task
@@ -714,6 +717,74 @@ final class PreferencesViewModel {
                 )))
             }
         }
+    }
+
+    // MARK: Style question (taste rules, Mode 1, 15 Nov)
+
+    /// "Which style do you want for your preset?" for one shot size whose scene votes were not
+    /// clear (`PresetAnalysis.StyleChoice.status == "ask"`). One question per shot size, answer
+    /// required. Until it is answered the most-voted style is used.
+    struct StyleQuestion: Identifiable, Equatable {
+        /// The style key (`ShotSize.rawValue` or "sitting").
+        let id: String
+        let shotTitle: String
+        let options: [Option]
+
+        struct Option: Identifiable, Equatable {
+            /// Candidate index (most votes first).
+            let id: Int
+            let photo: PhotoItem?
+            static func == (a: Option, b: Option) -> Bool { a.id == b.id && a.photo?.id == b.photo?.id }
+        }
+    }
+
+    /// The next unanswered style question of this preset, or nil.
+    func pendingStyleQuestion(for id: UUID) -> StyleQuestion? {
+        guard let preference = preference(id: id), let analysis = preference.analysis,
+              let key = analysis.pendingStyleKeys.first,
+              let choice = analysis.styleVariant(forKey: key)?.styleChoice,
+              choice.candidates.count > 1 else { return nil }
+        let photos = Dictionary(preference.photos.map { ($0.id.uuidString, $0) }, uniquingKeysWith: { a, _ in a })
+        let title = key == BodyPosture.sitting.rawValue
+            ? "Sitting" : (PresetAnalysis.ShotSize(rawValue: key)?.title ?? key)
+        // Mode 2: the knockout's current question, in random order, each with a photo whose
+        // eyes are not closed.
+        if let bracket = choice.bracket {
+            guard let current = bracket.current else { return nil }
+            let options = current.shuffled().map { index in
+                StyleQuestion.Option(id: index, photo: displayablePhoto(of: choice.candidates[index], photos: photos))
+            }
+            return StyleQuestion(id: key, shotTitle: title, options: options)
+        }
+        let options = choice.questionPhotoIDs().enumerated().map { index, photoID in
+            StyleQuestion.Option(id: index, photo: photos[photoID])
+        }
+        return StyleQuestion(id: key, shotTitle: title, options: options)
+    }
+
+    /// Mode 2: the candidate's target photo, else one of its other photos, whose eyes are not
+    /// closed (a closed-eye photo is rejected for the moment, not for how it was shot).
+    private func displayablePhoto(of candidate: PresetAnalysis.StyleChoice.Candidate,
+                                  photos: [String: PhotoItem]) -> PhotoItem? {
+        var seen = Set<String>()
+        for photoID in [candidate.targetPhotoID] + candidate.representativeIDs + candidate.photoIDs
+        where seen.insert(photoID).inserted {
+            guard let photo = photos[photoID] else { continue }
+            if QuestionPhotoQuality.eyes(of: photo) != .closed { return photo }
+        }
+        return photos[candidate.targetPhotoID]
+    }
+
+    /// Saves the user's answer: style `index` becomes the preset for that shot size.
+    /// False when it could not be applied or saved (the question then stays).
+    func chooseStyle(_ index: Int, forKey key: String, of id: UUID, shown: [Int] = []) async -> Bool {
+        guard let analysis = preference(id: id)?.analysis,
+              let updated = analysis.answeringStyle(index, forKey: key, shown: shown) else { return false }
+        let saved = await setAnalysisPersisted(updated, for: id)
+        let status = updated.styleVariant(forKey: key)?.styleChoice?.status ?? "?"
+        StyleInputs.log.notice("answer \(key, privacy: .public): picked \(index) of \(shown, privacy: .public) → \(status, privacy: .public)")
+        if !saved { logger.error("Preference \(id): style choice for \(key, privacy: .public) not saved") }
+        return saved
     }
 
     private func setAnalysisPersisted(_ analysis: PresetAnalysis, for id: UUID) async -> Bool {

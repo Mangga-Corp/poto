@@ -8,7 +8,7 @@
 import Foundation
 
 final class ChoosePhotosViewModel {
-    static let maxPhotos = 50
+    static let maxPhotos = 100
     static let minPhotos = 3
 
     enum AddDestination { case limitReached, permission, picker, settings }
@@ -34,11 +34,17 @@ final class ChoosePhotosViewModel {
     private(set) var checked: Set<UUID> = []
     private var didRequestAccessOnAppear = false
 
-    init(service: ChoosePhotosService, preferenceName: String, items: [PhotoItem], mode: Mode = .editor) {
+    /// Most photos this editor holds (`maxPhotos`, or the preference mode's limit). Never below
+    /// the photos it opens with, so opening an editor never cuts photos off.
+    let limit: Int
+
+    init(service: ChoosePhotosService, preferenceName: String, items: [PhotoItem], mode: Mode = .editor,
+         limit: Int = ChoosePhotosViewModel.maxPhotos) {
         self.service = service
         self.title = preferenceName
         self.items = items
         self.mode = mode
+        self.limit = max(limit, items.count)
     }
 
     var isOnboarding: Bool { mode == .onboarding }
@@ -55,8 +61,8 @@ final class ChoosePhotosViewModel {
         }
     }
     var hasItems: Bool { !items.isEmpty }
-    var subtitleText: String { hasItems ? "\(items.count)/\(Self.maxPhotos)" : "" }
-    var limitMessage: String { "You can add up to \(Self.maxPhotos) photos." }
+    var subtitleText: String { hasItems ? "\(items.count)/\(limit)" : "" }
+    var limitMessage: String { "You can add up to \(limit) photos." }
 
     var hasEnoughPhotos: Bool { items.count >= Self.minPhotos }
 
@@ -135,7 +141,7 @@ final class ChoosePhotosViewModel {
     }
 
     func addTapped() -> AddDestination {
-        guard items.count < Self.maxPhotos else { return .limitReached }
+        guard items.count < limit else { return .limitReached }
         switch service.access {
         case .notDetermined: return .permission
         case .authorized, .limited: return .picker
@@ -148,7 +154,7 @@ final class ChoosePhotosViewModel {
     }
 
     func makePickerViewModel() -> SelectPhotoViewModel {
-        SelectPhotoViewModel(service: service, existing: items, limit: Self.maxPhotos, canRemoveExisting: canRemoveInPicker)
+        SelectPhotoViewModel(service: service, existing: items, limit: limit, canRemoveExisting: canRemoveInPicker)
     }
 
     func differs(from picked: [PhotoItem]) -> Bool { picked.map(\.id) != items.map(\.id) }
@@ -156,13 +162,13 @@ final class ChoosePhotosViewModel {
     /// Shows photos the owner has already saved (e.g. after photos without a person were
     /// removed): the grid updates, and `onPhotosChange` is not called (nothing new to store).
     func syncSavedItems(_ saved: [PhotoItem]) {
-        items = Array(saved.prefix(Self.maxPhotos))
+        items = Array(saved.prefix(limit))
         checked = checked.intersection(Set(items.map(\.id)))
         onItemsChange?()
     }
 
     func replaceItems(_ picked: [PhotoItem]) {
-        items = Array(picked.prefix(Self.maxPhotos))
+        items = Array(picked.prefix(limit))
         onItemsChange?()
         onPhotosChange?(items)
     }
@@ -172,7 +178,7 @@ final class ChoosePhotosViewModel {
         var assetIdentifiers = Set(items.compactMap(\.sourceAssetIdentifier))
         var itemIdentifiers = Set(items.map(\.id))
         for item in newItems {
-            guard items.count < Self.maxPhotos else { break }
+            guard items.count < limit else { break }
             if let sourceAssetIdentifier = item.sourceAssetIdentifier {
                 guard assetIdentifiers.insert(sourceAssetIdentifier).inserted else { continue }
             } else {

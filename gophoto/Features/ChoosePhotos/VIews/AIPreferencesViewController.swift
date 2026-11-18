@@ -348,7 +348,7 @@ final class AIPreferencesViewController: UIViewController {
     private func renderItems() {
         titleLabel.text = viewModel.displayTitle
         let count = viewModel.items.count
-        subtitleLabel.text = "Reference photos · \(count) of \(ChoosePhotosViewModel.maxPhotos)"
+        subtitleLabel.text = "Reference photos · \(count) of \(viewModel.limit)"
         collectionView.reloadData()
         collectionView.collectionViewLayout.invalidateLayout()
     }

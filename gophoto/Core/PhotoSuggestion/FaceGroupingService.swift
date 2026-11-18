@@ -44,6 +44,15 @@ nonisolated struct FaceGroupingResult: Sendable {
     /// 512 px copies on disk, used for face crops until `clear()`.
     let thumbnailURLs: [String: URL]
     let photosChecked: Int
+    /// Library photos checked in this run (anchors excluded), newest first.
+    let checkedIDs: [String]
+    /// Anchors that were actually scanned (thumbnail exported).
+    let anchorIDs: [String]
+    /// Newest / oldest date among `checkedIDs`.
+    let newestChecked: Date?
+    let oldestChecked: Date?
+    /// Photos still not checked after this run (they wait for the next run).
+    let remaining: Int
 }
 
 nonisolated enum FaceGroupingError: Error {
@@ -51,7 +60,9 @@ nonisolated enum FaceGroupingError: Error {
 }
 
 nonisolated protocol FaceGrouping: Sendable {
-    func scan(maxFaces: Int, maxPhotos: Int,
+    /// Scans up to `maxPhotos` photos not in `checked` (newest first), plus the `anchors`
+    /// (already-known photos of the person, see `FaceScanMatch`).
+    func scan(maxFaces: Int, maxPhotos: Int, skipping checked: Set<String>, anchors: [String],
               onProgress: @escaping @Sendable (FaceGroupingProgress) -> Void) async throws -> FaceGroupingResult
     /// Deletes every face and thumbnail this scan produced.
     func clear() async
@@ -61,8 +72,8 @@ nonisolated protocol FaceGrouping: Sendable {
 nonisolated final class FaceGroupAnalyzerService: FaceGrouping {
     static let thumbnailSide: CGFloat = 512
     static let batchSize = 25
-    /// No new photos are added after this; the rest of the budget goes to clustering.
-    static let scanTimeLimit: Duration = .seconds(25)
+    // No time limit (Reynard, 17 Nov): a deadline made the scanned set depend on how fast the
+    // phone was that day, so the same person got a different photo set each time.
 
     private static let directory = URL.cachesDirectory
         .appending(path: "FaceGroupData", directoryHint: .isDirectory)
@@ -83,34 +94,69 @@ nonisolated final class FaceGroupAnalyzerService: FaceGrouping {
     }
 
     @concurrent
-    func scan(maxFaces: Int, maxPhotos: Int,
+    func scan(maxFaces: Int, maxPhotos: Int, skipping checked: Set<String>, anchors: [String],
               onProgress: @escaping @Sendable (FaceGroupingProgress) -> Void) async throws -> FaceGroupingResult {
         guard let analyzer = Self.analyzer else { throw FaceGroupingError.unavailable }
         await clear()
 
+        // Photos not checked yet: favourites first, then the rest, each newest first (17 Nov).
+        // At most `maxPhotos` this run, the rest next run.
         let assets = Self.candidateAssets()
-        let total = min(assets.count, maxPhotos)
+        var favorites: [PHAsset] = []
+        var others: [PHAsset] = []
+        var unchecked = 0
+        assets.enumerateObjects { asset, _, _ in
+            guard !checked.contains(asset.localIdentifier) else { return }
+            unchecked += 1
+            if asset.isFavorite {
+                favorites.append(asset)
+            } else if others.count < maxPhotos {
+                others.append(asset)
+            }
+        }
+        let queue = Array((favorites + others).prefix(maxPhotos))
+        guard !queue.isEmpty else {
+            return FaceGroupingResult(groups: [], facesByAsset: [:], thumbnailURLs: [:], photosChecked: 0,
+                                      checkedIDs: [], anchorIDs: [], newestChecked: nil, oldestChecked: nil,
+                                      remaining: 0)
+        }
+        let selfies = Self.selfieIDs()
+        let anchorSet = Set(anchors)
+        let order = PhotoAssets.ordered(anchors) + queue.filter { !anchorSet.contains($0.localIdentifier) }
         var thumbnailURLs: [String: URL] = [:]
+        var checkedIDs: [String] = []
+        var anchorIDs: [String] = []
+        var newest: Date?
+        var oldest: Date?
         var facesFound = 0
-        var index = 0
-        let clock = ContinuousClock()
-        let deadline = clock.now + Self.scanTimeLimit
+        var position = 0
 
-        while index < total, facesFound < maxFaces, clock.now < deadline {
+        while position < order.count, facesFound < maxFaces {
             try Task.checkCancellation()
             var batch: [MediaIntelligenceImageAsset] = []
-            while batch.count < Self.batchSize, index < total {
-                let asset = assets.object(at: index)
-                index += 1
+            while batch.count < Self.batchSize, position < order.count {
+                let asset = order[position]
+                position += 1
+                let id = asset.localIdentifier
+                let isAnchor = anchorSet.contains(id)
+                if !isAnchor {
+                    checkedIDs.append(id)
+                    if let date = asset.creationDate {
+                        newest = max(newest ?? date, date)
+                        oldest = min(oldest ?? date, date)
+                    }
+                    if selfies.contains(id) { continue }   // front camera: not how others photograph you
+                }
                 guard let url = await Self.exportThumbnail(for: asset) else { continue }
-                thumbnailURLs[asset.localIdentifier] = url
-                batch.append(MediaIntelligenceImageAsset(id: .init(asset.localIdentifier), kind: .url(url)))
+                thumbnailURLs[id] = url
+                if isAnchor { anchorIDs.append(id) }
+                batch.append(MediaIntelligenceImageAsset(id: .init(id), kind: .url(url)))
             }
             guard !batch.isEmpty else { continue }
             for try await (_, faces) in try await analyzer.insertOrUpdateAssets(batch) {
                 facesFound += faces.count
             }
-            onProgress(FaceGroupingProgress(photosChecked: index, facesFound: facesFound))
+            onProgress(FaceGroupingProgress(photosChecked: checkedIDs.count, facesFound: facesFound))
         }
 
         try Task.checkCancellation()
@@ -133,7 +179,10 @@ nonisolated final class FaceGroupAnalyzerService: FaceGrouping {
         }
 
         return FaceGroupingResult(groups: groups, facesByAsset: facesByAsset,
-                                  thumbnailURLs: thumbnailURLs, photosChecked: index)
+                                  thumbnailURLs: thumbnailURLs, photosChecked: checkedIDs.count,
+                                  checkedIDs: checkedIDs, anchorIDs: anchorIDs,
+                                  newestChecked: newest, oldestChecked: oldest,
+                                  remaining: unchecked - checkedIDs.count)
     }
 
     @concurrent
@@ -151,6 +200,19 @@ nonisolated final class FaceGroupAnalyzerService: FaceGrouping {
         let skipped = PHAssetMediaSubtype.photoScreenshot.rawValue | PHAssetMediaSubtype.photoPanorama.rawValue
         options.predicate = NSPredicate(format: "(mediaSubtypes & %d) == 0", skipped)
         return PHAsset.fetchAssets(with: .image, options: options)
+    }
+
+    /// Photos' own Selfies album (front camera). Skipped before export, so they cost no time.
+    private static func selfieIDs() -> Set<String> {
+        var ids = Set<String>()
+        let albums = PHAssetCollection.fetchAssetCollections(with: .smartAlbum,
+                                                             subtype: .smartAlbumSelfPortraits, options: nil)
+        albums.enumerateObjects { album, _, _ in
+            PHAsset.fetchAssets(in: album, options: nil).enumerateObjects { asset, _, _ in
+                ids.insert(asset.localIdentifier)
+            }
+        }
+        return ids
     }
 
     private static func exportThumbnail(for asset: PHAsset) async -> URL? {
