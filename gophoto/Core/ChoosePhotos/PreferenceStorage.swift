@@ -33,6 +33,8 @@ final class PreferencesStorage {
             /// EXIF 35 mm-equivalent focal length per photo (`UUID.uuidString`), when known.
             var focals: [String: Double]?
             var sourceAssetIdentifiers: [String: String]?
+            /// Front camera (selfie) per photo (`UUID.uuidString`), when the EXIF said (18 Nov).
+            var frontCamera: [String: Bool]?
             /// A custom preference's placement and angle. Its analysis is not saved: it is rebuilt
             /// from this on load (`CustomPresetAnalysisFactory`).
             var customStyle: CustomPreferenceStyle?
@@ -44,10 +46,12 @@ final class PreferencesStorage {
                 analysis: PresetAnalysis?,
                 focals: [String: Double]?,
                 sourceAssetIdentifiers: [String: String]?,
+                frontCamera: [String: Bool]? = nil,
                 customStyle: CustomPreferenceStyle?
             ) {
                 self.id = id; self.name = name; self.photoIDs = photoIDs; self.analysis = analysis
                 self.focals = focals; self.sourceAssetIdentifiers = sourceAssetIdentifiers
+                self.frontCamera = frontCamera
                 self.customStyle = customStyle
             }
 
@@ -60,6 +64,7 @@ final class PreferencesStorage {
                 analysis = try? c.decodeIfPresent(PresetAnalysis.self, forKey: .analysis)
                 focals = try? c.decodeIfPresent([String: Double].self, forKey: .focals)
                 sourceAssetIdentifiers = try? c.decodeIfPresent([String: String].self, forKey: .sourceAssetIdentifiers)
+                frontCamera = try? c.decodeIfPresent([String: Bool].self, forKey: .frontCamera)
                 customStyle = try? c.decodeIfPresent(CustomPreferenceStyle.self, forKey: .customStyle)
             }
 
@@ -112,7 +117,8 @@ final class PreferencesStorage {
                     id: id,
                     image: image,
                     sourceAssetIdentifier: entry.sourceAssetIdentifiers?[id.uuidString],
-                    focalLength35mm: entry.focals?[id.uuidString]
+                    focalLength35mm: entry.focals?[id.uuidString],
+                    isFrontCamera: entry.frontCamera?[id.uuidString]
                 )
             }
             return entry.preference(photos: photos)
@@ -167,6 +173,9 @@ final class PreferencesStorage {
             let focals = photos.reduce(into: [String: Double]()) { map, photo in
                 if let focal = photo.focalLength35mm { map[photo.id.uuidString] = focal }
             }
+            let frontCamera = photos.reduce(into: [String: Bool]()) { map, photo in
+                if let front = photo.isFrontCamera { map[photo.id.uuidString] = front }
+            }
             let sourceAssetIdentifiers = photos.reduce(into: [String: String]()) { map, photo in
                 if let identifier = photo.sourceAssetIdentifier {
                     map[photo.id.uuidString] = identifier
@@ -176,6 +185,7 @@ final class PreferencesStorage {
                          analysis: preference.isCustom ? nil : preference.analysis,
                          focals: focals.isEmpty ? nil : focals,
                          sourceAssetIdentifiers: sourceAssetIdentifiers.isEmpty ? nil : sourceAssetIdentifiers,
+                         frontCamera: frontCamera.isEmpty ? nil : frontCamera,
                          customStyle: preference.customStyle)
         }
         let snapshot = Snapshot(entries: entries, selectedID: selectedID)
@@ -230,7 +240,8 @@ final class PreferencesStorage {
                 id: photoID,
                 image: image,
                 sourceAssetIdentifier: entry.sourceAssetIdentifiers?[photoID.uuidString],
-                focalLength35mm: entry.focals?[photoID.uuidString]
+                focalLength35mm: entry.focals?[photoID.uuidString],
+                isFrontCamera: entry.frontCamera?[photoID.uuidString]
             )
         }
         return entry.preference(photos: photos)

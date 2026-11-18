@@ -42,6 +42,7 @@
 
 import CoreGraphics
 import Foundation
+import Photos
 import Vision
 import os
 
@@ -61,13 +62,16 @@ nonisolated enum HumanSubjectStatus: Equatable, Sendable {
     case visionFailed(String)
     /// Several people were found and the depth model could not run on the photo.
     case depthFailed(String)
+    /// Taken with the front camera (EXIF lens) or in Photos' Selfies album (18 Nov). The style is
+    /// how others photograph the user, so selfies are left out like group photos. Vision not run.
+    case selfie
 
     var isValid: Bool { self == .validSingleForegroundSubject }
 
     /// Checked successfully and rejected (no person, or several in the foreground).
     var isConfirmedInvalid: Bool {
         switch self {
-        case .noPersonDetected, .multipleForegroundSubjects: return true
+        case .noPersonDetected, .multipleForegroundSubjects, .selfie: return true
         default: return false
         }
     }
@@ -96,6 +100,8 @@ struct HumanSubjectValidationResult {
     let noPersonPhotos: [PhotoItem]
     /// Checked, two or more people in the foreground.
     let multiplePeoplePhotos: [PhotoItem]
+    /// Front camera or Selfies album.
+    let selfiePhotos: [PhotoItem]
     /// Several people, foreground not reliably established: kept, not analysed, not removed.
     let uncertainPhotos: [PhotoItem]
     /// Photos that could not be loaded or checked (neither valid nor confirmed invalid).
@@ -106,7 +112,8 @@ struct HumanSubjectValidationResult {
     /// person / several in the foreground). Zero until `afterRemovingInvalidPhotos`.
     private(set) var removedNoPersonCount = 0
     private(set) var removedMultipleCount = 0
-    var removedCount: Int { removedNoPersonCount + removedMultipleCount }
+    private(set) var removedSelfieCount = 0
+    var removedCount: Int { removedNoPersonCount + removedMultipleCount + removedSelfieCount }
 
     /// The same check after its confirmed invalid photos left the preference: `remaining` (the
     /// saved photos) are the source now, and the removed counts are kept for the messages.
@@ -114,6 +121,7 @@ struct HumanSubjectValidationResult {
         var cleaned = HumanSubjectValidationResult(sourcePhotos: remaining, statuses: statuses)
         cleaned.removedNoPersonCount = removedNoPersonCount + noPersonPhotos.count
         cleaned.removedMultipleCount = removedMultipleCount + multiplePeoplePhotos.count
+        cleaned.removedSelfieCount = removedSelfieCount + selfiePhotos.count
         return cleaned
     }
 
@@ -136,6 +144,7 @@ struct HumanSubjectValidationResult {
         var invalid: [PhotoItem] = []
         var noPerson: [PhotoItem] = []
         var multiple: [PhotoItem] = []
+        var selfies: [PhotoItem] = []
         var uncertain: [PhotoItem] = []
         var failed: [PhotoItem] = []
         for photo in sourcePhotos {
@@ -148,6 +157,9 @@ struct HumanSubjectValidationResult {
             case .multipleForegroundSubjects?:
                 invalid.append(photo)
                 multiple.append(photo)
+            case .selfie?:
+                invalid.append(photo)
+                selfies.append(photo)
             case .uncertainForegroundGrouping?:
                 uncertain.append(photo)
             // Not checked at all counts as a processing failure, never as an invalid photo.
@@ -160,6 +172,7 @@ struct HumanSubjectValidationResult {
         self.invalidPhotos = invalid
         self.noPersonPhotos = noPerson
         self.multiplePeoplePhotos = multiple
+        self.selfiePhotos = selfies
         self.uncertainPhotos = uncertain
         self.failedPhotos = failed
         self.statuses = statuses
@@ -193,12 +206,24 @@ struct HumanSubjectValidationResult {
     var exclusionMessage: String {
         let removed = removedCount
         var parts = ["We found \(Self.photos(removed)) that didn't meet the requirements. Each photo must contain exactly one foreground subject. \(removed == 1 ? "This photo has" : "These photos have") been removed from your preference."]
+        if removedSelfieCount > 0 { parts.append(Self.selfieNote(removedSelfieCount)) }
         if let note = keptButUnusedNote { parts.append(note) }
         parts.append("Analysis will continue using your \(validCount) valid \(validCount == 1 ? "photo" : "photos").")
         return parts.joined(separator: " ")
     }
 
     static let warningTitle = "Not Enough Photos with People"
+
+    /// Why selfies are not used (18 Nov).
+    private static func selfieNote(_ n: Int) -> String {
+        "\(n == 1 ? "One was a selfie" : "\(n) were selfies"): your style comes from how others photograph you."
+    }
+
+    /// "a", "a and b", "a, b and c".
+    private static func list(_ items: [String]) -> String {
+        guard items.count > 2 else { return items.joined(separator: " and ") }
+        return items.dropLast().joined(separator: ", ") + " and " + items[items.count - 1]
+    }
 
     /// Fewer than the minimum valid photos left.
     var warningMessage: String {
@@ -207,7 +232,9 @@ struct HumanSubjectValidationResult {
             var reasons: [String] = []
             if removedNoPersonCount > 0 { reasons.append("\(Self.photos(removedNoPersonCount)) with no person") }
             if removedMultipleCount > 0 { reasons.append("\(Self.photos(removedMultipleCount)) with more than one person") }
-            parts.append("We removed \(reasons.joined(separator: " and ")) from your preference.")
+            if removedSelfieCount > 0 { reasons.append(removedSelfieCount == 1 ? "1 selfie" : "\(removedSelfieCount) selfies") }
+            parts.append("We removed \(Self.list(reasons)) from your preference.")
+            if removedSelfieCount > 0 { parts.append(Self.selfieNote(removedSelfieCount)) }
         }
         if let note = keptButUnusedNote { parts.append(note) }
         parts.append("Please add more photos featuring only yourself. At least \(HumanSubjectValidator.minimumValidPhotos) valid photos are required to analyze your photography style.")
@@ -233,12 +260,38 @@ nonisolated enum HumanSubjectValidator {
     static func validate(_ photos: [PhotoItem]) async -> HumanSubjectValidationResult {
         var seen = Set<UUID>()
         let unique = photos.filter { seen.insert($0.id).inserted }
-        let sources = unique.enumerated().map { index, photo in
-            PhotoSource(id: photo.id, selectionOrder: index, image: photo.image,
-                        focalLength35mm: photo.focalLength35mm)
+        // Selfies first (18 Nov): front camera in EXIF, or in Photos' Selfies album. No Vision run.
+        let albumSelfies = await selfieAssetIDs(among: unique.compactMap(\.sourceAssetIdentifier))
+        let selfieIDs = Set(unique.filter { photo in
+            photo.isFrontCamera == true || photo.sourceAssetIdentifier.map { albumSelfies.contains($0) } == true
+        }.map(\.id))
+        let sources = unique.enumerated().compactMap { index, photo -> PhotoSource? in
+            guard !selfieIDs.contains(photo.id) else { return nil }
+            return PhotoSource(id: photo.id, selectionOrder: index, image: photo.image,
+                               focalLength35mm: photo.focalLength35mm)
         }
-        let statuses = await detect(sources)
+        var statuses = await detect(sources)
+        for id in selfieIDs { statuses[id] = .selfie }
+        if !selfieIDs.isEmpty { log.notice("\(selfieIDs.count) of \(unique.count) photos are selfies") }
         return HumanSubjectValidationResult(sourcePhotos: unique, statuses: statuses)
+    }
+
+    /// Of `ids`, the photos in Photos' Selfies album. Empty without photo-library access.
+    static func selfieAssetIDs(among ids: [String]) async -> Set<String> {
+        guard !ids.isEmpty else { return [] }
+        return await Task.detached(priority: .userInitiated) {
+            var found = Set<String>()
+            let options = PHFetchOptions()
+            options.predicate = NSPredicate(format: "localIdentifier IN %@", ids)
+            let albums = PHAssetCollection.fetchAssetCollections(with: .smartAlbum,
+                                                                 subtype: .smartAlbumSelfPortraits, options: nil)
+            albums.enumerateObjects { album, _, _ in
+                PHAsset.fetchAssets(in: album, options: options).enumerateObjects { asset, _, _ in
+                    found.insert(asset.localIdentifier)
+                }
+            }
+            return found
+        }.value
     }
 
     /// Runs the check on a background task, one photo after another. The depth model is loaded

@@ -688,6 +688,7 @@ struct PhotoSessionSetupView: View {
         switch status {
         case .multipleForegroundSubjects: return "More than one person in this photo"
         case .noPersonDetected: return "No person found in this photo"
+        case .selfie: return "This photo is a selfie"
         case .uncertainForegroundGrouping: return "Couldn't tell who the main person is in this photo"
         case .imageLoadFailed, .visionFailed, .depthFailed: return "This photo couldn't be checked"
         case .validSingleForegroundSubject: return ""
@@ -835,6 +836,7 @@ private struct InspectedPhoto {
         case .uncertainForegroundGrouping: "Main Person Unclear"
         case .multipleForegroundSubjects: "More Than One Person"
         case .noPersonDetected: "No Person Found"
+        case .selfie: "Selfie"
         case .imageLoadFailed, .visionFailed, .depthFailed: "Photo Couldn't Be Checked"
         case .validSingleForegroundSubject: ""
         }
@@ -848,6 +850,8 @@ private struct InspectedPhoto {
             "This photo has more than one person in the foreground. Please use photos featuring only yourself."
         case .noPersonDetected:
             "We couldn't find a person in this photo. Please use photos that clearly show you."
+        case .selfie:
+            "Selfies aren't used: your style comes from how others photograph you. Please use photos someone else took of you."
         case .imageLoadFailed, .visionFailed, .depthFailed:
             "Something went wrong while checking this photo. Check it again, or replace it."
         case .validSingleForegroundSubject:

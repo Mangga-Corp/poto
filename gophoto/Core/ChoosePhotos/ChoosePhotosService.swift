@@ -55,6 +55,7 @@ final class ChoosePhotosService {
                 let w = image.size.width, h = image.size.height
                 let aspect = max(w, h) / max(min(w, h), 1)
                 if let focal = photo.focal, abs(aspect - 4.0 / 3.0) < 0.02 { item.focalLength35mm = focal }
+                item.isFrontCamera = photo.isFrontCamera
                 items.append(item)
             }
             completion(.success(items))
@@ -66,6 +67,7 @@ final class ChoosePhotosService {
     nonisolated struct LoadedPhoto: Sendable {
         let url: URL
         let focal: Double?
+        let isFrontCamera: Bool?
     }
 
     /// Picked photos as JPG files, so they are not all held decoded in memory.
@@ -125,12 +127,12 @@ final class ChoosePhotosService {
             jpeg = data
         }
 
-        // EXIF focal length, for the camera-vs-eyes angle. Optional: a failure is ignored.
+        // EXIF focal length (camera-vs-eyes angle) and front camera (selfie). Optional: a failure is ignored.
         let dataOptions = PHImageRequestOptions()
         dataOptions.isNetworkAccessAllowed = true
-        let focal: Double? = await withCheckedContinuation { continuation in
+        let lens: (focal35mm: Double?, isFrontCamera: Bool?) = await withCheckedContinuation { continuation in
             manager.requestImageDataAndOrientation(for: asset, options: dataOptions) { data, _, _, _ in
-                continuation.resume(returning: data.flatMap { LensMetadataReader.focalLength35mm(imageData: $0) })
+                continuation.resume(returning: data.map { LensMetadataReader.read(imageData: $0) } ?? (nil, nil))
             }
         }
 
@@ -140,7 +142,7 @@ final class ChoosePhotosService {
         } catch {
             return nil
         }
-        return LoadedPhoto(url: url, focal: focal)
+        return LoadedPhoto(url: url, focal: lens.focal35mm, isFrontCamera: lens.isFrontCamera)
     }
 
     /// Files from earlier picks (older than a day). Recent ones may still be on screen.

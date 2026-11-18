@@ -30,6 +30,21 @@ nonisolated enum LensMetadataReader {
         return focalLength35mm(exif: exif)
     }
 
+    /// The focal length and whether the front camera took the photo, from one read of the data
+    /// (18 Nov: selfies are left out of a preference). nil = not an image, or no EXIF.
+    static func read(imageData: Data) -> (focal35mm: Double?, isFrontCamera: Bool?) {
+        guard let source = CGImageSourceCreateWithData(imageData as CFData, nil),
+              let properties = CGImageSourceCopyPropertiesAtIndex(source, 0, nil) as? [CFString: Any],
+              let exif = properties[kCGImagePropertyExifDictionary] as? [CFString: Any]
+        else { return (nil, nil) }
+        return (focalLength35mm(exif: exif), isFrontCamera(exif: exif))
+    }
+
+    /// From the EXIF lens name, e.g. "iPhone 15 Pro front camera 2.69mm f/1.9". nil = no lens name.
+    static func isFrontCamera(exif: [CFString: Any]) -> Bool? {
+        (exif[kCGImagePropertyExifLensModel] as? String).map { $0.localizedCaseInsensitiveContains("front") }
+    }
+
     /// From an EXIF dictionary. Only the explicit 35 mm-equivalent tag is used:
     /// the raw focal length needs the sensor size, which EXIF rarely states.
     static func focalLength35mm(exif: [CFString: Any]) -> Double? {
