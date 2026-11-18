@@ -43,6 +43,16 @@ struct PhotoReviewView: View {
         .background(GoPhotoDesign.background)
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+        .toolbar {
+            if viewModel.state == .ready {
+                ToolbarItem(placement: .topBarTrailing) {
+                    Button(viewModel.isAllSelected ? "Deselect All" : "Select All") {
+                        viewModel.toggleSelectAll()
+                    }
+                    .accessibilityInputLabels(viewModel.isAllSelected ? ["Deselect All", "Deselect"] : ["Select All"])
+                }
+            }
+        }
         .task { await viewModel.grade() }
         .sessionBottomBar {
             SessionPrimaryButton(title: "Continue with \(viewModel.selectedCount) photos",

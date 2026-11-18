@@ -88,6 +88,18 @@ final class PhotoReviewViewModel {
 
     func isSelected(_ id: String) -> Bool { selectedIDs.contains(id) }
 
+    /// As many photos selected as can be (all of them, or `maxPhotos`): the button reads "Deselect All".
+    var isAllSelected: Bool { !photos.isEmpty && selectedCount >= min(photos.count, Self.maxPhotos) }
+
+    /// "Select All" / "Deselect All" (18 Nov). Select All takes the first `maxPhotos`, best first.
+    func toggleSelectAll() {
+        if isAllSelected {
+            selectedIDs = []
+        } else {
+            selectedIDs = Set(photos.prefix(Self.maxPhotos).map(\.id))
+        }
+    }
+
     /// Loads the selected photos the same way the manual picker does. nil on failure.
     func loadSelection() async -> [PhotoItem]? {
         guard canContinue else { return nil }
