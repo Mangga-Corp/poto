@@ -18,13 +18,17 @@ final class FacePickerViewModel {
     /// Photos checked per run; photos past this are checked by the next run (`FaceScanStore`).
     static let maxPhotos = 1500
     static let shownGroupCount = 6
+    /// People added per "Not here? Show more people" tap: three more rows (18 Nov).
+    static let moreGroupCount = 9
 
     private(set) var state: State = .idle
     private(set) var groups: [PersonGroup] = []
     private(set) var covers: [String: UIImage] = [:]
     private(set) var pickedGroup: PersonGroup?
     private(set) var pickedPhotos: [PersonPhoto] = []
-    private(set) var isShowingAllGroups = false
+    /// People on screen: `shownGroupCount` first, `moreGroupCount` more per tap, each with its face.
+    private(set) var shownGroupLimit = FacePickerViewModel.shownGroupCount
+    private(set) var isLoadingMoreGroups = false
     /// A person was chosen before: their saved photos are shown at once, and a scan of the photos
     /// not checked yet adds new ones (17 Nov).
     private(set) var hasSavedPerson = false
@@ -43,10 +47,8 @@ final class FacePickerViewModel {
         self.service = service
     }
 
-    var shownGroups: [PersonGroup] {
-        isShowingAllGroups ? groups : Array(groups.prefix(Self.shownGroupCount))
-    }
-    var hasMoreGroups: Bool { !isShowingAllGroups && groups.count > Self.shownGroupCount }
+    var shownGroups: [PersonGroup] { Array(groups.prefix(shownGroupLimit)) }
+    var hasMoreGroups: Bool { groups.count > shownGroupLimit }
     var faceCount: Int { result?.facesByAsset.values.reduce(0) { $0 + $1.count } ?? 0 }
     var photosChecked: Int { result?.photosChecked ?? 0 }
     var includedPhotos: [PersonPhoto] { pickedPhotos.filter { PersonPhotoFilter.isIncluded($0.presence) } }
@@ -88,8 +90,17 @@ final class FacePickerViewModel {
         scanTask?.cancel()
     }
 
-    func showAllGroups() {
-        isShowingAllGroups = true
+    /// Before 18 Nov every other person appeared at once with an empty placeholder face (faces
+    /// were cut only for the first six). Now the next few appear with their faces already cut.
+    func showMoreGroups() async {
+        guard !isLoadingMoreGroups, let result else { return }
+        let next = Array(groups.dropFirst(shownGroupLimit).prefix(Self.moreGroupCount))
+        guard !next.isEmpty else { return }
+        isLoadingMoreGroups = true
+        let more = await Self.covers(for: next, thumbnails: result.thumbnailURLs)
+        covers.merge(more) { current, _ in current }
+        shownGroupLimit += next.count
+        isLoadingMoreGroups = false
     }
 
     func pick(_ group: PersonGroup) {
@@ -117,6 +128,7 @@ final class FacePickerViewModel {
         pickedPhotos = []
         groups = []
         covers = [:]
+        shownGroupLimit = Self.shownGroupCount
         addedCount = 0
         remainingCount = 0
         start()
@@ -130,7 +142,7 @@ final class FacePickerViewModel {
         covers = [:]
         pickedGroup = nil
         pickedPhotos = []
-        isShowingAllGroups = false
+        shownGroupLimit = Self.shownGroupCount
         hasSavedPerson = false
         state = .idle
         guard let service else { return }
@@ -168,6 +180,7 @@ final class FacePickerViewModel {
             remainingCount = found.remaining
             if saved.isEmpty {
                 groups = found.groups
+                shownGroupLimit = Self.shownGroupCount
                 covers = await Self.covers(for: Array(found.groups.prefix(Self.shownGroupCount)),
                                            thumbnails: found.thumbnailURLs)
             } else {

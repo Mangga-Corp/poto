@@ -154,6 +154,9 @@ nonisolated enum PhasedMeasure {
     /// A face box ≈ 0.55 × (head top → shoulder line): head top→shoulders ≈ 32 cm, face box
     /// (brow→chin) ≈ 18 cm. Only scales the "faces" unit; degrees do not use it.
     static let headFaceRatio = 0.55
+    /// The "faces" unit in metres: one face box (brow→chin) ≈ 18 cm (Reynard, 18 Nov). Shown to
+    /// people as "head"; the code keeps the name "faces".
+    static let faceMeters = 0.18
 
     struct Head: Sendable, Equatable {
         var eyeY: Double

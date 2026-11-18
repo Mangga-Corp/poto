@@ -33,7 +33,9 @@ final class PhotoPreferencePickerFlow {
     func start() {
         switch viewModel.addTapped() {
         case .limitReached:
-            showAlert(message: viewModel.limitMessage)
+            // OK closes the flow: from Photo Session Setup the picker sits in an empty full-screen
+            // cover, which stayed open (a blank screen) when nothing dismissed it (18 Nov).
+            showAlert(message: viewModel.limitMessage) { [weak self] in self?.onCancel() }
         case .permission:
             viewModel.requestAccess { [weak self] canBrowse in
                 if canBrowse {

@@ -7,6 +7,7 @@
 > - **Pembaruan 13 Nov 2026 (branch `Adjust-Live-Guidance`, setelah merge `main`):** perubahan guide Phased, analisis preset, dan fitur developer 12–13 Nov dimasukkan ke §6.4, §6.6, §6.7, §6.12, §6.15, §7.4.2, §14, §16. Ringkasannya di [§17 Changelog](#17-changelog-1215-nov-2026).
 > - **Aturan selera Mode 1 (15 Nov 2026):** analisis preset sekarang mengelompokkan foto referensi per shot size menjadi gaya, menghitung suara per scene, bertanya ke user bila hasilnya tidak jelas, dan memakai foto medoid gaya pemenang sebagai target guide. Lihat §6.15.1 dan §17.
 > - **Pembersihan 13 Nov 2026 (kode developer keluar dari repo ini):** saklar `appMode` dihapus. GoPhoto sekarang hanya berisi **Phased · Auto crop**. Semua alat developer (ExperimentBar, GuideDebugPanel, Replay, Guide log, Record GT, guide Main/Legacy, Analysis Results, Shot Analysis) pindah ke repo **debugphoto** (§6.12). Bagian lain yang masih menyebut "appMode 2" atau "dev-only" menggambarkan keadaan sebelum pembersihan; baris terkait di §13 dan §15 sudah diberi tanda **dipindah ke debugphoto**. Sumber angka: `Core/Guide/Phased/PhasedParameters.swift` dan `Docs/Experiments/PhaseGuide/Parameters.md`.
+> - **Pembaruan 16–18 Nov 2026 (poto, branch `feat/Preference-question`):** Mode 2 "Find my photos for me" (§6.15.2), batas foto 100/200, simpan hasil scan wajah, perbaikan memori picker/simpan/analisis (§6.15.3), satuan tinggi kamera 18 cm (§14). Ringkasan di [§18 Changelog](#18-changelog-1618-nov-2026).
 > - **Cakupan:** 255 file Swift (sekitar 41.900 baris), 3 model CoreML, `project.pbxproj`, `Info.plist`, entitlements, `Package.resolved`, dan semua dokumen `.md`/gambar spesifikasi di repo.
 > - **Legenda status:**
 >   - ✅ Selesai
@@ -37,6 +38,7 @@
 15. [Lampiran: Indeks File](#15-lampiran-indeks-file)
 16. [Lampiran: Daftar [PERLU KONFIRMASI]](#16-lampiran-daftar-perlu-konfirmasi)
 17. [Changelog 12–15 Nov 2026](#17-changelog-1215-nov-2026)
+18. [Changelog 16–18 Nov 2026](#18-changelog-1618-nov-2026)
 
 ## 1. Ringkasan Eksekutif
 
@@ -943,7 +945,7 @@ String yang tampil ke user:
   1. **Preprocess:** sisi pendek 320, crop ke kelipatan 32, sisi panjang ∈ {320, 384, 416, 480, 544}. Fungsi model `h{H}_w{W}` dipilih sesuai ukuran (mis. `h416_w320`).
   2. **Network:** `GeoCalibNet_fp16` (`.cpuAndGPU`, fallback CPU) menghasilkan `up_field`, `up_confidence`, `latitude_field`, `latitude_confidence`.
   3. **Optimizer LM** (Swift): 30 langkah, Huber 1e-2, λ0 = 0.1, f0 = 0.7·max(H,W). Hasilnya roll, pitch, dan focal ± σ.
-  4. **Elevasi kamera terhadap mata:** `e = −elevation(eyePoint)`, dengan + berarti kamera di atas mata. Focal EXIF dipakai bila ada (diagonal 43.27 mm). σ dihitung dari pitch, focal, dan error titik mata (0.05 / 0.15 tinggi kepala). Pitch dipakai bila σ ≤5°.
+  4. **Elevasi kamera terhadap mata:** `e = −elevation(eyePoint)`, dengan + berarti kamera di atas mata. Focal EXIF dipakai bila ada (diagonal 43.27 mm). σ dihitung dari pitch, focal, dan error titik mata (0.05 / 0.15 tinggi wajah). Pitch dipakai bila σ ≤5°.
   5. **Kategori** (`CameraAngleRule`):
 
      | Elevasi e | Kategori |
@@ -985,7 +987,7 @@ String yang tampil ke user:
 
 #### 6.15.1 Aturan selera Mode 1: gaya, scene, pertanyaan (15 Nov 2026)
 
-Berlaku untuk preferensi dari foto ("pilih foto favorit"). Mode 2 ("semua foto dirinya + A/B") belum dibuat. Pengecekan "tepat 1 orang di depan" dan minimal 3 foto valid tetap dari `HumanSubjectValidator` (Kevin, 14 Nov).
+Berlaku untuk pintu **"Choose photos myself"** (`ReferencePhotoMode.favorites`, maks 100 foto). Pintu **"Find my photos for me"** = Mode 2 (§6.15.2). Pengecekan "tepat 1 orang di depan" dan minimal 3 foto valid tetap dari `HumanSubjectValidator` (Kevin, 14 Nov).
 
 **Sebelumnya.** Per shot size, tinggi kamera sudah divoting di atas/bawah patokan badan (`AnchorSide`, sisi kalah dibuang, dipecah jadi gaya bila ≥ 6 foto). Kotak orang (ukuran, posisi) tetap median **semua** foto shot size itu, dan setiap foto (termasuk burst) dihitung satu suara.
 
@@ -1003,7 +1005,31 @@ Berlaku untuk preferensi dari foto ("pilih foto favorit"). Mode 2 ("semua foto d
 
 **Pertanyaan** (`StyleChoiceView`, layar baru): "Which style do you want for your preset?" dengan label shot size dan 2–3 foto (A/B/C, "Show other styles" bila lebih). Foto diambil dari satu scene bila semua kandidat punya foto di scene itu, kalau tidak dari foto target tiap gaya. Wajib dijawab: tanpa tombol lewati dan tanpa "dua-duanya". Maksimal 1 per shot size. Muncul di `OnboardingFlowView` (onboarding dan sesi foto) dan `PreferenceEditorPresenter` (edit foto) sebelum Style card. Jawaban → `PreferencesViewModel.chooseStyle` → `PresetAnalysis.choosingStyle` (analisis gaya itu menggantikan varian, status `chosen`) → disimpan. Belum dijawab: gaya dengan suara terbanyak dipakai, dan pertanyaan muncul lagi saat alur dibuka.
 
-**Belum dibuat:** crop screenshot, kalibrasi ambang FeaturePrint dengan foto asli, Mode 2, posisi berbasis bahu.
+**Belum dibuat:** crop screenshot, kalibrasi ambang FeaturePrint dengan foto asli, posisi berbasis bahu, filter selfie di picker manual (EXIF lensa depan).
+
+#### 6.15.2 Mode 2 "Find my photos for me" (16–17 Nov 2026)
+
+Pintu kedua di layar "Add your photos" (`PhotoSourceChoiceView`, Brian). Hanya iOS 27 (`FaceGroupingAvailability.isSupported`, MediaIntelligence); di iOS 26 tombol "Add Your Photos" langsung membuka picker manual. Mode disimpan per preferensi (`ReferencePhotoModeStore`, UserDefaults `referencePhotoMode.<uuid>`; default `favorites`). Batas foto `ReferencePhotoMode.maxPhotos`: Mode 1 = 100, Mode 2 = 200.
+
+1. **Scan wajah** (`FaceGroupingService`, `FacePickerViewModel`): maks 1.500 foto / 600 wajah per run, batch 25, **tanpa batas waktu** (17 Nov; batas 25 s membuat hasil tergantung kecepatan HP). Screenshot dan panorama tidak diambil; album Selfies dilewati sebelum export. Urutan: **favorit dulu**, lalu sisanya, masing-masing terbaru dulu. Thumbnail 512 px di `Caches/FaceGroupData/images`; foto iCloud-only tidak diunduh (`isNetworkAccessAllowed = false`) tapi tetap dihitung sudah dicek.
+2. **Simpan hasil** (`FaceScanStore`, `Application Support/FaceScan/record.json`): `checkedIDs` (sumber utama apa yang sudah discan; ID, bukan tanggal), tanggal terbaru/terlama, `lastScanAt`, dan koleksi orang terpilih (assetID + presence solo/mainFocus/group + kotak wajah). Thumbnail orang disalin ke `FaceScan/thumbnails`. "Not you? Choose again" menghapus semuanya.
+3. **Scan berikutnya** hanya foto yang ID-nya belum dicek. ID grup MediaIntelligence berubah tiap scan (datanya di-`deleteAllAssets`), jadi orang ditemukan lagi lewat **jangkar** (`FaceScanMatch`): ≤ 20 foto solo terjelas ikut discan; grup yang memegang ≥ 50% jangkar (tanpa seri) = orangnya. Tidak cocok → foto baru tidak ditambah dan tidak ditandai dicek. Scan yang dibatalkan di tengah tidak disimpan.
+4. **Review** (`PhotoReviewViewModel.grade`): buang hanya foto utilitas atau aesthetic < −0.5 (`PhotoQualityGate.minimumAesthetic`). Face capture quality **tidak** menyaring (menilai rendah full body / pose samping). Burst digabung (`PhotoDedupe`: ≤ 10 s **dan** FeaturePrint ≤ 0.25). Sisa dipilih semua (≤ 200); user bisa uncheck.
+5. **Analisis**: tanpa voting. Gaya per shot size dengan complete linkage dan batas yang sama dengan Mode 1. Kandidat = maks 7 gaya paling beda geometrinya (`StyleBracketPlan.candidates`, farthest-point; bukan buang gaya berfoto sedikit). Pertanyaan **knockout** (`StyleBracket`): 7 = ABC, DEF, lalu final dua pemenang + satu gaya acak; 6 = ABC, DEF, final A/B; 4 = AB, CD, final A/B. Maks 3 pertanyaan per shot size. Foto wakil tetap, posisi tampil diacak; foto mata tertutup tidak dipakai di pertanyaan (`QuestionPhotoQuality`, `CIDetectorEyeBlink`; ketajaman hanya dicatat log). Semua jawaban disimpan (`StyleChoice.answers`: shown, chosen, at) untuk evaluasi model bobot nanti.
+6. **Layar sementara StyleTrace** ("How it was grouped", kanan atas Style card): JSON di `Application Support/StyleTrace/<id>.json`. Dicabut nanti: folder `Features/StyleTrace/` + baris bertanda `// StyleTrace`.
+
+**Diketahui / dicek 18 Nov:** `purgeLeftovers()` di `MyApp.init` tidak ditunggu sebelum scan pertama (race kecil); log lama `MDB_MAP_FULL` (LMDB MediaIntelligence penuh) belum diukur ulang.
+
+#### 6.15.3 Memori saat memilih, menyimpan, dan menganalisis foto (17–18 Nov 2026)
+
+| Tahap | Sebelumnya | Sekarang |
+|---|---|---|
+| Picker → `ChoosePhotosService.loadItems` | Semua foto diminta sekaligus: 1024 px + file asli utuh (hanya untuk EXIF focal) | Jendela geser: 10 foto bareng (4 di HP ≤ 4,5 GB). Per foto: 1024 px → JPG di `Application Support/PickedPhotos` (dibersihkan bila > 1 hari) → dibaca ulang. Data asli langsung dilepas setelah focal dibaca. Encode dibungkus `autoreleasepool` |
+| Gambar di `PhotoItem` | `UIImage(contentsOfFile:)`: hasil decode (±3 MB per foto) ikut tersimpan selama `UIImage` hidup, jadi tiap proses yang menyentuh semua foto (save, cek orang, analisis) meninggalkan semua foto ter-decode | `UncachedImage.load(contentsOf:)` (`kCGImageSourceShouldCache = false` + orientasi EXIF): di-decode tiap dipakai, lalu dilepas. Dipakai di `loadItems` dan `PreferencesStorage` (load + loadPreference) |
+| Simpan preset (`PreferencesStorage.saveSynchronously`) | Satu work item `ioQueue` meng-encode semua foto; buffer autorelease baru lepas di akhir | `autoreleasepool` per foto |
+| Analisis (`AnalysisEngine`) | `PhotoImageStore` / `AnalysisArtifactStore` menyimpan gambar 1280 px + grid depth/segmentasi tiap foto (tidak pernah dibaca) | `keepsDebugArtifacts = false`; `concurrentPhotos()` = 1 bila RAM ≤ 4,5 GB atau HP panas, selain itu 2 |
+
+Uji 18 Nov (100 foto, Mode 1): sebelum `UncachedImage`, Memory naik 150 → ±800 MB saat Continue dan ±1 GB di akhir analisis. Sesudahnya dinyatakan OK oleh Reynard (angka belum dicatat). Belum: `FaceGroupingService.exportThumbnail` (scan wajah, 1.500 foto) masih pola lama; preview Mode 2 (FeaturePrint decode semua thumbnail, ±160 MB sesaat) dibiarkan.
 
 ### 6.16 Analisis lingkungan & konteks scene (bagian dari analisis preferensi)
 
@@ -1328,7 +1354,7 @@ Sebelum 13 Nov, di kedua mode `guideMode` dipaksa `.heightFirstCrop` ("B · Heig
 - Tanpa analisis tidak ada target. Postur duduk memaksa shot `.full`. Shot `.quarter` tidak didukung.
 - `span` = `analysis.subjectBox.height`. Untuk full, ini tinggi box orang; untuk 3/4 dan half, dari puncak kepala ke tepi bawah frame.
 - `top` = `subjectBox.minY`, `midX` = `subjectBox.midX`.
-- `vantageFaces` = `analysis.eyeOffsetFaces`: tinggi kamera relatif mata dalam satuan tinggi wajah (+ = kamera di atas mata). Fallback ke `vantageDegrees = analysis.eyeElevation`.
+- `vantageFaces` = `analysis.eyeOffsetFaces`: tinggi kamera relatif mata dalam satuan tinggi wajah (+ = kamera di atas mata). 1 wajah ≈ 18 cm (`PhasedMeasure.faceMeters`). Fallback ke `vantageDegrees = analysis.eyeElevation`.
 - `pitch` = pitch ke bawah dari `analysis.angle` bila nilainya `.match(_, down)`.
 - Data cahaya dan lingkungan **tidak** dipakai oleh Phased.
 
@@ -2081,6 +2107,7 @@ Board `UserFlowMangga.jpg` juga memuat sisa template yang tidak relevan ("As an 
 | **Phased guide / PhasedEngine** | Guide utama dengan 5 fase berurutan: acquire → distance → vantage → tilt → framing |
 | **Vantage** | Tinggi kamera relatif garis mata subjek (fase "Raise/Lower the phone") |
 | **Eye offset faces (`eyeOffsetFaces`)** | Tinggi kamera relatif mata dalam satuan tinggi wajah (+ = di atas mata) |
+| **Satuan wajah / "kepala"** | 1 satuan = tinggi kotak wajah Vision (alis–dagu) ≈ 18 cm (`PhasedMeasure.faceMeters`, 18 Nov). Di kode bernama `faces` / `headHeight`; label ke orang: "kepala" (docs) / "head" (UI). Kepala utuh puncak–bahu ≈ 32 cm (`headFaceRatio` 0.55) |
 | **Vantage range** | Target tinggi kamera sebagai rentang + keyakinan (agree / varied / twoGroups / uncertain), dari σ tiap foto referensi. Tampilan saja (12 Nov) |
 | **Face unit lock** | Tinggi wajah yang dikunci saat fase vantage selesai, dipakai sebagai satuan "wajah" di fase tilt/framing supaya tangan di wajah atau wajah berpaling tidak menggeser angka vantage |
 | **r (size ratio)** | Besar orang di layar dibagi besar orang di foto referensi. Makin besar r, makin dekat. Jarak berbanding terbalik dengan r |
@@ -2483,3 +2510,19 @@ Branch `Adjust-Live-Guidance`. Semua angka dari `PhasedParameters.swift`; catata
 | Pertanyaan gaya | Layar baru "Which style do you want for your preset?" bila suara < 5 atau rasio < 1.75; maks 1 per shot size, wajib dijawab | 15 Nov |
 | Toleransi guide | Tidak dilebarkan dari sebaran foto gaya pemenang (keputusan) | 15 Nov |
 | Dari tim (14–15 Nov, dipakai ulang) | Cek tepat 1 orang di depan + minimal 3 foto (`HumanSubjectValidator`, Kevin); pilihan rasio 3:4 / 9:16 (Kevin); tampilan kamera/onboarding/galeri + font Alegreya Sans (Sebastian) | 14–15 Nov |
+
+## 18. Changelog 16–18 Nov 2026
+
+Branch `feat/Preference-question` (poto). Merge `origin/main` 18 Nov: dark mode, Larger Text (Dynamic Type), camera UI, versi 1.1.
+
+| Area | Perubahan | Tanggal |
+|---|---|---|
+| Pintu foto | "Choose photos myself" (Mode 1) / "Find my photos for me" (Mode 2, iOS 27); wiring Brian dipulihkan setelah merge `da8cbd7` | 16 Nov |
+| Mode 2 | Scan wajah → review fusion → gaya per shot size → knockout maks 7 gaya / 3 pertanyaan (§6.15.2) | 16–17 Nov |
+| Batas foto | Mode 1 = 100, Mode 2 = 200 (`ReferencePhotoMode.maxPhotos`); counter "x/limit" di layar Reference Photos | 17 Nov |
+| Scan wajah | Tanpa batas waktu, lewati Selfies, favorit dulu, hasil disimpan (`FaceScanStore`), orang ditemukan lagi lewat jangkar | 17 Nov |
+| Analisis | `keepsDebugArtifacts = false`; concurrency adaptif 1/2 | 17 Nov |
+| Memori picker | `loadItems` jendela geser + JPG di disk + `autoreleasepool` | 18 Nov |
+| Memori foto | `UncachedImage` untuk foto yang dibaca dari file; `autoreleasepool` per foto saat simpan preset (§6.15.3) | 18 Nov |
+| Satuan tinggi kamera | 1 wajah ("kepala" / "head") = kotak wajah alis–dagu ≈ 18 cm, `PhasedMeasure.faceMeters`; `GuideFlow.faceHeightMeters` 0.20 → 0.18 | 18 Nov |
+| Sementara | StyleTrace ("How it was grouped") untuk melihat pengelompokan gaya | 16 Nov |

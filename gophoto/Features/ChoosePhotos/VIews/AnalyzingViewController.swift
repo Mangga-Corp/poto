@@ -106,18 +106,20 @@ private final class PhotoCardView: UIView {
         imageView.layer.borderColor = borderColor.resolvedColor(with: traitCollection).cgColor
     }
 
-    func animateCheckmarkAppearance() {
+    func animateCheckmarkAppearance(completion: (() -> Void)? = nil) {
         checkmarkContainer.transform = CGAffineTransform(scaleX: 0.3, y: 0.3)
         checkmarkContainer.alpha = 0
         UIView.animate(
             withDuration: 0.35,
-            delay: 0.1,
+            delay: 0,
             usingSpringWithDamping: 0.7,
             initialSpringVelocity: 0.3,
             options: [.curveEaseOut]
         ) {
             self.checkmarkContainer.transform = .identity
             self.checkmarkContainer.alpha = 1.0
+        } completion: { _ in
+            completion?()
         }
     }
 }
@@ -665,6 +667,17 @@ final class AnalyzingViewController: UIViewController {
             carouselContainer.bringSubviewToFront(center)
         }
 
+        // 1. The finished photo gets its check in the centre: same size and border, only the check.
+        // 2. Once the check has popped, everything slides one slot left (18 Nov, Reynard).
+        movingToLeftCard.animateCheckmarkAppearance { [weak self] in
+            self?.animateSlide(oldLeft: oldLeftCard, toLeft: movingToLeftCard,
+                               toCenter: movingToCenterCard, incoming: incomingRightCard)
+        }
+    }
+
+    /// Step 2 of `slideToPhoto`: every card moves one slot to the left.
+    private func animateSlide(oldLeft oldLeftCard: PhotoCardView?, toLeft movingToLeftCard: PhotoCardView,
+                              toCenter movingToCenterCard: PhotoCardView?, incoming incomingRightCard: PhotoCardView?) {
         // KOREKSI 4: Animasi diperhalus dengan spring curve optimal
         UIView.animate(
             withDuration: 0.65,
@@ -688,6 +701,8 @@ final class AnalyzingViewController: UIViewController {
                 showCheckmark: true,
                 alphaVal: 0.80
             )
+            // The photo inside follows the card's size during the slide instead of jumping to it.
+            movingToLeftCard.layoutIfNeeded()
 
             // 3. Kartu kanan geser ke tengah -> membesar jadi kartu tengah
             if let movingCenter = movingToCenterCard {
@@ -699,6 +714,7 @@ final class AnalyzingViewController: UIViewController {
                     showCheckmark: false,
                     alphaVal: 1.0
                 )
+                movingCenter.layoutIfNeeded()
             }
 
             // 4. Kartu baru masuk ke slot kanan
@@ -716,9 +732,6 @@ final class AnalyzingViewController: UIViewController {
             self.leftCard = movingToLeftCard
             self.centerCard = movingToCenterCard
             self.rightCard = incomingRightCard
-
-            // Animasikan pop icon ceklis di kartu kiri yang baru selesai
-            movingToLeftCard.animateCheckmarkAppearance()
 
             self.isAnimatingSlide = false
 
@@ -787,10 +800,13 @@ final class AnalyzingViewController: UIViewController {
     // MARK: - Actions
 
     @objc private func cancelTapped() {
-        viewModel.cancel()
         if let onCancel = onCancel {
+            // Embedded screen (onboarding, new preference): stop the run itself, then the owner
+            // leaves. `dismiss` does nothing there, so Cancel looked stuck (18 Nov).
+            viewModel.cancelAnalysis()
             onCancel()
         } else {
+            viewModel.cancel()
             dismiss(animated: true)
         }
     }

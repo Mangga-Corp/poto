@@ -93,7 +93,7 @@ struct OnboardingFlowView: View {
                 }
                 .transition(.opacity)
             } else if let preference = PreferencesViewModel.shared.preference(id: preferenceID) {
-                AnalyzingScreen(preferenceID: preferenceID, photos: preference.photos) {
+                AnalyzingScreen(preferenceID: preferenceID, photos: preference.photos, onCancel: cancelAnalysis) {
                     analysisFinished()
                 }
                 .transition(.opacity)
@@ -174,6 +174,17 @@ struct OnboardingFlowView: View {
         case .noUsableFraming:
             Self.log.notice("Analysis of \(preferenceID) found no readable framing")
             withAnimation(.easeInOut(duration: 0.4)) { failure = .noUsableFraming }
+        }
+    }
+
+    /// Cancel on the analysing screen (18 Nov): the run is already stopped; back to the photos
+    /// (the preference stays saved), or the retry screen when there is no way back.
+    private func cancelAnalysis() {
+        Self.log.notice("Analysis of \(preferenceID) cancelled")
+        if let onNeedsMorePhotos {
+            onNeedsMorePhotos()
+        } else {
+            withAnimation(.easeInOut(duration: 0.4)) { failure = .analysisFailed }
         }
     }
 
@@ -283,12 +294,14 @@ private struct StyleScreen: UIViewControllerRepresentable {
 private struct AnalyzingScreen: UIViewControllerRepresentable {
     let preferenceID: UUID
     let photos: [PhotoItem]
+    var onCancel: () -> Void
     var onFinish: () -> Void
 
     func makeUIViewController(context: Context) -> AnalyzingViewController {
         let vc = AnalyzingViewController(viewModel: AnalyzingViewModel(preferenceID: preferenceID),
                                          photos: photos)
         vc.onFinish = onFinish
+        vc.onCancel = onCancel
         return vc
     }
     func updateUIViewController(_ vc: AnalyzingViewController, context: Context) {}

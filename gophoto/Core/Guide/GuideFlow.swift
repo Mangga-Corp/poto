@@ -228,7 +228,7 @@ nonisolated enum GuideFlow {
     // Tolerances: enter / exit. A step that is OK uses the looser exit value so it does not flicker.
     static let sizeEnter = 0.15, sizeExit = 0.22
     static let heightEnter = 3.0, heightExit = 5.0
-    /// Camera height in face heights (version 17): ±0.4 face ≈ ±8 cm to become OK. The face error
+    /// Camera height in face heights (version 17): ±0.4 face ≈ ±7 cm to become OK. The face error
     /// is scaled to degrees (`heightFacesScale`) so the same enter / exit / break limits apply.
     static let heightFacesEnter = 0.4
     static var heightFacesScale: Double { heightEnter / heightFacesEnter }
@@ -248,7 +248,8 @@ nonisolated enum GuideFlow {
     /// as tall as the subject, phone still visible). An assumption to test.
     static let maxLiftAboveEyes = 0.30
     /// Typical face-rectangle height and standing body height, metres, for the distance estimate.
-    static let faceHeightMeters = 0.20
+    /// The face height is the project's one "faces" unit (was 0.20 until 18 Nov).
+    static let faceHeightMeters = PhasedMeasure.faceMeters
     static let bodyHeightMeters = 1.65
 
     /// Step modes (B, C and the "A · Steps" variants).
