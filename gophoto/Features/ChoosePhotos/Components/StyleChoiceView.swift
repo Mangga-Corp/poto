@@ -23,9 +23,6 @@ struct StyleChoiceView: View {
         let visible = showsAll ? question.options : Array(question.options.prefix(3))
         VStack(spacing: 20) {
             VStack(spacing: 8) {
-                Text(question.shotTitle.uppercased())
-                    .font(GoPhotoDesign.smallLabel)
-                    .foregroundStyle(GoPhotoDesign.primary)
                 Text("Which style do you want for your preset?")
                     .font(GoPhotoDesign.pageTitle)
                     .foregroundStyle(GoPhotoDesign.primaryText)
@@ -52,7 +49,7 @@ struct StyleChoiceView: View {
             if isSaving { ProgressView() }
         }
         .padding(.horizontal, GoPhotoDesign.horizontalMargin)
-        .padding(.top, 48)
+        .padding(.top, 120)
         .padding(.bottom, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(GoPhotoDesign.background.ignoresSafeArea())
