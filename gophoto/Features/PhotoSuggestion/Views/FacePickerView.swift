@@ -9,16 +9,38 @@ struct FacePickerView: View {
     let onPhotosChosen: ([PhotoItem]) -> Void
 
     var body: some View {
-        ScrollView {
-            VStack(alignment: .leading, spacing: 20) {
-                Text("Which one is you?")
-                    .font(GoPhotoDesign.largeTitle)
-                    .foregroundStyle(GoPhotoDesign.primaryText)
-                content
+        GeometryReader { geometry in
+            ScrollView {
+                VStack(alignment: .leading, spacing: 20) {
+                    VStack(alignment: .leading, spacing: 8) {
+                        Text("Which one is you?")
+                            .font(GoPhotoDesign.largeTitle)
+                            .foregroundStyle(GoPhotoDesign.primaryText)
+                            .accessibilityAddTraits(.isHeader)
+                        Text("Poto looks through your photos for your face. Everything stays on this iPhone.")
+                            .font(GoPhotoDesign.body)
+                            .foregroundStyle(GoPhotoDesign.secondaryText)
+                            .fixedSize(horizontal: false, vertical: true)
+                    }
+                    content
+                }
+                .padding(GoPhotoDesign.sessionMargin)
+                // At least the screen's height, so the scanning progress can sit in the middle.
+                .frame(minHeight: geometry.size.height, alignment: .top)
             }
-            .padding(GoPhotoDesign.sessionMargin)
         }
         .background(GoPhotoDesign.background)
+        // Cancel while scanning: in the bottom bar like Continue on the other photo screens (18 Nov).
+        .safeAreaInset(edge: .bottom, spacing: 0) {
+            if isScanning {
+                Button("Cancel") { viewModel.cancelScan() }
+                    .buttonStyle(.goPhotoSecondary)
+                    .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                    .padding(.vertical, 14)
+                    .frame(maxWidth: .infinity)
+                    .glassBar(.bottom)
+            }
+        }
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .task { viewModel.start() }
@@ -42,6 +64,12 @@ struct FacePickerView: View {
                 onPhotosChosen(items)
             }
         }
+    }
+
+    /// A scan with nobody saved yet (a saved person's screen keeps scanning quietly underneath).
+    private var isScanning: Bool {
+        guard !viewModel.hasSavedPerson, case .scanning = viewModel.state else { return false }
+        return true
     }
 
     @ViewBuilder
@@ -81,9 +109,7 @@ struct FacePickerView: View {
             Button("Open Settings", action: openSettings)
                 .buttonStyle(.goPhotoText)
         case .scanning(let progress):
-            ProgressView("Looking for faces… \(progress.photosChecked) photos, \(progress.facesFound) faces")
-            Button("Cancel") { viewModel.cancelScan() }
-                .buttonStyle(.goPhotoText)
+            scanningProgress(progress)
         case .done:
             if viewModel.groups.isEmpty {
                 message("No faces found in your recent photos.")
@@ -127,6 +153,24 @@ struct FacePickerView: View {
                 .font(GoPhotoDesign.caption)
                 .foregroundStyle(GoPhotoDesign.secondaryText)
         }
+    }
+
+    /// Spinner in the middle of the screen, the counts on their own line (18 Nov).
+    private func scanningProgress(_ progress: FaceGroupingProgress) -> some View {
+        VStack(spacing: 8) {
+            ProgressView()
+                .controlSize(.large)
+                .tint(GoPhotoDesign.primary)
+            Text("Looking for faces…")
+                .font(GoPhotoDesign.cardTitle)
+                .foregroundStyle(GoPhotoDesign.primaryText)
+            Text("\(progress.photosChecked) photos · \(progress.facesFound) faces")
+                .font(GoPhotoDesign.caption)
+                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .monospacedDigit()
+        }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
+        .accessibilityElement(children: .combine)
     }
 
     private func message(_ text: String) -> some View {
