@@ -544,6 +544,24 @@ final class PreferencesViewModel {
     /// The latest person check of this preset, passed or not.
     func subjectValidation(for id: UUID) -> HumanSubjectValidationResult? { subjectValidations[id] }
 
+    /// The last person check of each photo (`PhotoItem.id`), kept when photos are added to its
+    /// preference (a photo's pixels never change under its ID). Photo Session Setup counts the
+    /// photos that can make up the minimum from it. Observed; in memory only.
+    private var photoSubjectStatuses: [UUID: HumanSubjectStatus] = [:]
+
+    /// Whether a photo can count toward the minimum of valid photos: its last check found exactly
+    /// one foreground person, or it has not been checked yet (added since; the Analyze run checks
+    /// it). Photos flagged uncertain or not checkable do not count.
+    func countsTowardMinimum(photoID: UUID) -> Bool {
+        guard let status = photoSubjectStatuses[photoID] else { return true }
+        return status.isValid
+    }
+
+    private func storeSubjectValidation(_ validation: HumanSubjectValidationResult, for id: UUID) {
+        subjectValidations[id] = validation
+        photoSubjectStatuses.merge(validation.statuses) { _, latest in latest }
+    }
+
     /// Presets whose run removed invalid photos and stopped to tell the user before analysing
     /// (enough valid photos left). Observed; in memory only.
     private var awaitingExclusionConfirmation: Set<UUID> = []
@@ -633,7 +651,7 @@ final class PreferencesViewModel {
                 guard let cleaned = await self.removeInvalidPhotos(of: id, checkedBy: validation) else {
                     // Not saved: memory and disk still agree (old collection); stop here.
                     guard self.analysisTokens[id] == token else { return }
-                    self.subjectValidations[id] = validation
+                    self.storeSubjectValidation(validation, for: id)
                     self.analyzingIDs.remove(id)
                     return
                 }
@@ -641,7 +659,7 @@ final class PreferencesViewModel {
                 validation = cleaned
                 removedNow = true
             }
-            self.subjectValidations[id] = validation
+            self.storeSubjectValidation(validation, for: id)
 
             // 3. Not enough valid photos.
             guard validation.hasEnoughValidPhotos else {

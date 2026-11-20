@@ -24,6 +24,11 @@ struct PhotoSessionSetupView: View {
     /// The saved preference's last run found too few photos of exactly one person (or could not check
     /// some): nothing was analysed.
     @State private var subjectWarning: HumanSubjectValidationResult?
+    /// The warning above was raised once on this screen. The check's result stays in the view
+    /// model until the photos change, and `onAppear` runs again whenever this screen comes back
+    /// (after the photo source choice, after the picker): without this, the warning came back
+    /// each time, and raised while the picker was being presented it dismissed the picker.
+    @State private var hasShownSubjectWarning = false
     /// A photo the person check left out, tapped to see why (and to check again or replace it).
     @State private var inspectedPhoto: InspectedPhoto?
     @Environment(\.dismiss) private var dismiss
@@ -98,7 +103,7 @@ struct PhotoSessionSetupView: View {
             if inspected.canCheckAgain {
                 Button("Check Again") {
                     inspectedPhoto = nil
-                    startAnalyzingSavedPreference()
+                    startAnalyzingSavedPreference(checkingAgain: true)
                 }
             }
             Button("Remove Photo", role: .destructive) {
@@ -480,8 +485,9 @@ struct PhotoSessionSetupView: View {
                 .accessibilityInputLabels(["Delete", "Delete photos", "Delete selected photos"])
                 .padding(.horizontal, GoPhotoDesign.sessionMargin)
                 .padding(.bottom, 12)
-            } else if !selection.photos.isEmpty {
-                // "Analyze X photos" Floating purple button as in Image 2
+            } else if analyzablePhotoCount >= ChoosePhotosViewModel.minPhotos {
+                // "Analyze X photos": only once enough photos can count (see `analyzablePhotoCount`);
+                // below that it is not shown at all.
                 Button {
                     if selection.hasSavedPreference {
                         startAnalyzingSavedPreference()
@@ -489,7 +495,7 @@ struct PhotoSessionSetupView: View {
                         isShowingNameModal = true
                     }
                 } label: {
-                    Text("Analyze \(selection.photos.count) photo\(selection.photos.count == 1 ? "" : "s")")
+                    Text("Analyze \(analyzablePhotoCount) photo\(analyzablePhotoCount == 1 ? "" : "s")")
                         .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
                         .foregroundStyle(.white)
                         .multilineTextAlignment(.center)
@@ -508,10 +514,15 @@ struct PhotoSessionSetupView: View {
                 .accessibilityInputLabels(["Analyze", "Analyze photos"])
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
+            } else if !selection.photos.isEmpty {
+                // Fewer than the minimum: no Analyze; the existing Add Your Photos action instead
+                // (the photos stay in the grid above).
+                SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle",
+                                     isEnabled: !isAddingDisabled, action: addYourPhotos)
+                    .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                    .padding(.bottom, 12)
             } else {
-                SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle") {
-                    if FaceGroupingAvailability.isSupported { isChoosingPhotoSource = true } else { openPicker() }
-                }
+                SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle", action: addYourPhotos)
                 .padding(.horizontal, GoPhotoDesign.sessionMargin)
                 .padding(.bottom, 8)
 
@@ -560,16 +571,36 @@ struct PhotoSessionSetupView: View {
 
     /// Enough photos to analyse; for a saved preference, also loaded, not saving and not
     /// already being analysed (one run per preference at a time).
+    /// Photos that can make up the minimum: all of them before any check (a new preference),
+    /// afterwards those whose last check found exactly one foreground person plus those added
+    /// since (checked by the Analyze run). Uncertain or not-checkable photos do not count.
+    /// Confirmed invalid photos are already gone (removed by the check).
+    private var analyzablePhotoCount: Int {
+        guard selection.hasSavedPreference else { return selection.photos.count }
+        return selection.photos.filter { preferences.countsTowardMinimum(photoID: $0.id) }.count
+    }
+
     private var canAnalyze: Bool {
-        guard selection.photos.count >= ChoosePhotosViewModel.minPhotos else { return false }
+        guard analyzablePhotoCount >= ChoosePhotosViewModel.minPhotos else { return false }
         guard let id = selection.preferenceID else { return true }
         return selection.canStartAnalyzing && !preferences.isAnalyzing(id)
     }
 
+    /// The existing Add Your Photos action: the photo source choice, or straight to the picker.
+    private func addYourPhotos() {
+        if FaceGroupingAvailability.isSupported { isChoosingPhotoSource = true } else { openPicker() }
+    }
+
     /// A saved preference (back here after "Not Enough Photos") is analysed again as it is:
-    /// no name, and no new preference.
-    private func startAnalyzingSavedPreference() {
-        guard let id = selection.preferenceID, canAnalyze else { return }
+    /// no name, and no new preference. `checkingAgain`: Check Again on a flagged photo, which
+    /// re-runs the check even below the minimum (the result may let the photo count again).
+    private func startAnalyzingSavedPreference(checkingAgain: Bool = false) {
+        guard let id = selection.preferenceID else { return }
+        if checkingAgain {
+            guard selection.canStartAnalyzing, !preferences.isAnalyzing(id) else { return }
+        } else {
+            guard canAnalyze else { return }
+        }
         onStartAnalyzing(id)
     }
 
@@ -581,9 +612,13 @@ struct PhotoSessionSetupView: View {
         onDiscardPreference(id)
     }
 
+    /// Raises "Not Enough Photos with People" once per visit to this screen (it is a new screen
+    /// after every analysis run), and never on top of the photo source choice or the picker.
     private func showSubjectWarningIfNeeded() {
-        guard let id = selection.preferenceID,
+        guard !hasShownSubjectWarning, !isPresentingPicker, !isChoosingPhotoSource,
+              let id = selection.preferenceID,
               let failure = preferences.validationFailure(for: id) else { return }
+        hasShownSubjectWarning = true
         subjectWarning = failure
     }
 
