@@ -21,6 +21,7 @@ struct CameraOnboardingView: View {
     /// Jarak card putih ke demo card shot size (ubah angka ini kalau mau lebih dekat / jauh).
     private static let cardGapToPicker: CGFloat = 4
     private static let lastStep = CameraOnboardingStep.allCases.last!
+    private var isLastStep: Bool { step == Self.lastStep }
  
     var body: some View {
         ZStack {
@@ -49,6 +50,7 @@ struct CameraOnboardingView: View {
                 .frame(width: proxy.size.width, height: proxy.size.height)
             }
         }
+        .overlay(alignment: .topLeading) { skipButton }
         .sensoryFeedback(.selection, trigger: step)
         .accessibilityAddTraits(.isModal)
         .task {
@@ -70,6 +72,21 @@ struct CameraOnboardingView: View {
         .opacity(0.01)
         .allowsHitTesting(false)
         .accessibilityHidden(true)
+    }
+
+    /// Kiri atas, di tempat tombol close kamera (sedang diredupkan). Hilang di step terakhir:
+    /// di sana Finish sudah menutup tutorial. Sama dengan Finish (flag `cameraOnboardingCompleted`).
+    @ViewBuilder
+    private var skipButton: some View {
+        if !isLastStep {
+            Button(CameraOnboardingCopy.skipButton, action: onFinish)
+                .buttonStyle(.goPhotoText)
+                .padding(.horizontal, 16)
+                // Tepat di bawah top bar kamera, supaya tidak menumpuk dengan tombol X (yang diredupkan).
+                .padding(.top, CameraView.topBarHeight)
+                .accessibilityHint("Closes the camera tips")
+                .transition(.opacity)
+        }
     }
 
     // MARK: Dim
@@ -131,7 +148,7 @@ struct CameraOnboardingView: View {
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 12)
  
-            Button(step == Self.lastStep ? CameraOnboardingCopy.finishButton : CameraOnboardingCopy.continueButton,
+            Button(isLastStep ? CameraOnboardingCopy.finishButton : CameraOnboardingCopy.continueButton,
                    action: advance)
             .buttonStyle(.goPhotoPrimary)
             .padding(.top, 22)

@@ -212,7 +212,7 @@ struct CameraView: View {
     }
 
     /// The top bar's height: one row (close · preference · ratio), the same at every text size.
-    private static let topBarHeight: CGFloat = 44
+    static let topBarHeight: CGFloat = 44
 
     // MARK: Onboarding (first install only)
 

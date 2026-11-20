@@ -47,4 +47,5 @@ enum CameraOnboardingStep: Int, CaseIterable {
 enum CameraOnboardingCopy {
     static let continueButton = "Continue"
     static let finishButton = "Finish"
+    static let skipButton = "Skip"
  }
