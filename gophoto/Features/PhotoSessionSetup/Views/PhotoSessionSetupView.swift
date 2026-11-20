@@ -24,6 +24,11 @@ struct PhotoSessionSetupView: View {
     /// The saved preference's last run found too few photos of exactly one person (or could not check
     /// some): nothing was analysed.
     @State private var subjectWarning: HumanSubjectValidationResult?
+    /// The warning above was raised once on this screen. The check's result stays in the view
+    /// model until the photos change, and `onAppear` runs again whenever this screen comes back
+    /// (after the photo source choice, after the picker): without this, the warning came back
+    /// each time, and raised while the picker was being presented it dismissed the picker.
+    @State private var hasShownSubjectWarning = false
     /// A photo the person check left out, tapped to see why (and to check again or replace it).
     @State private var inspectedPhoto: InspectedPhoto?
     @Environment(\.dismiss) private var dismiss
@@ -581,9 +586,13 @@ struct PhotoSessionSetupView: View {
         onDiscardPreference(id)
     }
 
+    /// Raises "Not Enough Photos with People" once per visit to this screen (it is a new screen
+    /// after every analysis run), and never on top of the photo source choice or the picker.
     private func showSubjectWarningIfNeeded() {
-        guard let id = selection.preferenceID,
+        guard !hasShownSubjectWarning, !isPresentingPicker, !isChoosingPhotoSource,
+              let id = selection.preferenceID,
               let failure = preferences.validationFailure(for: id) else { return }
+        hasShownSubjectWarning = true
         subjectWarning = failure
     }
 
