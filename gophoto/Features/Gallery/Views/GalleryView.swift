@@ -646,18 +646,24 @@ struct GalleryView: View {
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
-                LinearGradient(
-                    colors: [Color.clear, Color.black.opacity(0.65)],
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .frame(height: 60)
-                .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-
-                MarqueeText(text: title, font: AppFont.scaled(size: 13, weight: .bold, relativeTo: .footnote), color: .white)
+                // Wraps onto more lines when it doesn't fit; the shade grows with it so it stays legible.
+                Text(title)
+                    .font(AppFont.scaled(size: 13, weight: .bold, relativeTo: .footnote))
+                    .foregroundStyle(.white)
+                    .fixedSize(horizontal: false, vertical: true)
                     .padding(10)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+                    .background {
+                        LinearGradient(
+                            colors: [Color.clear, Color.black.opacity(0.65)],
+                            startPoint: .top,
+                            endPoint: .bottom
+                        )
+                        .padding(.top, -24)
+                    }
             }
             .frame(width: 140, height: 140)
+            .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
             .shadow(color: .black.opacity(0.08), radius: 8, y: 3)
         }
         .buttonStyle(.plain)
@@ -1071,8 +1077,10 @@ struct GalleryView: View {
             }
             .frame(width: width, height: height)
 
-            MarqueeText(text: title, font: AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline),
-                        color: Color(GoPhotoDesign.primaryText))
+            Text(title)
+                .font(AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline))
+                .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                .fixedSize(horizontal: false, vertical: true)
 
             Text("\(count) Photos")
                 .font(AppFont.scaled(size: 12, relativeTo: .caption))
