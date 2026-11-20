@@ -84,21 +84,27 @@ private struct PhotoSourceCard: View {
                 .font(.title2)
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 4) {
-                HStack(spacing: 8) {
-                    // One line: running text when it doesn't fit, never wrapped or cut with "…".
-                    MarqueeText(text: source.title, font: GoPhotoDesign.cardTitle,
-                                color: isSelected ? GoPhotoDesign.primary : GoPhotoDesign.primaryText)
-                    if source == .suggested {
-                        Text("Recommended")
-                            .font(GoPhotoDesign.smallLabel)
-                            .foregroundStyle(GoPhotoDesign.tagText)
-                            .lineLimit(1)
-                            .fixedSize()
-                            .padding(.horizontal, 8)
-                            .padding(.vertical, 3)
-                            .background(GoPhotoDesign.tagBackground, in: Capsule())
-                    }
+                // "Recommended" sits above the title so it never squeezes it.
+                if source == .suggested {
+                    Text("Recommended")
+                        .font(GoPhotoDesign.smallLabel)
+                        .foregroundStyle(GoPhotoDesign.tagText)
+                        .fixedSize(horizontal: false, vertical: true)
+                        .padding(.horizontal, 8)
+                        .padding(.vertical, 3)
+                        // On a selected card the usual tag fill matches the card, so it uses the
+                        // surface fill; the border keeps the pill visible either way. Its leading
+                        // edge lines up with the title below.
+                        .background(isSelected ? GoPhotoDesign.surface : GoPhotoDesign.tagBackground,
+                                    in: Capsule())
+                        .overlay(Capsule().strokeBorder(GoPhotoDesign.primaryBorder, lineWidth: 1))
+                        .padding(.bottom, 2)
                 }
+                // Wraps onto more lines when it doesn't fit, never cut with "…".
+                Text(source.title)
+                    .font(GoPhotoDesign.cardTitle)
+                    .foregroundStyle(isSelected ? GoPhotoDesign.primary : GoPhotoDesign.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
                 Text(source.subtitle)
                     .font(GoPhotoDesign.secondaryBody)
                     .foregroundStyle(isSelected ? GoPhotoDesign.primary : GoPhotoDesign.secondaryText)

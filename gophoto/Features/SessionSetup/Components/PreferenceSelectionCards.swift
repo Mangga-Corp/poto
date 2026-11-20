@@ -20,7 +20,7 @@ struct PreferenceSelectionCard: View {
                 HStack(spacing: 14) {
                     thumbnail
                     VStack(alignment: .leading, spacing: 6) {
-                        HStack(alignment: .center, spacing: 8) {
+                        HStack(alignment: .firstTextBaseline, spacing: 8) {
                             name
                             lastUsedTag
                         }
@@ -67,9 +67,12 @@ struct PreferenceSelectionCard: View {
         }
     }
 
-    /// One line; runs as a marquee when it doesn't fit (Larger Text, "Last Used" beside it).
+    /// Wraps onto more lines when it doesn't fit (Larger Text, "Last Used" beside it).
     private var name: some View {
-        MarqueeText(text: card.name, font: GoPhotoDesign.cardTitle, color: GoPhotoDesign.primaryText)
+        Text(card.name)
+            .font(GoPhotoDesign.cardTitle)
+            .foregroundStyle(GoPhotoDesign.primaryText)
+            .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
 
@@ -90,7 +93,10 @@ struct PreferenceSelectionCard: View {
 
     private var summaryAndChips: some View {
         VStack(alignment: .leading, spacing: 6) {
-            MarqueeText(text: card.summary, font: GoPhotoDesign.secondaryBody, color: GoPhotoDesign.secondaryText)
+            Text(card.summary)
+                .font(GoPhotoDesign.secondaryBody)
+                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
 
             if card.isUpdating {
                 Label("Updating your style…", systemImage: "arrow.triangle.2.circlepath")
@@ -157,77 +163,5 @@ struct AddPreferenceCard: View {
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the photo picker to create a preference")
-    }
-}
-
-/// One line of text that stays still when it fits and scrolls as running text (a looping marquee)
-/// when it doesn't, e.g. with Larger Text. It hugs its text like a plain `Text` and is never wider
-/// than offered, so it drops in wherever a one-line `Text` was. With Reduce Motion on it wraps instead.
-struct MarqueeText: View {
-    let text: String
-    let font: Font
-    let color: Color
-    var gap: CGFloat = 40
-    /// Points per second.
-    var speed: CGFloat = 30
-    /// Rest at the start of every loop, so the beginning can be read.
-    var pause: Double = 1.2
-
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
-    /// The whole text on one line.
-    @State private var fullWidth: CGFloat = 0
-    /// The width the text actually got.
-    @State private var visibleWidth: CGFloat = 0
-    @State private var start = Date()
-
-    private var overflows: Bool { visibleWidth > 0 && fullWidth > visibleWidth + 0.5 }
-
-    var body: some View {
-        Group {
-            if reduceMotion {
-                label(lineLimit: nil)
-                    .fixedSize(horizontal: false, vertical: true)
-            } else {
-                // The truncated one-line text sizes the view; it is swapped for the running text when cut.
-                label(lineLimit: 1)
-                    .opacity(overflows ? 0 : 1)
-                    .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { visibleWidth = $0 }
-                    .background(alignment: .leading) {
-                        label(lineLimit: 1)
-                            .fixedSize()
-                            .hidden()
-                            .onGeometryChange(for: CGFloat.self) { $0.size.width } action: { fullWidth = $0 }
-                    }
-                    .overlay(alignment: .leading) {
-                        if overflows { running }
-                    }
-                    .clipped()
-            }
-        }
-        .accessibilityElement(children: .ignore)
-        .accessibilityLabel(text)
-        .onChange(of: text) { start = .now }
-    }
-
-    private var running: some View {
-        TimelineView(.animation) { context in
-            let pitch = fullWidth + gap
-            let cycle = pause + Double(pitch / speed)
-            let t = max(0, context.date.timeIntervalSince(start)).truncatingRemainder(dividingBy: cycle)
-            let offset = t < pause ? 0 : -CGFloat(t - pause) * speed
-
-            HStack(spacing: gap) {
-                label(lineLimit: 1).fixedSize()
-                label(lineLimit: 1).fixedSize()
-            }
-            .offset(x: offset)
-        }
-    }
-
-    private func label(lineLimit: Int?) -> some View {
-        Text(text)
-            .font(font)
-            .foregroundStyle(color)
-            .lineLimit(lineLimit)
     }
 }

@@ -103,11 +103,16 @@ struct SessionChip: View {
     let onSelectedCard: Bool
 
     var body: some View {
-        // Running text when the chip is wider than its row (Larger Text).
-        MarqueeText(text: text, font: GoPhotoDesign.smallLabel, color: GoPhotoDesign.secondaryText)
+        // Wraps onto more lines when the chip is wider than its row (Larger Text); a capsule-like
+        // rounded rectangle, since a real capsule would cut into multi-line text.
+        Text(text)
+            .font(GoPhotoDesign.smallLabel)
+            .foregroundStyle(GoPhotoDesign.secondaryText)
+            .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(onSelectedCard ? GoPhotoDesign.surface : GoPhotoDesign.secondaryBackground, in: Capsule())
+            .background(onSelectedCard ? GoPhotoDesign.surface : GoPhotoDesign.secondaryBackground,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
 
@@ -151,7 +156,7 @@ struct ChipFlowLayout: Layout {
         return rows
     }
 
-    /// A subview's natural size, narrowed to the row when wider (a chip then truncates or runs as a marquee
+    /// A subview's natural size, narrowed to the row when wider (a chip then wraps onto more lines
     /// instead of spilling out of the card).
     private func size(of subview: LayoutSubview, maxWidth: CGFloat) -> CGSize {
         let ideal = subview.sizeThatFits(.unspecified)
