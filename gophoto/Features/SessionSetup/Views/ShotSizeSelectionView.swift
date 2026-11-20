@@ -136,7 +136,7 @@ private struct ShotSizeCard: View {
     private var titleLayout: AnyLayout {
         dynamicTypeSize.isAccessibilitySize
             ? AnyLayout(VStackLayout(alignment: .leading, spacing: 6))
-            : AnyLayout(HStackLayout(spacing: 8))
+            : AnyLayout(HStackLayout(alignment: .firstTextBaseline, spacing: 8))
     }
 
     var body: some View {
@@ -146,7 +146,10 @@ private struct ShotSizeCard: View {
 
             VStack(alignment: .leading, spacing: 5) {
                 titleLayout {
-                    MarqueeText(text: shot.title, font: GoPhotoDesign.cardTitle, color: GoPhotoDesign.primaryText)
+                    Text(shot.title)
+                        .font(GoPhotoDesign.cardTitle)
+                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .fixedSize(horizontal: false, vertical: true)
                     if shot.isRecommended {
                         Text("Recommended")
                             .font(AppFont.scaled(size: 11, weight: .semibold, relativeTo: .caption2))

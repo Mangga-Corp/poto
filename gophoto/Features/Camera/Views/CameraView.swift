@@ -326,8 +326,12 @@ struct CameraView: View {
     /// The preference in use, as the screen title: plain text, a label (not a button).
     @ViewBuilder private var preferenceTitle: some View {
         if let name = viewModel.presetName {
-            // Runs as a marquee when the name doesn't fit (long name, Larger Text).
-            MarqueeText(text: name, font: AppFont.system(size: 17, weight: .semibold), color: .white)
+            // Wraps onto more lines when the name doesn't fit.
+            Text(name)
+                .font(AppFont.system(size: 17, weight: .semibold))
+                .foregroundStyle(.white)
+                .multilineTextAlignment(.center)
+                .fixedSize(horizontal: false, vertical: true)
                 .accessibilityLabel("Preference \(name)")
                 .accessibilityAddTraits(.isHeader)
                 .accessibilityShowsLargeContentViewer { Text(name) }
