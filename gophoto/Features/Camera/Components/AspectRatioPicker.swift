@@ -32,16 +32,14 @@ struct AspectRatioPicker: View, Equatable {
     }
 }
 
-/// A UIKit button with a native menu (checkmark = in use). UIKit so the menu's text size can be
-/// limited (`LimitedMenuButton`): a menu of two short items over the camera image stops at
-/// `AppFont.photoRatioMenuMaximumContentSizeCategory` (the ratio is also shown at the top of the camera).
+/// A UIKit button with a native menu (checkmark = in use). Its text size is the app's, like every
+/// other menu (`AppFont.maximumContentSizeCategory`, set on the window scene).
 private struct RatioMenuButton: UIViewRepresentable {
     let selection: CameraAspectRatio
     let onSelect: (CameraAspectRatio) -> Void
 
-    func makeUIView(context: Context) -> LimitedMenuButton {
-        let button = LimitedMenuButton(frame: .zero)
-        button.menuMaximumContentSizeCategory = AppFont.photoRatioMenuMaximumContentSizeCategory
+    func makeUIView(context: Context) -> UIButton {
+        let button = UIButton(frame: .zero)
         button.showsMenuAsPrimaryAction = true
         button.preferredMenuElementOrder = .fixed
         button.layer.cornerRadius = 26
@@ -52,7 +50,7 @@ private struct RatioMenuButton: UIViewRepresentable {
         return button
     }
 
-    func updateUIView(_ button: LimitedMenuButton, context: Context) {
+    func updateUIView(_ button: UIButton, context: Context) {
         let symbol = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
         button.setImage(UIImage(systemName: selection.symbolName, withConfiguration: symbol), for: .normal)
         let onSelect = onSelect

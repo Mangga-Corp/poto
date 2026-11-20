@@ -21,21 +21,12 @@ struct StyleChoiceView: View {
 
     var body: some View {
         let visible = showsAll ? question.options : Array(question.options.prefix(3))
-        VStack(spacing: 20) {
-            VStack(spacing: 8) {
-                Text(question.shotTitle.uppercased())
-                    .font(GoPhotoDesign.smallLabel)
-                    .foregroundStyle(GoPhotoDesign.primary)
-                Text("Which style do you want for your preset?")
-                    .font(GoPhotoDesign.pageTitle)
-                    .foregroundStyle(GoPhotoDesign.primaryText)
-                    .multilineTextAlignment(.center)
-                Text("Your photos show different ways of being photographed. Pick the one the camera should guide.")
-                    .font(GoPhotoDesign.secondaryBody)
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
-                    .multilineTextAlignment(.center)
-            }
-            ScrollView {
+        // Laid out inside the safe area (below the status bar and the navigation bar's Back
+        // button), leading-aligned with the page margins like every other screen; one scroll view,
+        // so the title, the photos and the buttons all stay reachable at any Larger Text size.
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                header
                 LazyVGrid(columns: columns(for: visible.count), spacing: 12) {
                     ForEach(Array(visible.enumerated()), id: \.element.id) { position, option in
                         Button { onChoose(option.id) } label: { tile(option, letter: letter(position)) }
@@ -44,18 +35,40 @@ struct StyleChoiceView: View {
                             .accessibilityLabel("Style \(letter(position))")
                     }
                 }
+                if question.options.count > 3 && !showsAll {
+                    Button("Show other styles") { withAnimation { showsAll = true } }
+                        .buttonStyle(.goPhotoText)
+                        .frame(maxWidth: .infinity)
+                }
+                if isSaving {
+                    ProgressView()
+                        .frame(maxWidth: .infinity)
+                }
             }
-            if question.options.count > 3 && !showsAll {
-                Button("Show other styles") { withAnimation { showsAll = true } }
-                    .buttonStyle(.goPhotoText)
-            }
-            if isSaving { ProgressView() }
+            .padding(.horizontal, GoPhotoDesign.sessionMargin)
+            .padding(.top, 24)
+            .padding(.bottom, 24)
         }
-        .padding(.horizontal, GoPhotoDesign.horizontalMargin)
-        .padding(.top, 48)
-        .padding(.bottom, 24)
+        .scrollBounceBehavior(.basedOnSize)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
         .background(GoPhotoDesign.background.ignoresSafeArea())
+    }
+
+    private var header: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            // The shot size this question is about, as a tag (like "Step 1 of 2").
+            Text(question.shotTitle)
+                .goPhotoTag()
+            Text("Which style do you want for your preset?")
+                .font(GoPhotoDesign.largeTitle)
+                .foregroundStyle(GoPhotoDesign.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .accessibilityAddTraits(.isHeader)
+            Text("Your photos show different ways of being photographed. Pick the one the camera should guide.")
+                .font(GoPhotoDesign.body)
+                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .fixedSize(horizontal: false, vertical: true)
+        }
     }
 
     private func columns(for count: Int) -> [GridItem] {

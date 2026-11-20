@@ -155,17 +155,11 @@ struct PhotoSessionSetupView: View {
                 }
                 .padding(.horizontal, GoPhotoDesign.sessionMargin)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
-
-                // Name modal overlay as in Image 2 (iPhone 17 - 1)
-                if isShowingNameModal {
-                    nameCollectionModal
-                }
             }
         }
         .appPatternBackground()
         .safeAreaInset(edge: .bottom, spacing: 0) {
-            // While the name card is open, only the card is shown (no bottom button).
-            if !isShowingNameModal { bottomActions }
+            bottomActions
         }
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
@@ -175,13 +169,28 @@ struct PhotoSessionSetupView: View {
             // (Choose a Subject Placement). Asks first if there are unsaved photos.
             // Not shown on first-time onboarding (root of the stack, nothing to go back to).
             ToolbarItem(placement: .topBarLeading) {
-                if showsBackButton && !isShowingNameModal {   // hidden while the name card is open
+                if showsBackButton {
                     Button(action: goBack) {
                         Image(systemName: "chevron.left")
                     }
                     .accessibilityLabel("Back")
                 }
             }
+        }
+        // Naming the new preference: the system alert with a text field (HIG: a short single
+        // input), so it looks, scales and reads like every iOS prompt.
+        .alert("What's this collection for?", isPresented: $isShowingNameModal) {
+            TextField("Name", text: $collectionName)
+                .textInputAutocapitalization(.words)
+                .accessibilityInputLabels(["Collection name", "Name"])
+            Button("Cancel", role: .cancel) { }
+            Button("Continue") {
+                guard let name = trimmedCollectionName else { return }
+                saveAndAnalyze(name: name)
+            }
+            .disabled(trimmedCollectionName == nil)
+        } message: {
+            Text("For example: beach trip, outfit of the day, city, or night out.")
         }
         .alert("Leave without saving?", isPresented: $isConfirmingLeave) {
             Button("Leave", role: .destructive) { dismiss() }
@@ -225,6 +234,8 @@ struct PhotoSessionSetupView: View {
             PhotoSessionPhotoPicker(
                 initialPhotos: selection.photos,
                 canRemove: !selection.hasSavedPreference,
+                // New preference: Done adds the photos at once. Saved preference: its style changes.
+                confirmsStyleUpdate: selection.hasSavedPreference,
                 limit: selection.limit,
                 onSelection: selectedPhotosChanged,
                 onFinish: { isPresentingPicker = false }
@@ -240,14 +251,8 @@ struct PhotoSessionSetupView: View {
             Text(updateError ?? "")
         }
         .alert("Update your style?", isPresented: $isConfirmingDeletePhotos) {
-            Button("Cancel", role: .destructive) { }
-            Button("Continue") {
-                withAnimation {
-                    selection.removePhotos(withIDs: selectedPhotoIDs)
-                    selectedPhotoIDs.removeAll()
-                    isSelecting = false
-                }
-            }
+            Button("Cancel", role: .cancel) { }
+            Button("Continue", action: removeSelectedPhotos)
         } message: {
             Text("Removing these photos will update your style. Continue?")
         }
@@ -296,7 +301,7 @@ struct PhotoSessionSetupView: View {
         VStack(spacing: 12) {
             VStack(spacing: 8) {
                 Text("New Preference")
-                    .font(GoPhotoDesign.pageTitle)
+                    .font(GoPhotoDesign.largeTitle)
                     .foregroundStyle(GoPhotoDesign.primaryText)
                     .multilineTextAlignment(.center)
 
@@ -453,7 +458,12 @@ struct PhotoSessionSetupView: View {
             if isSelecting {
                 // Delete selected button when in select mode
                 Button {
-                    isConfirmingDeletePhotos = true
+                    // Only a saved preference has a style to update; a new one's photos go at once.
+                    if selection.hasSavedPreference {
+                        isConfirmingDeletePhotos = true
+                    } else {
+                        removeSelectedPhotos()
+                    }
                 } label: {
                     HStack {
                         Image(systemName: "trash")
@@ -519,96 +529,10 @@ struct PhotoSessionSetupView: View {
         .glassBar(.bottom)
     }
 
-    // MARK: - Custom Naming Modal as in Image 2 (iPhone 17 - 1)
-
-    private var nameCollectionModal: some View {
-        ZStack {
-            // Blurred backdrop
-            Rectangle()
-                .fill(.ultraThinMaterial)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    isShowingNameModal = false
-                }
-
-            // Card
-            VStack(alignment: .leading, spacing: 14) {
-                Text("What's this collection for?")
-                    .font(AppFont.scaled(size: 17, weight: .bold, relativeTo: .headline))
-                    .foregroundStyle(GoPhotoDesign.primaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                Text("“For example: beach trip, outfit of the day, city, or night out.”")
-                    .font(AppFont.scaled(size: 13, weight: .regular, relativeTo: .footnote))
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
-                    .fixedSize(horizontal: false, vertical: true)
-
-                // Input box
-                HStack {
-                    TextField("....", text: $collectionName)
-                        .font(AppFont.scaled(size: 15, relativeTo: .subheadline))
-                        .autocorrectionDisabled()
-                        .accessibilityLabel("Collection name")
-                        .accessibilityInputLabels(["Collection name", "Name"])
-
-                    if !collectionName.isEmpty {
-                        Button {
-                            collectionName = ""
-                        } label: {
-                            Image(systemName: "xmark.circle.fill")
-                                .foregroundStyle(GoPhotoDesign.secondaryText)
-                        }
-                        .accessibilityLabel("Clear name")
-                    }
-                }
-                .padding(.horizontal, 14)
-                .padding(.vertical, 12)
-                .background(Color(uiColor: .tertiarySystemFill), in: RoundedRectangle(cornerRadius: 12, style: .continuous))
-
-                // Action buttons: Cancel and Save
-                HStack(spacing: 12) {
-                    Button {
-                        isShowingNameModal = false
-                    } label: {
-                        Text("Cancel")
-                            .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
-                            .foregroundStyle(GoPhotoDesign.primaryText)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .frame(minHeight: 48)
-                            .background(Color(uiColor: .tertiarySystemFill), in: Capsule())
-                    }
-
-                    Button {
-                        let trimmed = collectionName.trimmingCharacters(in: .whitespacesAndNewlines)
-                        guard !trimmed.isEmpty else { return }
-                        isShowingNameModal = false
-                        saveAndAnalyze(name: trimmed)
-                    } label: {
-                        Text("Continue")
-                            .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
-                            .foregroundStyle(.white)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 10)
-                            .frame(minHeight: 48)
-                            .background(
-                                collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty
-                                    ? GoPhotoDesign.primary.opacity(0.4)
-                                    : GoPhotoDesign.primary,
-                                in: Capsule()
-                            )
-                    }
-                    .disabled(collectionName.trimmingCharacters(in: .whitespacesAndNewlines).isEmpty)
-                }
-                .padding(.top, 6)
-            }
-            .padding(22)
-            .background(GoPhotoDesign.surface, in: RoundedRectangle(cornerRadius: 24, style: .continuous))
-            .shadow(color: Color.black.opacity(0.18), radius: 24, x: 0, y: 8)
-            .padding(.horizontal, 28)
-            // Hides what is behind the card from VoiceOver / Voice Control ("Show numbers").
-            .accessibilityAddTraits(.isModal)
-        }
+    /// The name typed in the naming alert, without surrounding spaces; nil while it is empty.
+    private var trimmedCollectionName: String? {
+        let name = collectionName.trimmingCharacters(in: .whitespacesAndNewlines)
+        return name.isEmpty ? nil : name
     }
 
     private var isShowingCustomPreference: Binding<Bool> {
@@ -750,6 +674,14 @@ struct PhotoSessionSetupView: View {
                 selection.isPersistedPreferenceLoaded = false
                 updateError = "The saved preference couldn't be loaded. Please return and try again."
             }
+        }
+    }
+
+    private func removeSelectedPhotos() {
+        withAnimation {
+            selection.removePhotos(withIDs: selectedPhotoIDs)
+            selectedPhotoIDs.removeAll()
+            isSelecting = false
         }
     }
 

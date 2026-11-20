@@ -60,7 +60,7 @@ struct PreferencePhotoPager: View {
             .padding(.horizontal, 12)
         }
         // Shown in its own UIHostingController, outside the app's root SwiftUI view, so it gets the
-        // app's Larger Text limit (AX1) here too: ✕ and "2 of 8 · Full body" stay on one line.
+        // app's Larger Text limit here too: ✕ and "2 of 8 · Full body" stay on one line.
         .dynamicTypeSize(...AppFont.maximumDynamicTypeSize)
         .statusBarHidden(true)
         .onChange(of: current) { _, page in onPageChange(page) }

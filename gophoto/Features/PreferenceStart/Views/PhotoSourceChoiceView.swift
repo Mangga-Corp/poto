@@ -85,12 +85,15 @@ private struct PhotoSourceCard: View {
                 .frame(width: 32)
             VStack(alignment: .leading, spacing: 4) {
                 HStack(spacing: 8) {
-                    Text(source.title)
-                        .font(GoPhotoDesign.cardTitle)
+                    // One line: running text when it doesn't fit, never wrapped or cut with "…".
+                    MarqueeText(text: source.title, font: GoPhotoDesign.cardTitle,
+                                color: isSelected ? GoPhotoDesign.primary : GoPhotoDesign.primaryText)
                     if source == .suggested {
                         Text("Recommended")
                             .font(GoPhotoDesign.smallLabel)
                             .foregroundStyle(GoPhotoDesign.tagText)
+                            .lineLimit(1)
+                            .fixedSize()
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
                             .background(GoPhotoDesign.tagBackground, in: Capsule())

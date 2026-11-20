@@ -118,11 +118,9 @@ struct CameraOnboardingView: View {
                 .padding(.bottom, 16)
  
             Text(step.title)
-                .font(GoPhotoDesign.pageTitle)
+                .font(GoPhotoDesign.largeTitle)
                 .foregroundStyle(GoPhotoDesign.primaryText)
                 .multilineTextAlignment(.center)
-                .lineLimit(2)
-                .minimumScaleFactor(0.7)
                 .fixedSize(horizontal: false, vertical: true)
  
             Text(step.message)

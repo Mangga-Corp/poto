@@ -31,7 +31,7 @@ final class AIPreferencesViewController: UIViewController {
 
     private let titleLabel: UILabel = {
         let label = UILabel()
-        label.font = .app(size: 28, weight: .bold, relativeTo: .title1)
+        label.font = .app(style: .largeTitle, weight: .bold)   // page title, like every screen
         label.adjustsFontForContentSizeCategory = true
         label.textColor = Theme.text
         label.textAlignment = .left
@@ -209,8 +209,6 @@ final class AIPreferencesViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Larger Text grows this screen only up to the largest standard size (see AppFont).
-        view.maximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
         view.backgroundColor = Theme.background
         collectionView.backgroundColor = .clear
         collectionView.dataSource = self
@@ -239,6 +237,8 @@ final class AIPreferencesViewController: UIViewController {
         )
         if viewModel.mode == .editor {
             photoPickerFlow?.onPhotosAddedToExisting = { [weak self] in self?.backTapped() }
+            // A saved preference: new photos change its style.
+            photoPickerFlow?.confirmsStyleUpdate = true
         }
 
         // Header container (title, subtitle, guidance, privacy, wide add button)
@@ -320,9 +320,6 @@ final class AIPreferencesViewController: UIViewController {
         }
         moreButton.menu = UIMenu(children: [selectAction, renameAction])
         moreButton.showsMenuAsPrimaryAction = true
-
-        // Like the rest of this screen, the menu stops at the largest standard size (compact, with icons).
-        moreButton.menuMaximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
     }
 
     private func promptRename() {
@@ -396,7 +393,7 @@ final class AIPreferencesViewController: UIViewController {
             message: "Removing these photos will update your style. Continue?",
             preferredStyle: .alert
         )
-        let cancelAction = UIAlertAction(title: "Cancel", style: .destructive) { _ in }
+        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in }
         let yesAction = UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
             guard let self else { return }
             self.viewModel.deleteChecked()

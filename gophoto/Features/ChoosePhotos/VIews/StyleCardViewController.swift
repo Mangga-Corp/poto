@@ -28,8 +28,6 @@ final class StyleCardViewController: UIViewController {
 
     override func viewDidLoad() {
         super.viewDidLoad()
-        // Larger Text grows this screen only up to the largest standard size (see AppFont).
-        view.maximumContentSizeCategory = AppFont.largestStandardContentSizeCategory
         let background = Theme.background
         let primaryText = Theme.text
         let secondaryText = Theme.secondaryText

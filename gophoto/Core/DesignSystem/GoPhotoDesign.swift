@@ -123,8 +123,8 @@ enum GoPhotoDesign {
     // MARK: Typography
     // App font (see AppFont.swift) on Dynamic Type text styles, so every role scales.
 
+    /// Every screen's title (Large Title), with `body` for the text under it.
     static let largeTitle = AppFont.system(.largeTitle, design: .default, weight: .bold)
-    static let pageTitle = AppFont.system(.title, design: .default, weight: .bold)
     static let sectionTitle = AppFont.system(.title3, design: .default, weight: .semibold)
     static let cardTitle = AppFont.system(.headline, design: .default, weight: .semibold)
     static let body = AppFont.system(.body, design: .default, weight: .regular)

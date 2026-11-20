@@ -108,7 +108,7 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
             Text("Step \(step) of \(stepCount)")
                 .goPhotoTag()
             Text(title)
-                .font(GoPhotoDesign.pageTitle)
+                .font(GoPhotoDesign.largeTitle)
                 .foregroundStyle(GoPhotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

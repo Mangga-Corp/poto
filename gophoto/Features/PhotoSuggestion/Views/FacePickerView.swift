@@ -43,7 +43,8 @@ struct FacePickerView: View {
         }
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
-        .task { viewModel.start() }
+        // `.task` runs again each time the screen reappears (back from Your Photos): scan only once.
+        .task { viewModel.startIfNeeded() }
         .onDisappear { if !isShowingReview { viewModel.clear() } }
         .onChange(of: viewModel.state) { _, state in
             isShowingLimitedAccessAlert = state == .limitedAccess
@@ -66,39 +67,13 @@ struct FacePickerView: View {
         }
     }
 
-    /// A scan with nobody saved yet (a saved person's screen keeps scanning quietly underneath).
     private var isScanning: Bool {
-        guard !viewModel.hasSavedPerson, case .scanning = viewModel.state else { return false }
-        return true
+        if case .scanning = viewModel.state { return true }
+        return false
     }
 
     @ViewBuilder
     private var content: some View {
-        if viewModel.hasSavedPerson {
-            savedPerson
-        } else {
-            scanContent
-        }
-    }
-
-    /// Found before (FaceScanStore): their photos at once, new ones added by the running scan.
-    private var savedPerson: some View {
-        VStack(alignment: .leading, spacing: 12) {
-            Text("\(viewModel.includedPhotos.count) photos of you")
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.primaryText)
-            Text(viewModel.savedStatus)
-                .font(GoPhotoDesign.caption)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-            SessionPrimaryButton(title: "Continue") { isShowingReview = true }
-            Button("Not you? Choose again") { viewModel.forgetSavedPerson() }
-                .buttonStyle(.goPhotoText)
-        }
-    }
-
-    @ViewBuilder
-    private var scanContent: some View {
         switch viewModel.state {
         case .idle, .limitedAccess:
             SessionPrimaryButton(title: "Scan my photos") { viewModel.start() }

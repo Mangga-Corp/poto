@@ -2,10 +2,13 @@
 //  FaceScanStore.swift
 //  gophoto
 //
-//  What "Find my photos for me" already found (17 Nov, Reynard): the chosen person's photos and
-//  which library photos were already scanned. The next open shows that person's photos at once
-//  and only scans photos whose ID was not checked yet (IDs, not dates: a photo received today
-//  can carry an old date). Only IDs and 512 px thumbnails are kept, never full images.
+//  NOT USED since 20 Nov: "Find my photos for me" scans from the start on every visit (the user's
+//  choice), so nothing is saved here any more; `reset()` deletes what an earlier version saved
+//  (called at launch, `FaceGroupingAvailability.purgeLeftovers`).
+//
+//  What it did (17 Nov, Reynard): kept the chosen person's photos and which library photos were
+//  already scanned. The next open showed that person's photos at once and only scanned photos
+//  whose ID was not checked yet. Only IDs and 512 px thumbnails were kept, never full images.
 //
 //  MediaIntelligence group IDs change on every scan (its data is cleared), so the person is found
 //  again through ANCHORS: a few of their clearest solo photos are scanned with the new photos, and

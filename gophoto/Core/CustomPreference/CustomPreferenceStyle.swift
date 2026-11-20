@@ -31,6 +31,11 @@ nonisolated enum SubjectPlacement: String, Codable, CustomStyleOption {
     case leftSide
     case edgeTouching
 
+    /// The placements offered when creating a custom preference. `edgeProximity` and
+    /// `edgeTouching` are no longer offered; they stay as cases only so preferences already
+    /// saved with them still load.
+    static let allCases: [SubjectPlacement] = [.ruleOfThirds, .central, .offCentered, .rightSide, .leftSide]
+
     var id: String { rawValue }
 
     var title: String {
