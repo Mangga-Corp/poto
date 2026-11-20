@@ -113,7 +113,7 @@ struct PreferenceSelectionView: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("What shall we shoot today?")
-                .font(GoPhotoDesign.pageTitle)
+                .font(GoPhotoDesign.largeTitle)
                 .foregroundStyle(GoPhotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)

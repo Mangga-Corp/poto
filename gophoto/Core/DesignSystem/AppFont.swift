@@ -27,28 +27,22 @@ enum AppFont {
     /// Set to 0 for the same sizes as the system font.
     static let sizeBoost: CGFloat = 1.5
 
-    // MARK: Larger Text limits
+    // MARK: Larger Text limit
     //
-    // Text, icons and `@ScaledMetric` sizes follow the user's Larger Text setting, but only up to
-    // these sizes, so the biggest accessibility sizes (Settings › Accessibility › Larger Text ›
-    // Larger Accessibility Sizes) still give a tidy layout on an iPhone screen. Applied once for the
-    // whole app (`View.appDynamicTypeLimit()` on the root) and for UIKit text (`UIFont.app`).
+    // Text, icons and `@ScaledMetric` sizes follow the user's Larger Text setting up to ONE limit,
+    // the same for every screen, sheet, menu and alert: at a given setting a text style has the same
+    // size everywhere in the app. Applied once for the whole app (`View.appDynamicTypeLimit()` on
+    // the root: SwiftUI, the window and its scene) and for UIKit text (`UIFont.app`). Never cap a
+    // single screen or menu lower; that is what made screens differ at the same setting.
+    //
+    // The only text that does not scale is in compact bars (`fixedDynamicTypeSize()`), as in
+    // Apple's own bars (HIG): it shows enlarged in the Large Content Viewer instead.
 
-    /// The largest text size anywhere in the app: the first accessibility size (AX1), clearly larger
-    /// than the largest standard size, without headings and buttons outgrowing the screen.
-    static let maximumDynamicTypeSize: DynamicTypeSize = .accessibility1
-    /// `maximumDynamicTypeSize` for UIKit (AX1).
-    static let maximumContentSizeCategory: UIContentSizeCategory = .accessibilityMedium
-    /// `largestStandardDynamicTypeSize` for UIKit (xxxLarge).
-    static let largestStandardContentSizeCategory: UIContentSizeCategory = .extraExtraExtraLarge
-    /// The largest standard size (xxxLarge, the end of the slider without Larger Accessibility Sizes).
-    static let largestStandardDynamicTypeSize: DynamicTypeSize = .xxxLarge
-    /// Controls drawn over the camera image (shot sizes, guidance pills): they must leave the image
-    /// visible, so they stop at the largest standard size.
-    static let overlayMaximumDynamicTypeSize: DynamicTypeSize = largestStandardDynamicTypeSize
-    /// The camera's Photo Ratio menu (3:4 / 9:16): a small menu over the camera image, so it stops
-    /// at Extra Large (the size the user picked from a screenshot).
-    static let photoRatioMenuMaximumContentSizeCategory: UIContentSizeCategory = .extraLarge
+    /// The largest text size anywhere in the app: the largest standard size (xxxLarge, the end of
+    /// the slider without Larger Accessibility Sizes). Settings above it show at this size.
+    static let maximumDynamicTypeSize: DynamicTypeSize = .xxxLarge
+    /// `maximumDynamicTypeSize` for UIKit (xxxLarge).
+    static let maximumContentSizeCategory: UIContentSizeCategory = .extraExtraExtraLarge
 
     /// Registers the bundled font files. Called once at launch (`MyApp.init`); no Info.plist entry needed.
     static func register() {

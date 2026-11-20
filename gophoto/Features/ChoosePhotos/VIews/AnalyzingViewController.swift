@@ -278,7 +278,7 @@ final class AnalyzingViewController: UIViewController {
     private let titleLabel: UILabel = {
         let l = UILabel()
         l.text = "Finding your style"
-        l.font = .app(size: 32, weight: .bold, relativeTo: .largeTitle)
+        l.font = .app(style: .largeTitle, weight: .bold)   // page title, like every screen
         l.adjustsFontForContentSizeCategory = true
         l.textColor = Theme.text
         l.textAlignment = .center

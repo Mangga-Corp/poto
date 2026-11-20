@@ -113,8 +113,8 @@ struct CameraView: View {
     // The image is as large as its ratio allows between the top bar and the controls, centred,
     // with rounded corners, so 9:16 is a taller, narrower card (never behind the shutter).
     // The top bar keeps its designed size whatever the Larger Text setting (it is a compact bar, like
-    // the Camera app's); the controls follow Larger Text up to the largest standard size so they never
-    // crowd the image. Neither moves when the ratio changes; only the image's frame animates (the
+    // the Camera app's); the controls follow Larger Text like every other screen (up to the app's
+    // limit, `AppFont.maximumDynamicTypeSize`). Neither moves when the ratio changes; only the image's frame animates (the
     // preview layer and session stay alive).
 
     private var liveCamera: some View {
@@ -132,7 +132,6 @@ struct CameraView: View {
 
             controls
                 .padding(.bottom, 12)
-                .dynamicTypeSize(...AppFont.overlayMaximumDynamicTypeSize)
         }
         .animation(.smooth(duration: 0.42), value: viewModel.aspectRatio)
         // Motion runs 30×/s and redraws the camera screen each time: stop it while the gallery
@@ -210,8 +209,6 @@ struct CameraView: View {
             .overlay(alignment: .trailing) { sideBar }
             .overlay(alignment: .top) { instructionPill }
             .overlay { flashOverlay }
-            // Guidance drawn over the image grows with Larger Text only up to the largest standard size.
-            .dynamicTypeSize(...AppFont.overlayMaximumDynamicTypeSize)
     }
 
     /// The top bar's height: one row (close · preference · ratio), the same at every text size.

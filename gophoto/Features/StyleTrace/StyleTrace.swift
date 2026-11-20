@@ -5,8 +5,9 @@
 //  TEMPORARY (16 Nov, Reynard): shows how the taste rules grouped a preference's photos —
 //  review (Mode 2), scenes, styles, scene representatives, votes / knockout, answers, target.
 //  Everything lives in this folder. To remove: delete `Features/StyleTrace/` and the lines
-//  marked `// StyleTrace` (PreferenceAnalyzer, PreferencesViewModel, PhotoReviewViewModel,
-//  OnboardingFlowView, PreferenceEditorPresenter).
+//  marked `// StyleTrace` (PreferenceAnalyzer, PreferencesViewModel, PhotoReviewViewModel).
+//  The "How it was grouped" button is no longer on the style card (20 Nov, removed from the UI);
+//  `attachButton` is kept for debugging.
 //  The trace is saved per preference as JSON in Application Support/StyleTrace/.
 //
 
@@ -131,14 +132,16 @@ enum StyleTrace {
         StyleTraceStore.save(StyleTraceRecorder.shared.finish(mode: ReferencePhotoModeStore.mode(for: id)), for: id)
     }
 
-    /// Adds a small "How it was grouped" button to the top right of `controller` (the style card).
+    /// Adds a small "How it was grouped" button to the top right of `controller`. Not attached
+    /// anywhere since 20 Nov (removed from the style card); call it to debug a style card.
     static func attachButton(to controller: UIViewController, preferenceID: UUID) {
         let button = UIButton(type: .system)
         button.setTitle("How it was grouped", for: .normal)
         button.titleLabel?.font = .preferredFont(forTextStyle: .footnote)
         button.translatesAutoresizingMaskIntoConstraints = false
         button.addAction(UIAction { [weak controller] _ in
-            let hosting = UIHostingController(rootView: NavigationStack { StyleTraceView(preferenceID: preferenceID) })
+            let hosting = UIHostingController(rootView: NavigationStack { StyleTraceView(preferenceID: preferenceID) }
+                .dynamicTypeSize(...AppFont.maximumDynamicTypeSize))
             controller?.present(hosting, animated: true)
         }, for: .touchUpInside)
         controller.view.addSubview(button)

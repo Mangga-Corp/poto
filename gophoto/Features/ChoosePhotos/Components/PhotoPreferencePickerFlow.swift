@@ -11,6 +11,9 @@ final class PhotoPreferencePickerFlow {
     private var isSavingPreference = false
     /// Editor mode: called after the picker closes with at least one photo added (no naming step).
     var onPhotosAddedToExisting: (() -> Void)?
+    /// The photos belong to a SAVED preference: Done asks "Update your style?" first, because its
+    /// style is analysed again. False while a preference is being created (no style yet).
+    var confirmsStyleUpdate = false
 
     init(
         presenter: UIViewController,
@@ -53,7 +56,7 @@ final class PhotoPreferencePickerFlow {
 
     private func presentPicker() {
         let picker = SelectPhotoViewController(viewModel: viewModel.makePickerViewModel())
-        picker.requiresReanalyzeConfirmation = (viewModel.mode == .editor || !viewModel.items.isEmpty)
+        picker.requiresReanalyzeConfirmation = confirmsStyleUpdate
         picker.modalPresentationStyle = .fullScreen
         picker.onCancel = { [weak self, weak picker] in
             picker?.dismiss(animated: true) {

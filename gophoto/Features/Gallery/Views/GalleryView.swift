@@ -317,7 +317,7 @@ struct GalleryView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Gallery")
-                            .font(AppFont.scaled(size: 34, weight: .bold, relativeTo: .largeTitle))
+                            .font(GoPhotoDesign.largeTitle)
                             .foregroundStyle(Color(GoPhotoDesign.primaryText))
 
                         // Subtitle: nama filter aktif & jumlah foto yang dihasilkan
@@ -378,7 +378,7 @@ struct GalleryView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // Judul "Search" di paling atas
                     Text("Search")
-                        .font(AppFont.scaled(size: 34, weight: .bold, relativeTo: .largeTitle))
+                        .font(GoPhotoDesign.largeTitle)
                         .foregroundStyle(Color(GoPhotoDesign.primaryText))
                         .padding(.horizontal, 16)
                         .padding(.top, headerTopPadding)

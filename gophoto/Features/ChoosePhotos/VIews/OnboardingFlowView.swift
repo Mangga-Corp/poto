@@ -79,8 +79,43 @@ struct OnboardingFlowView: View {
 
     var body: some View {
         ZStack {
+            screens
+                // Full-screen screens (the analysing animation, the style card) draw edge to edge.
+                .ignoresSafeArea()
+            // The style question respects the safe area (status bar, navigation bar's Back
+            // button); only its background fills the screen.
+            if let styleQuestion {
+                StyleChoiceView(question: styleQuestion, isSaving: isSavingStyle, onChoose: chooseStyle)
+                    .transition(.opacity)
+                    .zIndex(1)
+            }
+        }
+        .onAppear {
+            if style != nil { onAnalysisCompleted() }
+        }
+        .alert(
+            HumanSubjectValidationResult.exclusionTitle,
+            isPresented: Binding(get: { exclusionNotice != nil },
+                                 set: { if !$0 { exclusionNotice = nil } }),
+            presenting: exclusionNotice
+        ) { _ in
+            Button("Continue", action: confirmExclusions)
+        } message: { notice in
+            Text(notice.exclusionMessage)
+        }
+        .alert("Couldn't open the camera", isPresented: Binding(get: { finishError != nil },
+                                                              set: { if !$0 { finishError = nil } })) {
+            Button("OK", role: .cancel) {}
+        } message: {
+            Text(finishError ?? "")
+        }
+    }
+
+    /// The analysis flow's full-screen steps (one at a time).
+    private var screens: some View {
+        ZStack {
             if let style {
-                StyleScreen(summary: style, buttonTitle: styleButtonTitle, preferenceID: preferenceID, onDone: finish)
+                StyleScreen(summary: style, buttonTitle: styleButtonTitle, onDone: finish)
                     .transition(.opacity)
             } else if let failure {
                 AnalysisRetryScreen(failure: failure,
@@ -104,31 +139,6 @@ struct OnboardingFlowView: View {
                 }
                 .transition(.opacity)
             }
-            if let styleQuestion {
-                StyleChoiceView(question: styleQuestion, isSaving: isSavingStyle, onChoose: chooseStyle)
-                    .transition(.opacity)
-                    .zIndex(1)
-            }
-        }
-        .ignoresSafeArea()
-        .onAppear {
-            if style != nil { onAnalysisCompleted() }
-        }
-        .alert(
-            HumanSubjectValidationResult.exclusionTitle,
-            isPresented: Binding(get: { exclusionNotice != nil },
-                                 set: { if !$0 { exclusionNotice = nil } }),
-            presenting: exclusionNotice
-        ) { _ in
-            Button("Continue", action: confirmExclusions)
-        } message: { notice in
-            Text(notice.exclusionMessage)
-        }
-        .alert("Couldn't open the camera", isPresented: Binding(get: { finishError != nil },
-                                                              set: { if !$0 { finishError = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(finishError ?? "")
         }
     }
 
@@ -277,13 +287,11 @@ private struct AnalysisRetryScreen: View {
 private struct StyleScreen: UIViewControllerRepresentable {
     let summary: StyleSummary
     let buttonTitle: String
-    var preferenceID: UUID? = nil   // StyleTrace
     var onDone: () -> Void
 
     func makeUIViewController(context: Context) -> StyleCardViewController {
         let vc = StyleCardViewController(summary: summary, buttonTitle: buttonTitle)
         vc.onDone = onDone
-        if let preferenceID { StyleTrace.attachButton(to: vc, preferenceID: preferenceID) }   // StyleTrace
         return vc
     }
     func updateUIViewController(_ vc: StyleCardViewController, context: Context) {

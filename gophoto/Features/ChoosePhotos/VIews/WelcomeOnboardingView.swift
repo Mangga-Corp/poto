@@ -15,7 +15,7 @@ struct WelcomeOnboardingView: View {
                     Spacer(minLength: 18)
 
                     Text("Start with your favorite photos")
-                        .font(GoPhotoDesign.pageTitle)
+                        .font(GoPhotoDesign.largeTitle)
                         .foregroundStyle(GoPhotoDesign.primaryText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)

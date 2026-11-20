@@ -14,6 +14,8 @@ final class SelectPhotoViewController: UIViewController {
     var onDone: (([PhotoItem]) -> Void)?
 
     private let viewModel: SelectPhotoViewModel
+    /// Asks "Update your style?" before Done. Only for a SAVED preference, whose style is analysed
+    /// again when its photos change; a preference being created has no style yet.
     var requiresReanalyzeConfirmation = false
     private let closeButton = CircleButton(symbol: "xmark", accessibilityLabel: "Close")
     private let doneButton = CircleButton(symbol: "checkmark", accessibilityLabel: "Done",
@@ -132,12 +134,14 @@ final class SelectPhotoViewController: UIViewController {
                     message: "Adding these photos will update your style. Continue?",
                     preferredStyle: .alert
                 )
-                let cancelAction = UIAlertAction(title: "Cancel", style: .destructive)
+                let cancelAction = UIAlertAction(title: "Cancel", style: .cancel)
                 let yesAction = UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
                     self?.viewModel.done(selectedIndexes: selected)
                 }
                 alert.addAction(cancelAction)
                 alert.addAction(yesAction)
+                alert.preferredAction = yesAction
+                alert.view.tintColor = Theme.accent
                 present(alert, animated: true)
                 return
             }

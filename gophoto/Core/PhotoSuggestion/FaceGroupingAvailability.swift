@@ -12,6 +12,9 @@ nonisolated enum FaceGroupingAvailability {
 
     static func purgeLeftovers() async {
         if #available(iOS 27.0, *) { await FaceGroupAnalyzerService.purgeLeftovers() }
+        // "Find my photos" no longer keeps the chosen person between visits (20 Nov): a saved
+        // person and its face thumbnails from an earlier version are deleted from the device.
+        FaceScanStore.reset()
     }
 }
 

@@ -127,7 +127,6 @@ final class PreferenceEditorPresenter {
             card.modalPresentationStyle = .fullScreen
             card.modalTransitionStyle = .crossDissolve
             card.onDone = finish
-            StyleTrace.attachButton(to: card, preferenceID: id)   // StyleTrace
             analyzing.present(card, animated: true)
         }
         host.present(analyzing, animated: true)
@@ -145,7 +144,8 @@ final class PreferenceEditorPresenter {
                 host?.dismiss(animated: true) { next() }
             }
         }
-        let hosting = UIHostingController(rootView: view)
+        // Its own UIHostingController, outside the app's root view: it gets the app's Larger Text limit here.
+        let hosting = UIHostingController(rootView: view.dynamicTypeSize(...AppFont.maximumDynamicTypeSize))
         hosting.modalPresentationStyle = .fullScreen
         hosting.isModalInPresentation = true
         host.present(hosting, animated: true)

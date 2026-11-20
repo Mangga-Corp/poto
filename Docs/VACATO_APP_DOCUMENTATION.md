@@ -1211,7 +1211,7 @@ Uji 18 Nov (100 foto, Mode 1): sebelum `UncachedImage`, Memory naik 150 → ±80
 ### 6.21 Custom Preference (tanpa foto)
 
 - **Deskripsi:** Dari tombol "Create a Custom Preference" di Photo Session Setup, user memilih dalam 2 langkah:
-  1. **"Choose a Subject Placement"**: 7 opsi (Rule of Thirds, Central, Off-Centered, Edge Proximity, Right Side, Left Side, Edge/Corner Touching).
+  1. **"Choose a Subject Placement"**: 5 opsi (Rule of Thirds, Central, Off-Centered, Right Side, Left Side).
   2. **"Choose a Camera Angle"**: Eye Level, Low Angle, High Angle.
 
   Lalu "Create Preference". Nama dibuat otomatis dari 21 kombinasi (mis. "Balanced Thirds Portrait", "Heroic Thirds", "Classic Centered Portrait"), dengan suffix " 2", " 3" bila nama bentrok.
