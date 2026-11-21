@@ -43,16 +43,15 @@ private struct RatioMenuButton: UIViewRepresentable {
         button.showsMenuAsPrimaryAction = true
         button.preferredMenuElementOrder = .fixed
         button.layer.cornerRadius = 26
-        button.layer.borderWidth = 1
+        button.layer.borderWidth = 1.25
         button.layer.borderColor = UIColor.white.withAlphaComponent(0.15).cgColor
-        button.backgroundColor = UIColor.white.withAlphaComponent(0.1)
-        button.tintColor = PotoPalette.tagText
+        button.backgroundColor = UIColor.black.withAlphaComponent(0.15)
+        button.tintColor = UIColor(red: 233 / 255, green: 223 / 255, blue: 244 / 255, alpha: 1)
+        button.setImage(RatioIcon.image, for: .normal)
         return button
     }
 
     func updateUIView(_ button: UIButton, context: Context) {
-        let symbol = UIImage.SymbolConfiguration(pointSize: 20, weight: .semibold)
-        button.setImage(UIImage(systemName: selection.symbolName, withConfiguration: symbol), for: .normal)
         let onSelect = onSelect
         let actions = CameraAspectRatio.allCases.map { ratio in
             let action = UIAction(title: ratio.title,
@@ -63,6 +62,42 @@ private struct RatioMenuButton: UIViewRepresentable {
         }
         button.menu = UIMenu(title: "Photo Ratio", options: .displayInline, children: actions)
     }
+}
+
+/// The button's glyph: a rounded panel cut into a top-and-right band and two blocks. No SF Symbol
+/// has this shape, so it is drawn here (design units: 76 × 61).
+private enum RatioIcon {
+    static let image: UIImage = {
+        let size = CGSize(width: 25, height: 20)
+        let path = CGMutablePath()
+        let radius: CGFloat = 8
+
+        // Top bar + right column.
+        path.move(to: CGPoint(x: 0, y: 19))
+        path.addArc(tangent1End: CGPoint(x: 0, y: 0), tangent2End: CGPoint(x: 76, y: 0), radius: radius)
+        path.addArc(tangent1End: CGPoint(x: 76, y: 0), tangent2End: CGPoint(x: 76, y: 61), radius: radius)
+        path.addArc(tangent1End: CGPoint(x: 76, y: 61), tangent2End: CGPoint(x: 59, y: 61), radius: radius)
+        path.addLine(to: CGPoint(x: 59, y: 61))
+        path.addArc(tangent1End: CGPoint(x: 59, y: 19), tangent2End: CGPoint(x: 0, y: 19), radius: 4)
+        path.closeSubpath()
+
+        // Left block.
+        path.move(to: CGPoint(x: 0, y: 26))
+        path.addLine(to: CGPoint(x: 31, y: 26))
+        path.addLine(to: CGPoint(x: 31, y: 61))
+        path.addArc(tangent1End: CGPoint(x: 0, y: 61), tangent2End: CGPoint(x: 0, y: 26), radius: radius)
+        path.closeSubpath()
+
+        // Middle block.
+        path.addRect(CGRect(x: 39, y: 26, width: 13, height: 35))
+
+        return UIGraphicsImageRenderer(size: size).image { context in
+            context.cgContext.scaleBy(x: size.width / 76, y: size.height / 61)
+            context.cgContext.addPath(path)
+            context.cgContext.setFillColor(UIColor.black.cgColor)
+            context.cgContext.fillPath()
+        }.withRenderingMode(.alwaysTemplate)
+    }()
 }
 
 private extension CameraAspectRatio {
