@@ -119,6 +119,36 @@ enum GuidanceShapeMeshFactory {
         }
     }
 
+    /// A round tube along a circular arc in the YZ plane, centred on the origin. Angles are in
+    /// radians, measured from +Z toward +Y.
+    static func arcTube(radius: Float, tubeRadius: Float, from start: Float, to end: Float,
+                        arcSegments: Int, sides: Int = 10) -> MeshResource {
+        let steps = max(arcSegments, 1)
+        let ring = max(sides, 3)
+        var positions: [SIMD3<Float>] = []
+        var indices: [UInt32] = []
+        for i in 0...steps {
+            let a = start + (end - start) * Float(i) / Float(steps)
+            let outward = SIMD3<Float>(0, sin(a), cos(a))
+            for j in 0..<ring {
+                let phi = Float(j) / Float(ring) * 2 * Float.pi
+                positions.append(outward * (radius + tubeRadius * cos(phi))
+                                 + SIMD3<Float>(tubeRadius * sin(phi), 0, 0))
+            }
+        }
+        for i in 0..<steps {
+            for j in 0..<ring {
+                let j2 = (j + 1) % ring
+                let a = UInt32(i * ring + j), b = UInt32(i * ring + j2)
+                let c = UInt32((i + 1) * ring + j), d = UInt32((i + 1) * ring + j2)
+                indices += [a, b, c, b, d, c]
+            }
+        }
+        return mesh(positions: positions, indices: indices, name: "ArcTube") {
+            MeshResource.generateSphere(radius: tubeRadius)
+        }
+    }
+
     /// A chevron pointing UP ("^"), centred on the origin. Rotate it 180° about Z for "v".
     static func chevron(halfWidth w: Float = 0.0125, drop h: Float = 0.0075,
                         thickness c: Float = 0.0034) -> MeshResource {

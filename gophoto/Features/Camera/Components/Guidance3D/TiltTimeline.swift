@@ -11,6 +11,9 @@ nonisolated struct TiltFrame: Equatable, Sendable {
     /// 0 = upright, 1 = at target tilt.
     var progress: Double
     var phoneOpacity: Double
+    /// How much of the turn arrow is drawn, 0...1.
+    var arrowReveal: Double = 1
+    var arrowOpacity: Double = 1
 }
 
 nonisolated enum TiltTimeline {
@@ -48,7 +51,19 @@ nonisolated enum TiltTimeline {
             progress = 0.0
         }
 
-        return TiltFrame(progress: progress, phoneOpacity: 1.0)
+        // The arrow draws itself with the turn, then fades while the phone returns. It never runs
+        // backwards, which would show the opposite instruction.
+        let arrowReveal = p < 0.52 ? progress : 1.0
+        let arrowOpacity: Double
+        switch p {
+        case ..<0.08: arrowOpacity = smoothGlide(p / 0.08)
+        case ..<0.68: arrowOpacity = 1.0
+        case ..<0.82: arrowOpacity = 1.0 - smoothGlide((p - 0.68) / 0.14)
+        default:      arrowOpacity = 0.0
+        }
+
+        return TiltFrame(progress: progress, phoneOpacity: 1.0,
+                         arrowReveal: arrowReveal, arrowOpacity: arrowOpacity)
     }
 
     // MARK: - Helpers
