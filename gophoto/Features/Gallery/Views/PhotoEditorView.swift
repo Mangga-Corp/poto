@@ -41,6 +41,8 @@ struct PhotoEditorView: View {
         return selectedLook != nil
     }
 
+    @Environment(\.colorScheme) private var colorScheme
+
     var body: some View {
         NavigationStack {
             FullPhotoView(assetID: assetID,
@@ -48,6 +50,7 @@ struct PhotoEditorView: View {
                           loadImage: loadImage,
                           look: tool == .looks ? selectedLook : nil,
                           adjustments: tool == .adjust ? adjustments : nil)
+                .appPatternBackground()
                 .navigationTitle("Edit")
                 .navigationBarTitleDisplayMode(.inline)
                 .toolbar {
@@ -118,7 +121,7 @@ struct PhotoEditorView: View {
         }
         .padding(.bottom, 8)
         .disabled(isSaving)
-        .background(.bar)
+        .background(colorScheme == .light ? AnyShapeStyle(PotoDesign.background) : AnyShapeStyle(.bar))
     }
 
     // MARK: - Actions

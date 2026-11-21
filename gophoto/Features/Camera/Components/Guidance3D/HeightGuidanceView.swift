@@ -10,7 +10,9 @@ import RealityKit
 
 @MainActor
 final class HeightDriver {
-    lazy var rig = HeightGuidanceRig()
+    /// Read once, when the rig is first built.
+    var skin: PhoneSkin = .sketch
+    lazy var rig = HeightGuidanceRig(skin: skin)
 
     var direction: Direction = .up
     var isActive = true {
@@ -57,6 +59,8 @@ struct HeightGuidanceView: View {
     var cameraDistance: Float = 0.58
     /// Reduce Motion: show the start pose with ghost and arrows, nothing moves.
     var showsStillPose: Bool = false
+    /// Colours of the phone. Fixed for the life of the view: give it a new `.id` to change them.
+    var skin: PhoneSkin = .sketch
 
     @State private var driver = HeightDriver()
 
@@ -94,6 +98,7 @@ struct HeightGuidanceView: View {
     }
 
     private func configureDriver() {
+        driver.skin = skin
         driver.direction = direction
         driver.isActive = isActive
         driver.showsStillPose = showsStillPose

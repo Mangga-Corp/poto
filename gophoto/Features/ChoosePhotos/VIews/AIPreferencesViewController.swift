@@ -108,7 +108,7 @@ final class AIPreferencesViewController: UIViewController {
         icon.setContentCompressionResistancePriority(.required, for: .horizontal)
 
         let label = UILabel()
-        label.text = "Your photos stay on this iPhone. Nothing is uploaded."
+        label.text = "Our AI model runs offline, so your photos never leave this iPhone."
         label.font = .app(size: 13, weight: .regular, relativeTo: .footnote)
         label.adjustsFontForContentSizeCategory = true
         label.textColor = Theme.secondaryText

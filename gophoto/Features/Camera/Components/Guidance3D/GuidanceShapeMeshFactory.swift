@@ -149,6 +149,38 @@ enum GuidanceShapeMeshFactory {
         }
     }
 
+    /// A flat band lying in the YZ plane along a circular arc, `halfWidth` to each side of `radius`,
+    /// so it keeps its width from any angle. Angles are in radians, measured from +Z toward +Y.
+    /// Use a material with `faceCulling = .none`.
+    static func arcBand(radius: Float, halfWidth: Float, from start: Float, to end: Float,
+                        arcSegments: Int) -> MeshResource {
+        let steps = max(arcSegments, 1)
+        var positions: [SIMD3<Float>] = []
+        var indices: [UInt32] = []
+        for i in 0...steps {
+            let a = start + (end - start) * Float(i) / Float(steps)
+            let outward = SIMD3<Float>(0, sin(a), cos(a))
+            positions.append(outward * (radius - halfWidth))
+            positions.append(outward * (radius + halfWidth))
+        }
+        for i in 0..<UInt32(steps) {
+            let a = 2 * i
+            indices += [a, a + 1, a + 2, a + 2, a + 1, a + 3]
+        }
+        return mesh(positions: positions, indices: indices, name: "ArcBand") {
+            MeshResource.generateBox(width: 2 * halfWidth, height: 0.001, depth: 0.001)
+        }
+    }
+
+    /// A flat triangle in the YZ plane pointing +Y, its base on the origin (matches `arcBand`).
+    /// Use a material with `faceCulling = .none`.
+    static func flatArrowHead(halfWidth: Float, length: Float) -> MeshResource {
+        let positions = [SIMD3<Float>(0, 0, -halfWidth), SIMD3<Float>(0, 0, halfWidth), SIMD3<Float>(0, length, 0)]
+        return mesh(positions: positions, indices: [0, 1, 2], name: "FlatArrowHead") {
+            MeshResource.generateBox(width: 0.0005, height: length, depth: 2 * halfWidth)
+        }
+    }
+
     /// A chevron pointing UP ("^"), centred on the origin. Rotate it 180° about Z for "v".
     static func chevron(halfWidth w: Float = 0.0125, drop h: Float = 0.0075,
                         thickness c: Float = 0.0034) -> MeshResource {

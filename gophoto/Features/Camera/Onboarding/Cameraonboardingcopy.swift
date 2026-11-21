@@ -6,46 +6,46 @@
 //
 
 import Foundation
- 
+
 enum CameraOnboardingStep: Int, CaseIterable {
-    case shotCards
-    case sitting
+    case photographerMove
+    case shotSize
     case heightUp
     case heightDown
+    case tiltUp
     case tiltDown
-    case tiltUp      
 
     var title: String {
         switch self {
-        case .shotCards:    "Choose your shot"
-        case .sitting:      "Sitting? We adapt"
-        case .tiltDown:     "Tilt down"
-        case .tiltUp:       "Tilt up"
-        case .heightUp:     "Raise your phone"
-        case .heightDown:   "Lower your phone"
+        case .photographerMove: "Photographer move"
+        case .shotSize:         "Pick a shot size"
+        case .heightUp:         "Raise your phone"
+        case .heightDown:       "Lower your phone"
+        case .tiltUp:           "Tilt up"
+        case .tiltDown:         "Tilt down"
         }
     }
- 
+
     var message: String {
         switch self {
-        case .shotCards:
-            "Swipe to switch between Full, 3/4 or Half Body. They match your reference photos."
-        case .sitting:
-            "When you sit, only Full Body is offered."
-        case .tiltDown:
-            "See this? Tilt the top of your phone down to match your reference photos."
-        case .tiltUp:
-            "See this? Tilt the top of your phone up to match your reference photos."
+        case .photographerMove:
+            "Let the person being photographed stay in place."
+        case .shotSize:
+            "Full body, 3/4 or Half body. Swipe left or right to switch."
         case .heightUp:
-            "See this? Lift your phone higher and keep the same tilt."
+            "Lift the phone higher until it’s green"
         case .heightDown:
-            "See this? Lower your phone and keep the same tilt."
+            "Lower the phone until it’s green"
+        case .tiltUp:
+            "Tilt the phone up until it’s green"
+        case .tiltDown:
+            "Tilt the phone down until it’s green"
         }
     }
 }
- 
+
 enum CameraOnboardingCopy {
-    static let continueButton = "Continue"
-    static let finishButton = "Finish"
-    static let skipButton = "Skip"
- }
+    static let nextButton = "Next"
+    static let closeLabel = "Close camera tips"
+    static let lastStepHint = "Closes the camera tips"
+}

@@ -6,29 +6,34 @@
 //
 
 import SwiftUI
- 
+
 struct CameraOnboardingView: View {
-    /// Frame tombol-tombol asli (koordinat global), dilaporkan oleh CameraView.
+    /// Frame elemen kamera yang asli (koordinat global), dilaporkan oleh CameraView.
     let frames: [CameraOnboardingTarget: CGRect]
     let onFinish: () -> Void
- 
-    @State private var step: CameraOnboardingStep = .shotCards
-    /// RealityKit (renderer, shader, mesh HP 3D) dibuat sekali di belakang layar selama step shot
-    /// size, supaya pindah ke step animasi pertama (setelah Sitting) tidak freeze.
+
+    @State private var step: CameraOnboardingStep = .photographerMove
+    /// RealityKit (renderer, shader, mesh HP 3D) dibuat sekali di belakang layar selama dua step
+    /// pertama, supaya pindah ke step animasi pertama tidak freeze.
     @State private var isPrewarming3D = false
-    /// Posisi atas card per step. Per step karena card lama masih ada selama transisi.
+    /// Posisi atas card per step. Per step karena animasi membaca posisi card miliknya sendiri.
     @State private var cardTops: [CameraOnboardingStep: CGFloat] = [:]
 
+    /// Kamera selalu gelap, tetapi card dan HP di tutorial mengikuti setelan Light / Dark iPhone.
+    private let appearance = SystemAppearance.shared
+
     private static let layoutSpace = "cameraOnboardingLayout"
-    private static let pickerHeight: CGFloat = 72
-    /// Jarak card putih ke demo card shot size (ubah angka ini kalau mau lebih dekat / jauh).
-    private static let cardGapToPicker: CGFloat = 4
+    private static let dimOpacity = GuidanceAnimationStyle.dimOpacity
+    private static let cardGapToControls: CGFloat = 16
+    private static let cardMargin: CGFloat = 20
+    private static let cardCornerRadius: CGFloat = 24
+    private static let shotChipCornerRadius: CGFloat = 10
     private static let lastStep = CameraOnboardingStep.allCases.last!
     private var isLastStep: Bool { step == Self.lastStep }
- 
+
     var body: some View {
         ZStack {
-            if isPrewarming3D && step.cardAbovePicker {
+            if isPrewarming3D && step.motion == nil {
                 prewarm3D
             }
 
@@ -38,15 +43,12 @@ struct CameraOnboardingView: View {
                 let origin = proxy.frame(in: .global).origin
                 ZStack {
                     visual(origin: origin)
- 
+
                     VStack(spacing: 0) {
                         Spacer(minLength: 0)
                         card
-                        // Step card shot size: card duduk tepat di atas demo card (dekat dengan yang dijelaskan).
-                        // Step lain: card di paling bawah.
-                        if step.cardAbovePicker, let shutter = local(.shutter, origin) {
-                            let pickerTop = shutter.minY - 6 - Self.pickerHeight
-                            Color.clear.frame(height: max(0, proxy.size.height - pickerTop + Self.cardGapToPicker))
+                        if let controls = local(.controls, origin) {
+                            Color.clear.frame(height: max(0, proxy.size.height - controls.minY + Self.cardGapToControls))
                         }
                     }
                 }
@@ -54,8 +56,10 @@ struct CameraOnboardingView: View {
                 .coordinateSpace(.named(Self.layoutSpace))
             }
         }
+        .environment(\.colorScheme, appearance.colorScheme)
         .sensoryFeedback(.selection, trigger: step)
         .accessibilityAddTraits(.isModal)
+        .onAppear { appearance.refresh() }
         .task {
             // Tunggu card pertama tampil dulu, lalu siapkan 3D selagi user membaca.
             try? await Task.sleep(for: .milliseconds(600))
@@ -66,10 +70,12 @@ struct CameraOnboardingView: View {
     /// Height & tilt guidance dalam ukuran kecil, hampir transparan, di bawah layer redup.
     /// Tidak terlihat dan tidak bisa disentuh; hanya untuk memanaskan RealityKit.
     private var prewarm3D: some View {
-        HStack(spacing: 0) {
-            HeightGuidanceView(direction: .up, isActive: false)
+        let skin = PhoneSkin.guide(for: appearance.colorScheme)
+        return HStack(spacing: 0) {
+            HeightGuidanceView(direction: .up, isActive: false, skin: skin)
             TiltGuidanceView(direction: .down, degrees: GuidanceMotion.tiltFallbackDegrees,
-                             tiltView: GuidanceAnimationStyle.tiltView, isActive: false)
+                             tiltView: GuidanceAnimationStyle.tiltView, isActive: false,
+                             skin: skin, arrowStyle: .block)
         }
         .frame(width: 16, height: 16)
         .opacity(0.01)
@@ -77,113 +83,139 @@ struct CameraOnboardingView: View {
         .accessibilityHidden(true)
     }
 
-    /// Aksi sekunder tepat di bawah Continue, seperti layar setup iOS. Hilang di step terakhir:
-    /// di sana Finish sudah menutup tutorial. Sama dengan Finish (flag `cameraOnboardingCompleted`).
-    @ViewBuilder
-    private var skipButton: some View {
-        if !isLastStep {
-            Button(CameraOnboardingCopy.skipButton, action: onFinish)
-                .buttonStyle(.potoText)
-                .padding(.top, 6)
-                .accessibilityHint("Closes the camera tips")
+    // MARK: Dim
+
+    /// Layar digelapkan dan menahan semua sentuhan ke kamera. Di step "Pick a shot size", chip
+    /// yang aktif dibiarkan terang.
+    private var dimLayer: some View {
+        GeometryReader { proxy in
+            let origin = proxy.frame(in: .global).origin
+            Color.black.opacity(Self.dimOpacity)
+                .mask {
+                    Rectangle()
+                        .overlay {
+                            if let chip = local(.selectedShot, origin) {
+                                RoundedRectangle(cornerRadius: Self.shotChipCornerRadius, style: .continuous)
+                                    .frame(width: chip.width, height: chip.height)
+                                    .position(x: chip.midX, y: chip.midY)
+                                    .opacity(step == .shotSize ? 1 : 0)
+                                    .blendMode(.destinationOut)
+                            }
+                        }
+                        .compositingGroup()
+                }
         }
+        .ignoresSafeArea()
+        .contentShape(Rectangle())
+        .onTapGesture {}
     }
 
-    // MARK: Dim
- 
-    /// Layar digelapkan. Juga menahan semua sentuhan ke kamera.
-    private var dimLayer: some View {
-        Color.black.opacity(step.dimOpacity)
-            .animation(.smooth(duration: 0.35), value: step)
-            .ignoresSafeArea()
-            .contentShape(Rectangle())
-            .onTapGesture {}
-    }
- 
     private func local(_ target: CameraOnboardingTarget, _ origin: CGPoint) -> CGRect? {
         frames[target]?.offsetBy(dx: -origin.x, dy: -origin.y)
     }
- 
+
     // MARK: Visual per step
- 
+
     @ViewBuilder
     private func visual(origin: CGPoint) -> some View {
-        switch step {
-        case .shotCards, .sitting:
-            if let shutter = local(.shutter, origin), let preview = local(.preview, origin) {
-                OnboardingDemoShotPicker(mode: step == .sitting ? .sitting : .slide)
-                    .id(step)
-                    .frame(width: preview.width - 24, height: Self.pickerHeight)
-                    .position(x: preview.midX, y: shutter.minY - 6 - Self.pickerHeight / 2)
-            }
- 
-        case .tiltDown, .tiltUp, .heightUp, .heightDown:
-            if let preview = local(.preview, origin) {
-                OnboardingMotionDemo(kind: step.motionKind, direction: step.motionDirection,
-                                     cardTop: cardTops[step].map { $0 - preview.minY })
-                    .id(step)
-                    .frame(width: preview.width, height: preview.height)
-                    .position(x: preview.midX, y: preview.midY)
-            }
+        if let motion = step.motion, let preview = local(.preview, origin) {
+            GuidancePhoneIllustration(motion: motion,
+                                      bottomLimit: cardTops[step].map { $0 - preview.minY },
+                                      placement: .aboveBottomLimit)
+                .id(step)
+                .frame(width: preview.width, height: preview.height)
+                .position(x: preview.midX, y: preview.midY)
+                .transition(.opacity)
         }
     }
- 
-    // MARK: Card (gaya sama dengan WelcomeOnboardingView)
- 
-    private var card: some View {
-        VStack(spacing: 0) {
-            pageDots
-                .padding(.bottom, 16)
- 
-            Text(step.title)
-                .font(PotoDesign.largeTitle)
-                .foregroundStyle(PotoDesign.primaryText)
-                .multilineTextAlignment(.center)
-                .fixedSize(horizontal: false, vertical: true)
- 
-            Text(step.message)
-                .font(PotoDesign.body)
-                .foregroundStyle(PotoDesign.secondaryText)
-                .multilineTextAlignment(.center)
-                .lineSpacing(4)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 12)
- 
-            Button(isLastStep ? CameraOnboardingCopy.finishButton : CameraOnboardingCopy.continueButton,
-                   action: advance)
-            .buttonStyle(.potoPrimary)
-            .padding(.top, 22)
 
-            skipButton
+    // MARK: Card
+
+    private var card: some View {
+        VStack(alignment: .leading, spacing: 16) {
+            // Semua teks diukur sekaligus, supaya tinggi card sama di setiap step (tidak melompat).
+            ZStack(alignment: .topLeading) {
+                ForEach(CameraOnboardingStep.allCases, id: \.self) { item in
+                    stepText(item).hidden()
+                }
+                stepText(step)
+                    .id(step)
+                    .transition(.opacity)
+            }
+            .overlay(alignment: .topTrailing) { closeButton }
+
+            HStack(alignment: .center) {
+                stepCounter
+                Spacer(minLength: 12)
+                nextButton
+            }
         }
         .padding(.horizontal, 24)
-        .padding(.vertical, 22)
-        .frame(maxWidth: .infinity)
-        .background(PotoDesign.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .padding(.top, 20)
+        .padding(.bottom, 16)
+        .frame(maxWidth: .infinity, alignment: .leading)
+        .background(PotoDesign.surface, in: RoundedRectangle(cornerRadius: Self.cardCornerRadius, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 8)
         .onGeometryChange(for: CGFloat.self) { proxy in
             proxy.frame(in: .named(Self.layoutSpace)).minY
-        } action: { [step] top in
-            cardTops[step] = top
+        } action: { top in
+            // Tinggi card sama di setiap step, jadi satu ukuran berlaku untuk semuanya.
+            for item in CameraOnboardingStep.allCases { cardTops[item] = top }
         }
-        .padding(.horizontal, 16)
-        .padding(.vertical, 8)
-        .id(step)
-        .transition(.opacity)
+        .padding(.horizontal, Self.cardMargin)
     }
- 
-    private var pageDots: some View {
-        HStack(spacing: 6) {
-            ForEach(CameraOnboardingStep.allCases, id: \.self) { item in
-                Capsule()
-                    .fill(item == step ? PotoDesign.primary : PotoDesign.primaryBorder)
-                    .frame(width: item == step ? 20 : 6, height: 6)
-            }
+
+    private func stepText(_ item: CameraOnboardingStep) -> some View {
+        VStack(alignment: .leading, spacing: 10) {
+            Text(item.title)
+                .font(AppFont.title2.weight(.bold))
+                .foregroundStyle(PotoDesign.primaryText)
+                .fixedSize(horizontal: false, vertical: true)
+                .padding(.trailing, 40)   // ruang untuk tombol tutup
+                .accessibilityAddTraits(.isHeader)
+
+            Text(item.message)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
+                .lineSpacing(3)
+                .fixedSize(horizontal: false, vertical: true)
         }
-        .animation(.smooth(duration: 0.25), value: step)
-        .accessibilityHidden(true)
+        .frame(maxWidth: .infinity, alignment: .leading)
     }
- 
+
+    /// Ikon di garis tepi konten, area sentuhnya tetap 44 pt (HIG).
+    private var closeButton: some View {
+        Button(action: onFinish) {
+            Image(systemName: "xmark")
+                .font(AppFont.title3.weight(.regular))
+                .foregroundStyle(PotoDesign.secondaryText)
+                .frame(width: PotoDesign.compactButtonHeight, height: PotoDesign.compactButtonHeight)
+                .contentShape(Rectangle())
+        }
+        .buttonStyle(.plain)
+        .offset(x: 12, y: -8)
+        .accessibilityLabel(CameraOnboardingCopy.closeLabel)
+    }
+
+    private var stepCounter: some View {
+        HStack(spacing: 0) {
+            Text("\(step.rawValue + 1)")
+                .foregroundStyle(PotoDesign.primaryText)
+                .contentTransition(.numericText())
+            Text("/\(CameraOnboardingStep.allCases.count)")
+                .foregroundStyle(PotoDesign.secondaryText)
+        }
+        .font(AppFont.title3.monospacedDigit())
+        .accessibilityElement(children: .ignore)
+        .accessibilityLabel("Step \(step.rawValue + 1) of \(CameraOnboardingStep.allCases.count)")
+    }
+
+    private var nextButton: some View {
+        Button(CameraOnboardingCopy.nextButton, action: advance)
+            .buttonStyle(OnboardingNextButtonStyle())
+            .accessibilityHint(isLastStep ? CameraOnboardingCopy.lastStepHint : "")
+    }
+
     private func advance() {
         if let next = CameraOnboardingStep(rawValue: step.rawValue + 1) {
             withAnimation(.smooth(duration: 0.35)) { step = next }
@@ -192,40 +224,32 @@ struct CameraOnboardingView: View {
         }
     }
 }
- 
-// MARK: - Layout per step
- 
-extension CameraOnboardingStep {
-    /// Card putih diletakkan tepat di atas demo card shot size (bukan di paling bawah).
-    var cardAbovePicker: Bool {
-        switch self {
-        case .shotCards, .sitting: true
-        default:                   false
-        }
-    }
- 
-    /// Step animasi memakai redup yang sama dengan GuidanceMotionOverlay.
-    var dimOpacity: Double {
-        switch self {
-        case .tiltDown, .tiltUp, .heightUp, .heightDown: GuidanceAnimationStyle.dimOpacity
-        default:                                         0.78
-        }
+
+/// Tombol ungu kecil di pojok card.
+private struct OnboardingNextButtonStyle: ButtonStyle {
+    func makeBody(configuration: Configuration) -> some View {
+        configuration.label
+            .font(AppFont.subheadline.weight(.semibold))
+            .foregroundStyle(PotoDesign.onPrimary)
+            .padding(.horizontal, 24)
+            .frame(minWidth: 84, minHeight: PotoDesign.compactButtonHeight)
+            .background(configuration.isPressed ? PotoDesign.primaryPressed : PotoDesign.primary,
+                        in: RoundedRectangle(cornerRadius: 10, style: .continuous))
+            .contentShape(RoundedRectangle(cornerRadius: 10, style: .continuous))
     }
 }
- 
+
+// MARK: - Animasi per step
+
 extension CameraOnboardingStep {
-    /// Jenis dan arah animasi untuk step tilt / height.
-    var motionKind: OnboardingMotionDemo.Kind {
+    /// Gerakan HP yang dicontohkan. Nil = step tanpa animasi.
+    var motion: GuidanceMotion? {
         switch self {
-        case .heightUp, .heightDown: .height
-        default:                     .tilt
-        }
-    }
- 
-    var motionDirection: Direction {
-        switch self {
-        case .tiltDown, .heightDown: .down
-        default:                     .up
+        case .photographerMove, .shotSize: nil
+        case .heightUp:   .height(.up)
+        case .heightDown: .height(.down)
+        case .tiltUp:     .tilt(.up, degrees: GuidanceMotion.tiltFallbackDegrees, view: GuidanceAnimationStyle.tiltView)
+        case .tiltDown:   .tilt(.down, degrees: GuidanceMotion.tiltFallbackDegrees, view: GuidanceAnimationStyle.tiltView)
         }
     }
 }

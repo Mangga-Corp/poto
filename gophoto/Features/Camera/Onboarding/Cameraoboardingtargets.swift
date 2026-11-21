@@ -6,12 +6,13 @@
 //
 
 import SwiftUI
- 
+
 enum CameraOnboardingTarget: Hashable {
-    case preview    // area preview kamera (tempat pill guidance & animasi)
-    case shutter    // dipakai untuk menentukan posisi demo card shot size
+    case preview       // area preview kamera (tempat animasi HP & panah)
+    case controls      // shot size + shutter: card duduk tepat di atasnya
+    case selectedShot  // chip shot size yang aktif: dibiarkan terang di step "Pick a shot size"
 }
- 
+
 extension View {
     /// Menyimpan frame view ini (koordinat global) ke `frames`. Tidak mengubah tampilan.
     func reportOnboardingFrame(

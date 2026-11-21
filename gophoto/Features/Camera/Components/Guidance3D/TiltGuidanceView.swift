@@ -10,7 +10,10 @@ import RealityKit
 
 @MainActor
 final class TiltDriver {
-    lazy var rig = TiltGuidanceRig()
+    /// Read once, when the rig is first built.
+    var skin: PhoneSkin = .sketch
+    var arrowStyle: TiltArrowStyle = .line
+    lazy var rig = TiltGuidanceRig(skin: skin, arrowStyle: arrowStyle)
 
     var direction: Direction = .up
     var degrees = GuidanceMotion.tiltFallbackDegrees
@@ -59,6 +62,10 @@ struct TiltGuidanceView: View {
     var cameraDistance: Float = 0.50
     /// Reduce Motion: show the upright phone with ghost and hinge, nothing moves.
     var showsStillPose: Bool = false
+    /// Colours of the phone. Fixed for the life of the view: give it a new `.id` to change them.
+    var skin: PhoneSkin = .sketch
+    /// Shape of the arrow (same motion). Fixed for the life of the view.
+    var arrowStyle: TiltArrowStyle = .line
 
     @State private var driver = TiltDriver()
 
@@ -96,6 +103,8 @@ struct TiltGuidanceView: View {
     }
 
     private func configureDriver() {
+        driver.skin = skin
+        driver.arrowStyle = arrowStyle
         driver.direction = direction
         driver.degrees = degrees
         driver.tiltView = tiltView

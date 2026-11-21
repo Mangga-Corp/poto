@@ -278,10 +278,10 @@ nonisolated struct PresetAnalysis: Codable, Sendable, Equatable {
         /// Label of the camera's shot size picker (above the shutter).
         var pickerTitle: String {
             switch self {
-            case .full: "Full body"
-            case .threeQuarter: "3/4"
-            case .half: "Half body"
-            case .quarter: "1/4"
+            case .full: "Full Body"
+            case .threeQuarter: "3/4 Body"
+            case .half: "Half Body"
+            case .quarter: "1/4 Body"
             }
         }
 
