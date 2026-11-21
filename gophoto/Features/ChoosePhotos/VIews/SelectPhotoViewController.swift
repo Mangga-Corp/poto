@@ -7,19 +7,11 @@
 
 import UIKit
 import Photos
-import PhotosUI
 
+/// The photos of one album. Its bar and the selection belong to `PhotoPickerController`.
 final class SelectPhotoViewController: UIViewController {
-    var onCancel: (() -> Void)?
-    var onDone: (([PhotoItem]) -> Void)?
-
     private let viewModel: SelectPhotoViewModel
-    /// Asks "Update your style?" before Done. Only for a SAVED preference, whose style is analysed
-    /// again when its photos change; a preference being created has no style yet.
-    var requiresReanalyzeConfirmation = false
-    private let closeButton = CircleButton(symbol: "xmark", accessibilityLabel: "Close")
-    private let doneButton = CircleButton(symbol: "checkmark", accessibilityLabel: "Done",
-                                    glassTint: Theme.accent.withAlphaComponent(0.6))
+    private let assets: PHFetchResult<PHAsset>
     private lazy var selectPan: UIPanGestureRecognizer = {
         let pan = UIPanGestureRecognizer(target: self, action: #selector(handleSelectPan(_:)))
         pan.delegate = self
@@ -31,7 +23,7 @@ final class SelectPhotoViewController: UIViewController {
     private var panLastRange: ClosedRange<Int>?
     private var panHitLimit = false
     private let selectionHaptic = UISelectionFeedbackGenerator()
-    private var didSelectAlreadyAdded = false
+    private var didRestoreSelection = false
     private lazy var collectionView: UICollectionView = {
         let item = NSCollectionLayoutItem(layoutSize: .init(widthDimension: .fractionalWidth(0.25), heightDimension: .fractionalHeight(1)))
         item.contentInsets = NSDirectionalEdgeInsets(top: 4, leading: 4, bottom: 4, trailing: 4)
@@ -42,8 +34,12 @@ final class SelectPhotoViewController: UIViewController {
         return UICollectionView(frame: .zero, collectionViewLayout: UICollectionViewCompositionalLayout(section: section))
     }()
 
-    init(viewModel: SelectPhotoViewModel) {
+    private let contentTitle: String?
+
+    init(viewModel: SelectPhotoViewModel, assets: PHFetchResult<PHAsset>, contentTitle: String? = nil) {
         self.viewModel = viewModel
+        self.assets = assets
+        self.contentTitle = contentTitle
         super.init(nibName: nil, bundle: nil)
     }
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
@@ -51,21 +47,6 @@ final class SelectPhotoViewController: UIViewController {
     override func viewDidLoad() {
         super.viewDidLoad()
         view.backgroundColor = Theme.background
-
-        // A compact bar title, like a navigation bar's: the same size at every Larger Text setting
-        // (it sits between the two buttons); long-press shows it enlarged (Large Content Viewer).
-        let title = UILabel()
-        title.text = "Select Photo"
-        title.font = .app(size: 17, weight: .semibold)
-        title.textColor = Theme.text
-        title.textAlignment = .center
-        title.numberOfLines = 1
-        title.lineBreakMode = .byTruncatingTail
-        title.accessibilityTraits.insert(.header)
-        title.isUserInteractionEnabled = true
-        title.showsLargeContentViewer = true
-        title.largeContentTitle = title.text
-        title.addInteraction(UILargeContentViewerInteraction())
         collectionView.backgroundColor = .clear
         collectionView.allowsMultipleSelection = true
         collectionView.dataSource = self
@@ -73,42 +54,24 @@ final class SelectPhotoViewController: UIViewController {
         collectionView.register(PhotoCell.self, forCellWithReuseIdentifier: PhotoCell.reuseID)
         collectionView.addGestureRecognizer(selectPan)
         collectionView.panGestureRecognizer.require(toFail: selectPan)
-        viewModel.onLoadingChange = { [weak self] on in self?.setLoading(on) }
-        viewModel.onError = { [weak self] message in self?.showError(message) }
-        viewModel.onFinish = { [weak self] items in self?.onDone?(items) }
-        closeButton.addAction(UIAction { [weak self] _ in self?.onCancel?() }, for: .touchUpInside)
-        doneButton.addAction(UIAction { [weak self] _ in self?.doneTapped() }, for: .touchUpInside)
 
-        [collectionView, closeButton, title, doneButton].forEach {
-            $0.translatesAutoresizingMaskIntoConstraints = false; view.addSubview($0)
-        }
-        var gridTopAnchor = closeButton.bottomAnchor
-        if viewModel.isLimitedAccess {
-            let banner = makeLimitedAccessBanner()
-            banner.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview(banner)
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(collectionView)
+        var gridTop = view.topAnchor
+        if let contentTitle {
+            let label = UILabel.pickerContentTitle(contentTitle)
+            label.translatesAutoresizingMaskIntoConstraints = false
+            view.addSubview(label)
+            let safe = view.safeAreaLayoutGuide
             NSLayoutConstraint.activate([
-                banner.topAnchor.constraint(equalTo: closeButton.bottomAnchor, constant: 12),
-                banner.leadingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.leadingAnchor, constant: 16),
-                banner.trailingAnchor.constraint(equalTo: view.safeAreaLayoutGuide.trailingAnchor, constant: -16),
+                label.topAnchor.constraint(equalTo: safe.topAnchor, constant: 4),
+                label.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
+                label.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
             ])
-            gridTopAnchor = banner.bottomAnchor
+            gridTop = label.bottomAnchor
         }
-        let safe = view.safeAreaLayoutGuide
         NSLayoutConstraint.activate([
-            closeButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 12),
-            closeButton.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
-            closeButton.widthAnchor.constraint(equalToConstant: 48),
-            closeButton.heightAnchor.constraint(equalToConstant: 48),
-            title.centerXAnchor.constraint(equalTo: view.centerXAnchor),
-            title.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
-            title.leadingAnchor.constraint(greaterThanOrEqualTo: closeButton.trailingAnchor, constant: 8),
-            title.trailingAnchor.constraint(lessThanOrEqualTo: doneButton.leadingAnchor, constant: -8),
-            doneButton.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
-            doneButton.centerYAnchor.constraint(equalTo: closeButton.centerYAnchor),
-            doneButton.widthAnchor.constraint(equalToConstant: 48),
-            doneButton.heightAnchor.constraint(equalToConstant: 48),
-            collectionView.topAnchor.constraint(equalTo: gridTopAnchor, constant: 16),
+            collectionView.topAnchor.constraint(equalTo: gridTop, constant: contentTitle == nil ? 0 : 8),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
@@ -117,126 +80,14 @@ final class SelectPhotoViewController: UIViewController {
 
     override func viewIsAppearing(_ animated: Bool) {
         super.viewIsAppearing(animated)
-        guard !didSelectAlreadyAdded else { return }
-        didSelectAlreadyAdded = true
+        guard !didRestoreSelection else { return }
+        didRestoreSelection = true
+        // The screen-edge swipe goes back; it wins over drag-to-select.
+        if let edgePop = navigationController?.interactivePopGestureRecognizer {
+            selectPan.require(toFail: edgePop)
+        }
         collectionView.layoutIfNeeded()
-        for index in viewModel.alreadyAddedIndexes() {
-            collectionView.selectItem(at: IndexPath(item: index, section: 0), animated: false, scrollPosition: [])
-        }
-    }
-
-    private func doneTapped() {
-        let selected = (collectionView.indexPathsForSelectedItems ?? []).map(\.item)
-        guard selected.isEmpty else {
-            if requiresReanalyzeConfirmation {
-                let alert = UIAlertController(
-                    title: "Update your style?",
-                    message: "Adding these photos will update your style. Continue?",
-                    preferredStyle: .alert
-                )
-                alert.addSecondaryAction("Cancel")
-                alert.addPrimaryAction("Continue") { [weak self] in
-                    self?.viewModel.done(selectedIndexes: selected)
-                }
-                present(alert, animated: true)
-                return
-            }
-            viewModel.done(selectedIndexes: selected)
-            return
-        }
-        let alert = UIAlertController(
-            title: "No photos selected",
-            message: "Choose at least \(ChoosePhotosViewModel.minPhotos) photos to create it.",
-            preferredStyle: .alert)
-        alert.addSecondaryAction("Leave Anyway") { [weak self] in
-            self?.viewModel.done(selectedIndexes: [])
-        }
-        alert.addPrimaryAction("Keep Selecting")
-        present(alert, animated: true)
-    }
-
-    private func setLoading(_ on: Bool) {
-        doneButton.isEnabled = !on
-        view.isUserInteractionEnabled = !on
-    }
-
-    private func showError(_ message: String) {
-        let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addPrimaryAction("OK")
-        present(alert, animated: true)
-    }
-    private func makeLimitedAccessBanner() -> UIView {
-        let icon = UIImageView(image: UIImage(systemName: "photo.on.rectangle.angled"))
-        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(pointSize: 18, weight: .semibold)
-        icon.tintColor = Theme.accent
-        icon.contentMode = .center
-        icon.backgroundColor = Theme.surface
-        icon.layer.cornerRadius = 10
-        icon.clipsToBounds = true
-        NSLayoutConstraint.activate([
-            icon.widthAnchor.constraint(equalToConstant: 40),
-            icon.heightAnchor.constraint(equalToConstant: 40),
-        ])
-
-        // Built again when the text size changes: attributed text doesn't follow Larger Text by itself.
-        func message() -> NSAttributedString {
-            let message = NSMutableAttributedString(
-                string: "You've limited access to selected items. ",
-                attributes: [.font: UIFont.app(style: .subheadline), .foregroundColor: Theme.text])
-            if let settingsURL = URL(string: UIApplication.openSettingsURLString) {
-                message.append(NSAttributedString(
-                    string: "Settings",
-                    attributes: [.font: UIFont.app(style: .subheadline, weight: .semibold), .link: settingsURL]))
-            }
-            return message
-        }
-
-        let text = UITextView()
-        text.attributedText = message()
-        text.registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (view: UITextView, _) in
-            view.attributedText = message()
-        }
-        text.linkTextAttributes = [.foregroundColor: Theme.accent]
-        text.isEditable = false
-        text.isScrollEnabled = false
-        text.backgroundColor = .clear
-        text.textContainerInset = .zero
-        text.textContainer.lineFragmentPadding = 0
-
-        var config = UIButton.Configuration.prominentGlass()
-        config.title = "Add more"
-        config.cornerStyle = .capsule
-        config.baseBackgroundColor = Theme.accent
-        config.baseForegroundColor = Theme.onAccent
-        let addMore = UIButton(configuration: config, primaryAction: UIAction { [weak self] _ in
-            self?.presentLimitedPicker()
-        })
-        addMore.setContentHuggingPriority(.required, for: .horizontal)
-        addMore.setContentCompressionResistancePriority(.required, for: .horizontal)
-
-        let stack = UIStackView(arrangedSubviews: [icon, text, addMore])
-        stack.axis = .horizontal
-        stack.alignment = .center
-        stack.spacing = 12
-        stack.isLayoutMarginsRelativeArrangement = true
-        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
-        stack.backgroundColor = Theme.tagBackground
-        stack.layer.cornerRadius = PotoDesign.controlCornerRadius + 2
-        return stack
-    }
-
-    private func presentLimitedPicker() {
-        Task {
-            _ = await PHPhotoLibrary.shared().presentLimitedLibraryPicker(from: self)
-            limitedSelectionChanged()
-        }
-    }
-
-    private func limitedSelectionChanged() {
-        let selectedIDs = Set((collectionView.indexPathsForSelectedItems ?? []).map { viewModel.identifier(at: $0.item) })
-        viewModel.reload()
-        collectionView.reloadData()
-        for index in 0..<viewModel.count where selectedIDs.contains(viewModel.identifier(at: index)) || viewModel.isAlreadyAdded(at: index) {
+        for index in viewModel.selectedIndexes(in: assets) {
             collectionView.selectItem(at: IndexPath(item: index, section: 0), animated: false, scrollPosition: [])
         }
     }
@@ -281,34 +132,37 @@ final class SelectPhotoViewController: UIViewController {
 
     private func setSelected(_ selected: Bool, at item: Int) {
         let indexPath = IndexPath(item: item, section: 0)
-        guard selected != selectedIndexes.contains(item) else { return }
+        let id = assets.object(at: item).localIdentifier
+        guard selected != viewModel.isSelected(id) else { return }
         if selected {
-            guard viewModel.hasRoom(currentCount: selectedIndexes.count) else {
+            guard viewModel.hasRoom else {
                 if !panHitLimit {
                     panHitLimit = true
-                    _ = viewModel.canSelect(currentCount: selectedIndexes.count)
+                    _ = viewModel.canSelect()
                 }
                 return
             }
             collectionView.selectItem(at: indexPath, animated: false, scrollPosition: [])
         } else {
-            guard viewModel.canRemoveExisting || !viewModel.isAlreadyAdded(at: item) else  { return }
+            guard viewModel.canDeselect(id) else { return }
             collectionView.deselectItem(at: indexPath, animated: false)
         }
+        viewModel.setSelected(selected, id: id)
     }
 }
 
 extension SelectPhotoViewController: UICollectionViewDataSource, UICollectionViewDelegate {
-    func collectionView(_ cv: UICollectionView, numberOfItemsInSection section: Int) -> Int { viewModel.count }
+    func collectionView(_ cv: UICollectionView, numberOfItemsInSection section: Int) -> Int { assets.count }
 
     func collectionView(_ cv: UICollectionView, cellForItemAt ip: IndexPath) -> UICollectionViewCell {
         guard let cell = cv.dequeueReusableCell(withReuseIdentifier: PhotoCell.reuseID, for: ip) as? PhotoCell
         else { return UICollectionViewCell() }
-        let id = viewModel.identifier(at: ip.item)
+        let asset = assets.object(at: ip.item)
+        let id = asset.localIdentifier
         cell.assetID = id
         // Voice Control says "Tap Photo 3": each photo needs its own name.
         cell.accessibilityLabel = "Photo \(ip.item + 1)"
-        cell.cancelLoad = viewModel.loadThumbnail(at: ip.item, side: 120 * traitCollection.displayScale) { [weak cell] image in
+        cell.cancelLoad = viewModel.loadThumbnail(for: asset, side: 120 * traitCollection.displayScale) { [weak cell] image in
             guard cell?.assetID == id else { return }
             cell?.imageView.image = image
         }
@@ -316,11 +170,19 @@ extension SelectPhotoViewController: UICollectionViewDataSource, UICollectionVie
     }
 
     func collectionView(_ cv: UICollectionView, shouldSelectItemAt ip: IndexPath) -> Bool {
-        viewModel.canSelect(currentCount: cv.indexPathsForSelectedItems?.count ?? 0)
+        viewModel.canSelect()
     }
 
     func collectionView(_ cv: UICollectionView, shouldDeselectItemAt ip: IndexPath) -> Bool {
-        viewModel.canRemoveExisting || !viewModel.isAlreadyAdded(at: ip.item)
+        viewModel.canDeselect(assets.object(at: ip.item).localIdentifier)
+    }
+
+    func collectionView(_ cv: UICollectionView, didSelectItemAt ip: IndexPath) {
+        viewModel.setSelected(true, id: assets.object(at: ip.item).localIdentifier)
+    }
+
+    func collectionView(_ cv: UICollectionView, didDeselectItemAt ip: IndexPath) {
+        viewModel.setSelected(false, id: assets.object(at: ip.item).localIdentifier)
     }
 }
 

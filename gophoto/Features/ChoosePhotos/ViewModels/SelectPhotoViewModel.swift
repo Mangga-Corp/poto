@@ -8,10 +8,12 @@
 import Photos
 import UIKit
 
+/// The picker's selection. It is kept by photo identifier, so it survives moving between albums.
 final class SelectPhotoViewModel {
     var onLoadingChange: ((Bool) -> Void)?
     var onError: ((String) -> Void)?
-    var onFinish: (([PhotoItem]) -> Void)? 
+    var onFinish: (([PhotoItem]) -> Void)?
+    var onSelectionChange: (() -> Void)?
 
     let canRemoveExisting: Bool
 
@@ -19,70 +21,84 @@ final class SelectPhotoViewModel {
     private let limit: Int
     private let existing: [PhotoItem]
     private let existingIDs: Set<String>
-    private var assets: PHFetchResult<PHAsset>
-    private var visibleExisting: PHFetchResult<PHAsset>
+    private var visibleExistingIDs: Set<String>
+    private var selectedIDs: Set<String>
 
     init(service: ChoosePhotosService, existing: [PhotoItem], limit: Int, canRemoveExisting: Bool) {
         let ids = Set(existing.compactMap(\.sourceAssetIdentifier))
+        let visible = Self.availableIDs(among: ids)
         self.service = service
         self.existing = existing
         self.existingIDs = ids
         self.limit = limit
         self.canRemoveExisting = canRemoveExisting
-        self.assets = service.fetchAssets()
-        self.visibleExisting = PHAsset.fetchAssets(withLocalIdentifiers: Array(ids), options: nil)
+        self.visibleExistingIDs = visible
+        self.selectedIDs = visible
     }
-
-    var count: Int { assets.count }
 
     var isLimitedAccess: Bool { service.access == .limited }
 
-    func reload() {
-        assets = service.fetchAssets()
-        visibleExisting = PHAsset.fetchAssets(withLocalIdentifiers: Array(existingIDs), options: nil)
+    var selectedCount: Int { selectedIDs.count }
+
+    func loadAlbums() async -> [PhotoAlbumSection] {
+        await Task.detached(priority: .userInitiated) { ChoosePhotosService.fetchAlbumSections() }.value
     }
 
-    func identifier(at index: Int) -> String { assets.object(at: index).localIdentifier }
+    /// After the limited-access selection changed: drops photos that are gone and selects saved
+    /// photos that just became visible. A saved photo the user unticked stays unticked.
+    func reload() {
+        let visible = Self.availableIDs(among: existingIDs)
+        let newlyVisible = visible.subtracting(visibleExistingIDs)
+        visibleExistingIDs = visible
+        selectedIDs = Self.availableIDs(among: selectedIDs).union(newlyVisible)
+        onSelectionChange?()
+    }
 
-    func isAlreadyAdded(at index: Int) -> Bool { existingIDs.contains(identifier(at: index)) }
+    func isSelected(_ id: String) -> Bool { selectedIDs.contains(id) }
 
-    func alreadyAddedIndexes() -> [Int] {
+    func setSelected(_ selected: Bool, id: String) {
+        if selected { selectedIDs.insert(id) } else { selectedIDs.remove(id) }
+        onSelectionChange?()
+    }
+
+    func canDeselect(_ id: String) -> Bool { canRemoveExisting || !existingIDs.contains(id) }
+
+    /// Where the current selection sits in one album's photos.
+    func selectedIndexes(in assets: PHFetchResult<PHAsset>) -> [Int] {
         var indexes: [Int] = []
-        visibleExisting.enumerateObjects { asset, _, _ in
-            let index = self.assets.index(of: asset)
+        ChoosePhotosService.fetchAssets(identifiers: Array(selectedIDs)).enumerateObjects { asset, _, _ in
+            let index = assets.index(of: asset)
             if index != NSNotFound { indexes.append(index) }
         }
         return indexes
     }
 
     /// Returns a closure that cancels the request.
-    func loadThumbnail(at index: Int, side: CGFloat, completion: @escaping (UIImage?) -> Void) -> () -> Void {
-        let id = service.thumbnail(for: assets.object(at: index), side: side, completion: completion)
+    func loadThumbnail(for asset: PHAsset, side: CGFloat, completion: @escaping (UIImage?) -> Void) -> () -> Void {
+        let id = service.thumbnail(for: asset, side: side, completion: completion)
         return { [service] in service.cancel(id) }
     }
 
-    func canSelect(currentCount: Int) -> Bool {
-        guard hasRoom(currentCount: currentCount) else {
+    func canSelect() -> Bool {
+        guard hasRoom else {
             onError?("A preference can have up to \(limit) photos.")
             return false
         }
         return true
     }
 
-    func hasRoom(currentCount: Int) -> Bool { currentCount + hiddenExistingCount < limit }
+    var hasRoom: Bool { selectedIDs.count + hiddenExistingCount < limit }
 
-    func done(selectedIndexes: [Int]) {
-        let selectedIDs = Set(selectedIndexes.map(identifier(at:)))
-        var visibleIDs = Set<String>()
-        visibleExisting.enumerateObjects { asset, _, _ in visibleIDs.insert(asset.localIdentifier) }
-
+    func done() {
         let kept = existing.filter { item in
-            guard let id = item.sourceAssetIdentifier, visibleIDs.contains(id) else { return true }
+            guard let id = item.sourceAssetIdentifier, visibleExistingIDs.contains(id) else { return true }
             return selectedIDs.contains(id)
         }
-        let newAssets = selectedIndexes.sorted()
-            .map { assets.object(at: $0) }
-            .filter { !existingIDs.contains($0.localIdentifier) }
+        let newIDs = selectedIDs.subtracting(existingIDs)
+        var newAssets: [PHAsset] = []
+        ChoosePhotosService.fetchAssets(identifiers: Array(newIDs)).enumerateObjects { asset, _, _ in
+            newAssets.append(asset)
+        }
 
         guard !newAssets.isEmpty else { onFinish?(kept); return }
         onLoadingChange?(true)
@@ -96,5 +112,13 @@ final class SelectPhotoViewModel {
         }
     }
 
-    private var hiddenExistingCount: Int { existing.count - visibleExisting.count }
+    private var hiddenExistingCount: Int { existing.count - visibleExistingIDs.count }
+
+    private static func availableIDs(among ids: Set<String>) -> Set<String> {
+        var available = Set<String>()
+        ChoosePhotosService.fetchAssets(identifiers: Array(ids)).enumerateObjects { asset, _, _ in
+            available.insert(asset.localIdentifier)
+        }
+        return available
+    }
 }
