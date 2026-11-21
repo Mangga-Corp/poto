@@ -16,7 +16,10 @@ struct CameraOnboardingView: View {
     /// RealityKit (renderer, shader, mesh HP 3D) dibuat sekali di belakang layar selama step shot
     /// size, supaya pindah ke step animasi pertama (setelah Sitting) tidak freeze.
     @State private var isPrewarming3D = false
+    /// Posisi atas card per step. Per step karena card lama masih ada selama transisi.
+    @State private var cardTops: [CameraOnboardingStep: CGFloat] = [:]
 
+    private static let layoutSpace = "cameraOnboardingLayout"
     private static let pickerHeight: CGFloat = 72
     /// Jarak card putih ke demo card shot size (ubah angka ini kalau mau lebih dekat / jauh).
     private static let cardGapToPicker: CGFloat = 4
@@ -48,9 +51,9 @@ struct CameraOnboardingView: View {
                     }
                 }
                 .frame(width: proxy.size.width, height: proxy.size.height)
+                .coordinateSpace(.named(Self.layoutSpace))
             }
         }
-        .overlay(alignment: .topLeading) { skipButton }
         .sensoryFeedback(.selection, trigger: step)
         .accessibilityAddTraits(.isModal)
         .task {
@@ -74,18 +77,15 @@ struct CameraOnboardingView: View {
         .accessibilityHidden(true)
     }
 
-    /// Kiri atas, di tempat tombol close kamera (sedang diredupkan). Hilang di step terakhir:
+    /// Aksi sekunder tepat di bawah Continue, seperti layar setup iOS. Hilang di step terakhir:
     /// di sana Finish sudah menutup tutorial. Sama dengan Finish (flag `cameraOnboardingCompleted`).
     @ViewBuilder
     private var skipButton: some View {
         if !isLastStep {
             Button(CameraOnboardingCopy.skipButton, action: onFinish)
                 .buttonStyle(.potoText)
-                .padding(.horizontal, 16)
-                // Tepat di bawah top bar kamera, supaya tidak menumpuk dengan tombol X (yang diredupkan).
-                .padding(.top, CameraView.topBarHeight)
+                .padding(.top, 6)
                 .accessibilityHint("Closes the camera tips")
-                .transition(.opacity)
         }
     }
 
@@ -119,7 +119,8 @@ struct CameraOnboardingView: View {
  
         case .tiltDown, .tiltUp, .heightUp, .heightDown:
             if let preview = local(.preview, origin) {
-                OnboardingMotionDemo(kind: step.motionKind, direction: step.motionDirection)
+                OnboardingMotionDemo(kind: step.motionKind, direction: step.motionDirection,
+                                     cardTop: cardTops[step].map { $0 - preview.minY })
                     .id(step)
                     .frame(width: preview.width, height: preview.height)
                     .position(x: preview.midX, y: preview.midY)
@@ -152,12 +153,19 @@ struct CameraOnboardingView: View {
                    action: advance)
             .buttonStyle(.potoPrimary)
             .padding(.top, 22)
+
+            skipButton
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 22)
         .frame(maxWidth: .infinity)
         .background(PotoDesign.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 8)
+        .onGeometryChange(for: CGFloat.self) { proxy in
+            proxy.frame(in: .named(Self.layoutSpace)).minY
+        } action: { [step] top in
+            cardTops[step] = top
+        }
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
         .id(step)
