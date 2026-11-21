@@ -8,6 +8,10 @@ struct PhotoSessionSetupView: View {
     /// dropped it: choose photos myself, or find my photos for me (face grouping, iOS 27).
     @State private var isChoosingPhotoSource = false
     @State private var isShowingFacePicker = false
+    /// The picker was opened from the photo source choice: closing it goes back there.
+    @State private var pickerReturnsToPhotoSource = false
+    /// The card selected when the photo source choice opens.
+    @State private var photoSourceSelection = PhotoPickMethod.suggested
     /// Taste rules: "Choose photos myself" = Mode 1 (favorites), "Find my photos for me" = Mode 2
     /// (all photos of me). Saved per preference when it is created (`ReferencePhotoModeStore`).
     @State private var photoMode: ReferencePhotoMode = .favorites
@@ -214,13 +218,15 @@ struct PhotoSessionSetupView: View {
             }
         }
         .navigationDestination(isPresented: $isChoosingPhotoSource) {
-            PhotoSourceChoiceView { source in
+            PhotoSourceChoiceView(initialSelection: photoSourceSelection) { source in
+                photoSourceSelection = source
                 switch source {
                 case .manual:
                     photoMode = .favorites
                     selection.limit = ReferencePhotoMode.favorites.maxPhotos
                     isChoosingPhotoSource = false
                     openPicker()
+                    pickerReturnsToPhotoSource = isPresentingPicker
                 case .suggested:
                     photoMode = .allOfMe
                     selection.limit = ReferencePhotoMode.allOfMe.maxPhotos
@@ -247,7 +253,8 @@ struct PhotoSessionSetupView: View {
                 confirmsStyleUpdate: selection.hasSavedPreference,
                 limit: selection.limit,
                 onSelection: selectedPhotosChanged,
-                onFinish: { isPresentingPicker = false }
+                onCancel: pickerCancelled,
+                onFinish: pickerFinished
             )
             .ignoresSafeArea()
         }
@@ -685,6 +692,24 @@ struct PhotoSessionSetupView: View {
     private func openPicker() {
         guard !selection.isSavingPhotos, !selection.isStartingAnalysis else { return }
         isPresentingPicker = true
+    }
+
+    /// Close on the picker: back to the photo source choice when it was opened from there. It is
+    /// restored without animation, behind the picker, so this screen never shows in between.
+    private func pickerCancelled() {
+        if pickerReturnsToPhotoSource {
+            var transaction = Transaction()
+            transaction.disablesAnimations = true
+            withTransaction(transaction) { isChoosingPhotoSource = true }
+        }
+        pickerReturnsToPhotoSource = false
+        isPresentingPicker = false
+    }
+
+    private func pickerFinished() {
+        pickerReturnsToPhotoSource = false
+        photoSourceSelection = .suggested
+        isPresentingPicker = false
     }
 
     private var isAddingDisabled: Bool {

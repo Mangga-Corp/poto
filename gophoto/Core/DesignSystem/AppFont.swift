@@ -172,9 +172,14 @@ private struct WindowContentSizeLimit: UIViewRepresentable {
     func updateUIView(_ uiView: UIView, context: Context) {}
 
     private final class WindowLimitView: UIView {
+        /// Kept because a full-screen presentation takes this view out of its window: the limit
+        /// must still apply when the text size changes while such a screen is open.
+        private weak var scene: UIWindowScene?
+
         override func didMoveToWindow() {
             super.didMoveToWindow()
             guard window != nil else { return }
+            scene = window?.windowScene
             window?.maximumContentSizeCategory = AppFont.maximumContentSizeCategory
             applySceneLimit()
             NotificationCenter.default.removeObserver(self, name: UIContentSizeCategory.didChangeNotification, object: nil)
@@ -189,7 +194,7 @@ private struct WindowContentSizeLimit: UIViewRepresentable {
         /// Overrides the scene's text size only while the user's setting (the Larger Text slider) is
         /// above the app's largest size; below it the scene follows the setting untouched.
         private func applySceneLimit() {
-            guard let scene = window?.windowScene else { return }
+            guard let scene else { return }
             let limit = AppFont.maximumContentSizeCategory
             // Reading an override that isn't set throws (NSInternalInconsistencyException), so
             // `contains` is checked before reading it.

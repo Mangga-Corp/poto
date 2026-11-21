@@ -40,7 +40,9 @@ final class PreferenceEditorPresenter {
             return analysis?.photoShotSizes?[photo.id.uuidString]
                 ?? analysis?.photoFramings?[photo.id.uuidString]
         }
-        editor.modalPresentationStyle = .fullScreen
+        // In a navigation controller for the system bar, which the grid scrolls under.
+        let navigation = UINavigationController(rootViewController: editor)
+        navigation.modalPresentationStyle = .fullScreen
         // Photos changed: the analysis runs again, so show it (training) and the new style card.
         editor.onBack = { [weak self, weak editor, weak presenter] in
             guard let self, let editor, photosChanged.value,
@@ -53,7 +55,7 @@ final class PreferenceEditorPresenter {
                 presenter?.dismiss(animated: true) { onComplete(true) }
             }
         }
-        presenter.present(editor, animated: true)
+        presenter.present(navigation, animated: true)
     }
 
     /// Analysing screen over `host`, then the "Your style" card; `finish` closes the flow.

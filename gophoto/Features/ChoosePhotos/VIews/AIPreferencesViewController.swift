@@ -22,12 +22,47 @@ final class AIPreferencesViewController: UIViewController {
 
     // MARK: - Navigation Bar Items
 
-    private let backButton = CircleButton(symbol: "chevron.left", accessibilityLabel: "Back")
-    private let moreButton = CircleButton(symbol: "ellipsis", accessibilityLabel: "More options")
-    private let selectButton = PillButton(title: "Select")
-    private let trashButton = CircleButton(symbol: "trash", accessibilityLabel: "Delete", tint: Theme.destructive)
+    private lazy var backItem = UIBarButtonItem(
+        title: "Back", image: UIImage(systemName: "chevron.left"),
+        primaryAction: UIAction { [weak self] _ in self?.backTapped() })
+    // In the bar so adding stays one tap away however far the grid is scrolled.
+    private lazy var addItem = UIBarButtonItem(
+        title: "Add photos", image: UIImage(systemName: "plus"),
+        primaryAction: UIAction { [weak self] _ in self?.photoPickerFlow?.start() })
+    private lazy var moreItem = UIBarButtonItem(
+        title: "More options", image: UIImage(systemName: "ellipsis"), menu: makeMoreMenu())
+    private lazy var selectItem: UIBarButtonItem = {
+        let item = UIBarButtonItem(title: viewModel.selectButtonTitle,
+                                   primaryAction: UIAction(title: viewModel.selectButtonTitle) { [weak self] _ in
+            self?.viewModel.toggleSelecting()
+        })
+        let attributes: [NSAttributedString.Key: Any] = [.font: UIFont.app(size: 17, weight: .regular)]
+        item.setTitleTextAttributes(attributes, for: .normal)
+        item.setTitleTextAttributes(attributes, for: .highlighted)
+        return item
+    }()
+    private lazy var trashItem: UIBarButtonItem = {
+        let item = UIBarButtonItem(title: "Delete", image: UIImage(systemName: "trash"),
+                                   primaryAction: UIAction { [weak self] _ in self?.confirmDelete() })
+        item.tintColor = Theme.destructive
+        return item
+    }()
+    /// Keeps Delete and Cancel in separate glass shapes.
+    private let selectionItemSpacer = UIBarButtonItem.fixedSpace(0)
 
-    // MARK: - Header Elements (Left-aligned as in reference design)
+    /// The page title, shown in the bar once the one in the content has scrolled under it.
+    private let barTitle = BarTitleView()
+
+    // MARK: - Header Elements (scroll with the photos)
+
+    private lazy var headerStack: UIStackView = {
+        let stack = UIStackView(arrangedSubviews: [titleLabel, subtitleLabel, guidanceLabel, privacyNote])
+        stack.axis = .vertical
+        stack.spacing = 2
+        stack.setCustomSpacing(4, after: titleLabel)
+        stack.setCustomSpacing(10, after: guidanceLabel)
+        return stack
+    }()
 
     private let titleLabel: UILabel = {
         let label = UILabel()
@@ -60,12 +95,12 @@ final class AIPreferencesViewController: UIViewController {
         return label
     }()
 
-    // MARK: - Privacy Banner
+    // MARK: - Privacy Note
 
-    private lazy var privacyBanner: UIView = {
+    private lazy var privacyNote: UIView = {
         let icon = UIImageView(image: UIImage(systemName: "lock.shield.fill"))
         // Follows the text size, like the label next to it.
-        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .body)
+        icon.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .footnote)
             .applying(UIImage.SymbolConfiguration(weight: .semibold))
         icon.tintColor = Theme.accent
         icon.contentMode = .center
@@ -76,39 +111,27 @@ final class AIPreferencesViewController: UIViewController {
         label.text = "Your photos stay on this iPhone. Nothing is uploaded."
         label.font = .app(size: 13, weight: .regular, relativeTo: .footnote)
         label.adjustsFontForContentSizeCategory = true
-        label.textColor = Theme.text
+        label.textColor = Theme.secondaryText
         label.numberOfLines = 0
 
         let stack = UIStackView(arrangedSubviews: [icon, label])
         stack.axis = .horizontal
         stack.alignment = .center
-        stack.spacing = 10
-        stack.isLayoutMarginsRelativeArrangement = true
-        stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 14, bottom: 12, trailing: 14)
-        stack.backgroundColor = Theme.tagBackground
-        stack.layer.cornerRadius = 14
-        stack.layer.borderWidth = 1
-        stack.applyLayerColors {
-            $0.layer.borderColor = Theme.accentBorder.withAlphaComponent(0.3)
-                .resolvedColor(with: $0.traitCollection).cgColor
-        }
+        stack.spacing = 6
         return stack
-    }()
-
-    // MARK: - Wide "+ Add photos" Button (Full width dashed box as in Image 1)
-
-    private lazy var wideAddPhotosButton: WideAddPhotosButton = {
-        let btn = WideAddPhotosButton()
-        btn.addAction(UIAction { [weak self] _ in
-            self?.photoPickerFlow?.start()
-        }, for: .touchUpInside)
-        return btn
     }()
 
     // MARK: - 3-Column Grid
 
     private lazy var collectionView: UICollectionView = {
-        let layout = UICollectionViewCompositionalLayout { [weak self] sectionIndex, _ in
+        // The page header is part of the scrolling content, so it never covers the photos.
+        let configuration = UICollectionViewCompositionalLayoutConfiguration()
+        configuration.boundarySupplementaryItems = [
+            NSCollectionLayoutBoundarySupplementaryItem(
+                layoutSize: .init(widthDimension: .fractionalWidth(1), heightDimension: .estimated(140)),
+                elementKind: PageHeaderView.elementKind, alignment: .top)
+        ]
+        let layout = UICollectionViewCompositionalLayout(sectionProvider: { [weak self] sectionIndex, _ in
             guard let self else { return nil }
             let sections = self.sections
             // 3-column grid: 1/3 width, aspect ratio 1:1
@@ -131,7 +154,7 @@ final class AIPreferencesViewController: UIViewController {
                 section.boundarySupplementaryItems = [header]
             }
             return section
-        }
+        }, configuration: configuration)
         return UICollectionView(frame: .zero, collectionViewLayout: layout)
     }()
 
@@ -217,15 +240,16 @@ final class AIPreferencesViewController: UIViewController {
         collectionView.register(SectionHeaderView.self,
                                 forSupplementaryViewOfKind: UICollectionView.elementKindSectionHeader,
                                 withReuseIdentifier: SectionHeaderView.reuseID)
+        collectionView.register(PageHeaderView.self,
+                                forSupplementaryViewOfKind: PageHeaderView.elementKind,
+                                withReuseIdentifier: PageHeaderView.reuseID)
 
         viewModel.onItemsChange = { [weak self] in self?.renderItems() }
         viewModel.onSelectionChange = { [weak self] in self?.renderSelection() }
-        backButton.addAction(UIAction { [weak self] _ in self?.backTapped() }, for: .touchUpInside)
-        selectButton.addAction(UIAction { [weak self] _ in self?.viewModel.toggleSelecting() }, for: .touchUpInside)
-        trashButton.addAction(UIAction { [weak self] _ in self?.confirmDelete() }, for: .touchUpInside)
 
-        // Menu on top right ellipsis button
-        setupMoreMenu()
+        navigationController?.navigationBar.tintColor = Theme.text
+        navigationItem.leftBarButtonItem = backItem
+        navigationItem.titleView = barTitle
 
         photoPickerFlow = PhotoPreferencePickerFlow(
             presenter: self,
@@ -241,66 +265,19 @@ final class AIPreferencesViewController: UIViewController {
             photoPickerFlow?.confirmsStyleUpdate = true
         }
 
-        // Header container (title, subtitle, guidance, privacy, wide add button)
-        let headerStack = UIStackView(arrangedSubviews: [
-            titleLabel,
-            subtitleLabel,
-            guidanceLabel,
-            privacyBanner,
-            wideAddPhotosButton
-        ])
-        headerStack.axis = .vertical
-        headerStack.spacing = 6
-        headerStack.setCustomSpacing(2, after: titleLabel)
-        headerStack.setCustomSpacing(2, after: subtitleLabel)
-        headerStack.setCustomSpacing(16, after: guidanceLabel)
-        headerStack.setCustomSpacing(14, after: privacyBanner)
-
-        [headerStack, collectionView, backButton, moreButton, selectButton, trashButton].forEach {
-            $0.translatesAutoresizingMaskIntoConstraints = false
-            view.addSubview($0)
-        }
-
-        // 50 pt, taller only when the text needs it (Larger Text).
-        let addButtonHeight = wideAddPhotosButton.heightAnchor.constraint(equalToConstant: 50)
-        addButtonHeight.priority = .defaultLow
-
-        let safe = view.safeAreaLayoutGuide
+        collectionView.translatesAutoresizingMaskIntoConstraints = false
+        view.addSubview(collectionView)
         NSLayoutConstraint.activate([
-            addButtonHeight,
-            // Top navigation row
-            backButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 8),
-            backButton.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
-            backButton.widthAnchor.constraint(equalToConstant: 44),
-            backButton.heightAnchor.constraint(equalToConstant: 44),
-
-            moreButton.topAnchor.constraint(equalTo: safe.topAnchor, constant: 8),
-            moreButton.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
-            moreButton.widthAnchor.constraint(equalToConstant: 44),
-            moreButton.heightAnchor.constraint(equalToConstant: 44),
-
-            selectButton.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
-            selectButton.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
-
-            trashButton.trailingAnchor.constraint(equalTo: selectButton.leadingAnchor, constant: -10),
-            trashButton.centerYAnchor.constraint(equalTo: backButton.centerYAnchor),
-            trashButton.widthAnchor.constraint(equalToConstant: 44),
-            trashButton.heightAnchor.constraint(equalToConstant: 44),
-
-            // Header Stack (below navigation row)
-            headerStack.topAnchor.constraint(equalTo: backButton.bottomAnchor, constant: 14),
-            headerStack.leadingAnchor.constraint(equalTo: safe.leadingAnchor, constant: 16),
-            headerStack.trailingAnchor.constraint(equalTo: safe.trailingAnchor, constant: -16),
-
-            // Wide add photos button height
-            wideAddPhotosButton.heightAnchor.constraint(greaterThanOrEqualToConstant: 50),
-
-            // Grid CollectionView below header stack
-            collectionView.topAnchor.constraint(equalTo: headerStack.bottomAnchor, constant: 14),
+            collectionView.topAnchor.constraint(equalTo: view.topAnchor),
             collectionView.leadingAnchor.constraint(equalTo: view.leadingAnchor),
             collectionView.trailingAnchor.constraint(equalTo: view.trailingAnchor),
             collectionView.bottomAnchor.constraint(equalTo: view.bottomAnchor),
         ])
+
+        // The header's height follows its text.
+        registerForTraitChanges([UITraitPreferredContentSizeCategory.self]) { (controller: AIPreferencesViewController, _) in
+            controller.collectionView.collectionViewLayout.invalidateLayout()
+        }
 
         renderItems()
         renderSelection()
@@ -311,15 +288,40 @@ final class AIPreferencesViewController: UIViewController {
         if viewModel.shouldRequestAccessOnAppear() { viewModel.requestAccess { _ in } }
     }
 
-    private func setupMoreMenu() {
+    override func viewDidLayoutSubviews() {
+        super.viewDidLayoutSubviews()
+        sizeBarTitle()
+        updateBarTitleVisibility()
+    }
+
+    /// The bar keeps a title view's old frame when its text changes, which cut "1 Photo Selected"
+    /// down to "1". The width leaves room for Back and the buttons on the right.
+    private func sizeBarTitle() {
+        let maxWidth = max(view.bounds.width - (viewModel.isSelecting ? 250 : 200), 120)
+        let size = barTitle.label.sizeThatFits(CGSize(width: maxWidth, height: .greatestFiniteMagnitude))
+        guard barTitle.fittedSize != size else { return }
+        barTitle.fittedSize = size
+        barTitle.bounds.size = size
+        navigationController?.navigationBar.setNeedsLayout()
+    }
+
+    /// The bar shows the title only once the large one has scrolled under the bar.
+    private func updateBarTitleVisibility() {
+        let scrolled = collectionView.contentOffset.y + collectionView.adjustedContentInset.top
+        let isVisible = titleLabel.bounds.height > 0 && scrolled > PageHeaderView.topInset + titleLabel.frame.maxY
+        let alpha: CGFloat = isVisible ? 1 : 0
+        guard barTitle.label.alpha != alpha else { return }
+        UIView.animate(withDuration: 0.2) { self.barTitle.label.alpha = alpha }
+    }
+
+    private func makeMoreMenu() -> UIMenu {
         let selectAction = UIAction(title: "Select Photos", image: UIImage(systemName: "checkmark.circle")) { [weak self] _ in
             self?.viewModel.toggleSelecting()
         }
         let renameAction = UIAction(title: "Rename", image: UIImage(systemName: "pencil")) { [weak self] _ in
             self?.promptRename()
         }
-        moreButton.menu = UIMenu(children: [selectAction, renameAction])
-        moreButton.showsMenuAsPrimaryAction = true
+        return UIMenu(children: [selectAction, renameAction])
     }
 
     private func promptRename() {
@@ -342,8 +344,16 @@ final class AIPreferencesViewController: UIViewController {
 
     // MARK: - Render
 
+    private func renderTitle() {
+        let title = viewModel.displayTitle
+        titleLabel.text = title
+        barTitle.label.text = title
+        barTitle.label.largeContentTitle = title
+        sizeBarTitle()
+    }
+
     private func renderItems() {
-        titleLabel.text = viewModel.displayTitle
+        renderTitle()
         let count = viewModel.items.count
         subtitleLabel.text = "Reference photos · \(count) of \(viewModel.limit)"
         collectionView.reloadData()
@@ -352,14 +362,14 @@ final class AIPreferencesViewController: UIViewController {
 
     private func renderSelection() {
         let selecting = viewModel.isSelecting
-        selectButton.isHidden = !selecting
-        selectButton.updateTitle(viewModel.selectButtonTitle)
-        trashButton.isHidden = !selecting
-        trashButton.isEnabled = viewModel.canTapDelete
-        moreButton.isHidden = selecting
-        wideAddPhotosButton.isUserInteractionEnabled = !selecting
-        wideAddPhotosButton.alpha = selecting ? 0.4 : 1.0
-        titleLabel.text = viewModel.displayTitle
+        selectItem.title = viewModel.selectButtonTitle
+        trashItem.isEnabled = viewModel.canTapDelete
+        // Set only when the mode changes: replacing the items on every tapped photo makes them flicker.
+        let items = selecting ? [selectItem, selectionItemSpacer, trashItem] : [moreItem, addItem]
+        if navigationItem.rightBarButtonItems?.first !== items.first {
+            navigationItem.setRightBarButtonItems(items, animated: viewIfLoaded?.window != nil)
+        }
+        renderTitle()
         collectionView.reloadData()
     }
 
@@ -435,6 +445,12 @@ extension AIPreferencesViewController: UICollectionViewDataSource, UICollectionV
 
     func collectionView(_ cv: UICollectionView, viewForSupplementaryElementOfKind kind: String,
                         at ip: IndexPath) -> UICollectionReusableView {
+        if kind == PageHeaderView.elementKind {
+            let pageHeader = cv.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: PageHeaderView.reuseID,
+                                                                 for: ip)
+            (pageHeader as? PageHeaderView)?.setContent(headerStack)
+            return pageHeader
+        }
         let header = cv.dequeueReusableSupplementaryView(ofKind: kind, withReuseIdentifier: SectionHeaderView.reuseID,
                                                          for: ip)
         let s = sections
@@ -456,90 +472,68 @@ extension AIPreferencesViewController: UICollectionViewDataSource, UICollectionV
             showPhoto(at: index)
         }
     }
+
+    func scrollViewDidScroll(_ scrollView: UIScrollView) {
+        updateBarTitleVisibility()
+    }
 }
 
-// MARK: - Wide "+ Add photos" Button (Full width dashed button)
+// MARK: - Bar Title
 
-private final class WideAddPhotosButton: UIControl {
-    private let dashedLayer = CAShapeLayer()
-
-    private let plusIcon: UIImageView = {
-        let iv = UIImageView(image: UIImage(systemName: "plus"))
-        iv.preferredSymbolConfiguration = UIImage.SymbolConfiguration(textStyle: .subheadline)
-            .applying(UIImage.SymbolConfiguration(weight: .medium))
-        iv.tintColor = Theme.accent
-        iv.contentMode = .scaleAspectFit
-        return iv
+/// A compact bar title: the same size at every Larger Text setting; a long name wraps onto a second
+/// line, and long-press shows it enlarged (Large Content Viewer). The label fades inside this view
+/// because the navigation bar resets the alpha of the title view itself during its own updates.
+private final class BarTitleView: UIView {
+    let label: UILabel = {
+        let label = UILabel()
+        label.font = .app(size: 17, weight: .semibold)
+        label.textColor = Theme.text
+        label.textAlignment = .center
+        label.numberOfLines = 2
+        label.lineBreakMode = .byWordWrapping
+        label.alpha = 0
+        label.accessibilityTraits.insert(.header)
+        label.isUserInteractionEnabled = true
+        label.showsLargeContentViewer = true
+        label.addInteraction(UILargeContentViewerInteraction())
+        label.autoresizingMask = [.flexibleWidth, .flexibleHeight]
+        return label
     }()
 
-    private let titleLabel: UILabel = {
-        let lbl = UILabel()
-        lbl.text = "Add photos"
-        lbl.font = .app(size: 15, weight: .semibold, relativeTo: .subheadline)
-        lbl.adjustsFontForContentSizeCategory = true
-        lbl.numberOfLines = 0
-        lbl.textAlignment = .center
-        lbl.textColor = Theme.accent
-        return lbl
-    }()
+    var fittedSize: CGSize = .zero {
+        didSet { invalidateIntrinsicContentSize() }
+    }
+
+    override var intrinsicContentSize: CGSize { fittedSize }
 
     override init(frame: CGRect) {
         super.init(frame: frame)
-        backgroundColor = Theme.accentSubtle
-        layer.cornerRadius = 14
-        clipsToBounds = true
-        // A custom UIControl is not an accessibility element by default: without this,
-        // VoiceOver and Voice Control ("Tap Add photos") cannot reach it.
-        isAccessibilityElement = true
-        accessibilityLabel = "Add photos"
-        accessibilityUserInputLabels = ["Add photos"]
-        accessibilityTraits = .button
-
-        applyLayerColors { [dashedLayer] view in
-            dashedLayer.strokeColor = Theme.accentBorder.resolvedColor(with: view.traitCollection).cgColor
-        }
-        dashedLayer.fillColor = UIColor.clear.cgColor
-        dashedLayer.lineWidth = 1.5
-        dashedLayer.lineDashPattern = [6, 4]
-        layer.addSublayer(dashedLayer)
-
-        let stack = UIStackView(arrangedSubviews: [plusIcon, titleLabel])
-        stack.axis = .horizontal
-        stack.alignment = .center
-        stack.spacing = 8
-        stack.isUserInteractionEnabled = false
-        stack.translatesAutoresizingMaskIntoConstraints = false
-        addSubview(stack)
-        NSLayoutConstraint.activate([
-            stack.centerXAnchor.constraint(equalTo: centerXAnchor),
-            stack.centerYAnchor.constraint(equalTo: centerYAnchor),
-            // Grows with the text instead of clipping it.
-            stack.topAnchor.constraint(greaterThanOrEqualTo: topAnchor, constant: 10),
-            stack.leadingAnchor.constraint(greaterThanOrEqualTo: leadingAnchor, constant: 12),
-        ])
+        label.frame = bounds
+        addSubview(label)
     }
 
     required init?(coder: NSCoder) { fatalError("init(coder:) has not been implemented") }
+}
 
-    override func layoutSubviews() {
-        super.layoutSubviews()
-        let path = UIBezierPath(roundedRect: bounds.insetBy(dx: 1, dy: 1), cornerRadius: 14)
-        dashedLayer.path = path.cgPath
-        dashedLayer.frame = bounds
-    }
+// MARK: - Page Header (title and notes, scrolling with the photos)
 
-    override var isHighlighted: Bool {
-        didSet {
-            alpha = isHighlighted ? 0.6 : 1.0
-        }
-    }
+private final class PageHeaderView: UICollectionReusableView {
+    static let elementKind = "preference-page-header"
+    static let reuseID = "PageHeaderView"
+    static let topInset: CGFloat = 8
 
-    /// VoiceOver double-tap and Voice Control "Tap Add photos" activate the control without a touch:
-    /// run the same action a tap runs.
-    override func accessibilityActivate() -> Bool {
-        guard isEnabled, isUserInteractionEnabled else { return false }
-        sendActions(for: .touchUpInside)
-        return true
+    /// Hosts the controller's one header; the grid can hand it a different reusable view on reload.
+    func setContent(_ content: UIView) {
+        guard content.superview !== self else { return }
+        content.removeFromSuperview()
+        content.translatesAutoresizingMaskIntoConstraints = false
+        addSubview(content)
+        NSLayoutConstraint.activate([
+            content.topAnchor.constraint(equalTo: topAnchor, constant: Self.topInset),
+            content.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
+            content.trailingAnchor.constraint(equalTo: trailingAnchor, constant: -16),
+            content.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -10),
+        ])
     }
 }
 
@@ -572,13 +566,16 @@ private final class SectionHeaderView: UICollectionReusableView {
         stack.axis = .horizontal
         stack.alignment = .firstBaseline
         stack.spacing = 6
+        // The title keeps its line; the count wraps first when both don't fit.
+        titleLabel.setContentCompressionResistancePriority(.required, for: .horizontal)
         stack.translatesAutoresizingMaskIntoConstraints = false
         addSubview(stack)
+        // The section's 13 pt inset + 3 lines the text up with the photos' edge.
         NSLayoutConstraint.activate([
             stack.topAnchor.constraint(equalTo: topAnchor, constant: 6),
             stack.bottomAnchor.constraint(equalTo: bottomAnchor, constant: -4),
-            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 16),
-            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -16)
+            stack.leadingAnchor.constraint(equalTo: leadingAnchor, constant: 3),
+            stack.trailingAnchor.constraint(lessThanOrEqualTo: trailingAnchor, constant: -3)
         ])
     }
 
