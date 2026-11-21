@@ -12,9 +12,9 @@ struct WelcomeGalleryView: View {
             .overlay(alignment: .bottom) {
                 LinearGradient(
                     stops: [
-                        .init(color: GoPhotoDesign.background.opacity(0), location: 0),
-                        .init(color: GoPhotoDesign.background.opacity(0.72), location: 0.48),
-                        .init(color: GoPhotoDesign.background, location: 1)
+                        .init(color: PotoDesign.background.opacity(0), location: 0),
+                        .init(color: PotoDesign.background.opacity(0.72), location: 0.48),
+                        .init(color: PotoDesign.background, location: 1)
                     ],
                     startPoint: .top,
                     endPoint: .bottom

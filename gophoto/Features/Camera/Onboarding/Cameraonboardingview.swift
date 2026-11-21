@@ -80,7 +80,7 @@ struct CameraOnboardingView: View {
     private var skipButton: some View {
         if !isLastStep {
             Button(CameraOnboardingCopy.skipButton, action: onFinish)
-                .buttonStyle(.goPhotoText)
+                .buttonStyle(.potoText)
                 .padding(.horizontal, 16)
                 // Tepat di bawah top bar kamera, supaya tidak menumpuk dengan tombol X (yang diredupkan).
                 .padding(.top, CameraView.topBarHeight)
@@ -135,14 +135,14 @@ struct CameraOnboardingView: View {
                 .padding(.bottom, 16)
  
             Text(step.title)
-                .font(GoPhotoDesign.largeTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.largeTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .multilineTextAlignment(.center)
                 .fixedSize(horizontal: false, vertical: true)
  
             Text(step.message)
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .multilineTextAlignment(.center)
                 .lineSpacing(4)
                 .fixedSize(horizontal: false, vertical: true)
@@ -150,13 +150,13 @@ struct CameraOnboardingView: View {
  
             Button(isLastStep ? CameraOnboardingCopy.finishButton : CameraOnboardingCopy.continueButton,
                    action: advance)
-            .buttonStyle(.goPhotoPrimary)
+            .buttonStyle(.potoPrimary)
             .padding(.top, 22)
         }
         .padding(.horizontal, 24)
         .padding(.vertical, 22)
         .frame(maxWidth: .infinity)
-        .background(GoPhotoDesign.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
+        .background(PotoDesign.surface, in: RoundedRectangle(cornerRadius: 28, style: .continuous))
         .shadow(color: .black.opacity(0.25), radius: 20, x: 0, y: 8)
         .padding(.horizontal, 16)
         .padding(.vertical, 8)
@@ -168,7 +168,7 @@ struct CameraOnboardingView: View {
         HStack(spacing: 6) {
             ForEach(CameraOnboardingStep.allCases, id: \.self) { item in
                 Capsule()
-                    .fill(item == step ? GoPhotoDesign.primary : GoPhotoDesign.primaryBorder)
+                    .fill(item == step ? PotoDesign.primary : PotoDesign.primaryBorder)
                     .frame(width: item == step ? 20 : 6, height: 6)
             }
         }

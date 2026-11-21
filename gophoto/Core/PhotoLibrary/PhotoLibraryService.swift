@@ -22,7 +22,7 @@ nonisolated enum PhotoLibraryError: LocalizedError {
     var errorDescription: String? {
         switch self {
         case .permissionDenied:
-            return "GoPhoto can't save to Photos. Allow it in Settings → GoPhoto → Photos."
+            return "Poto can't save to Photos. Allow it in Settings → Poto → Photos."
         case .saveFailed:
             return "Couldn't save the photo. Please try again."
         }

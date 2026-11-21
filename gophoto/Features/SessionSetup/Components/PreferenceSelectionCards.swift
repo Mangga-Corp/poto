@@ -32,7 +32,7 @@ struct PreferenceSelectionCard: View {
             }
         }
         .padding(14)
-        .goPhotoCard(isSelected: isSelected)
+        .potoCard(isSelected: isSelected)
     }
 
     /// Accessibility text sizes: the name and "Last Used" beside the photo with the selection mark
@@ -70,8 +70,8 @@ struct PreferenceSelectionCard: View {
     /// Wraps onto more lines when it doesn't fit (Larger Text, "Last Used" beside it).
     private var name: some View {
         Text(card.name)
-            .font(GoPhotoDesign.cardTitle)
-            .foregroundStyle(GoPhotoDesign.primaryText)
+            .font(PotoDesign.cardTitle)
+            .foregroundStyle(PotoDesign.primaryText)
             .fixedSize(horizontal: false, vertical: true)
             .frame(maxWidth: .infinity, alignment: .leading)
     }
@@ -81,12 +81,12 @@ struct PreferenceSelectionCard: View {
             Text("Last Used")
                 .lineLimit(1)
                 .fixedSize()
-                .font(GoPhotoDesign.smallLabel)
-                .foregroundStyle(GoPhotoDesign.tagText)
+                .font(PotoDesign.smallLabel)
+                .foregroundStyle(PotoDesign.tagText)
                 .padding(.horizontal, 10)
                 .padding(.vertical, 5)
                 // On a selected card the usual tag fill matches the card, so it uses the chips' fill.
-                .background(isSelected ? GoPhotoDesign.surface : GoPhotoDesign.tagBackground, in: Capsule())
+                .background(isSelected ? PotoDesign.surface : PotoDesign.tagBackground, in: Capsule())
                 .layoutPriority(1)
         }
     }
@@ -94,14 +94,14 @@ struct PreferenceSelectionCard: View {
     private var summaryAndChips: some View {
         VStack(alignment: .leading, spacing: 6) {
             Text(card.summary)
-                .font(GoPhotoDesign.secondaryBody)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.secondaryBody)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
 
             if card.isUpdating {
                 Label("Updating your style…", systemImage: "arrow.triangle.2.circlepath")
-                    .font(GoPhotoDesign.smallLabel)
-                    .foregroundStyle(GoPhotoDesign.tagText)
+                    .font(PotoDesign.smallLabel)
+                    .foregroundStyle(PotoDesign.tagText)
             } else if !card.chips.isEmpty {
                 ChipFlowLayout {
                     ForEach(card.chips, id: \.self) { SessionChip(text: $0, onSelectedCard: isSelected) }
@@ -123,7 +123,7 @@ struct PreferenceSelectionCard: View {
         case .unavailable:
             Image(systemName: "exclamationmark.circle")
                 .font(AppFont.system(size: 22))
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .frame(width: 30, height: 30)
                 .accessibilityHidden(true)
         }
@@ -138,28 +138,28 @@ struct AddPreferenceCard: View {
             HStack(spacing: 14) {
                 Image(systemName: "plus")
                     .font(AppFont.system(size: 20, weight: .regular))
-                    .foregroundStyle(GoPhotoDesign.primary)
+                    .foregroundStyle(PotoDesign.primary)
                     .frame(width: 44, height: 44)
-                    .background(GoPhotoDesign.surface, in: RoundedRectangle(cornerRadius: GoPhotoDesign.controlCornerRadius, style: .continuous))
+                    .background(PotoDesign.surface, in: RoundedRectangle(cornerRadius: PotoDesign.controlCornerRadius, style: .continuous))
 
                 VStack(alignment: .leading, spacing: 3) {
                     Text("Add Style")
-                        .font(GoPhotoDesign.cardTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .font(PotoDesign.cardTitle)
+                        .foregroundStyle(PotoDesign.primaryText)
                     // The app analyses the photos with its bundled models; it does not train a model.
                     Text("Add reference photos to personalize your guide.")
-                        .font(GoPhotoDesign.secondaryBody)
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
+                        .font(PotoDesign.secondaryBody)
+                        .foregroundStyle(PotoDesign.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
                 }
                 .frame(maxWidth: .infinity, alignment: .leading)
 
                 Image(systemName: "chevron.right")
                     .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
+                    .foregroundStyle(PotoDesign.secondaryText)
             }
             .padding(16)
-            .goPhotoCard(fill: GoPhotoDesign.secondaryBackground)
+            .potoCard(fill: PotoDesign.secondaryBackground)
         }
         .buttonStyle(.plain)
         .accessibilityHint("Opens the photo picker to create a preference")

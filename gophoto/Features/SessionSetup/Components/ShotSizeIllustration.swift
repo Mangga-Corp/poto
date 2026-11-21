@@ -38,11 +38,11 @@ struct ShotSizeIllustration: View {
     var body: some View {
         GeometryReader { geometry in
             let size = geometry.size
-            let figureColor = isSelected ? GoPhotoDesign.primary : Self.idleFigure
+            let figureColor = isSelected ? PotoDesign.primary : Self.idleFigure
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
                     .fill(isSelected
-                          ? AnyShapeStyle(GoPhotoDesign.surface)
+                          ? AnyShapeStyle(PotoDesign.surface)
                           : AnyShapeStyle(LinearGradient(colors: [Self.idleTop, Self.idleBottom],
                                                          startPoint: .top, endPoint: .bottom)))
 
@@ -60,10 +60,10 @@ struct ShotSizeIllustration: View {
                     }
 
                 ViewfinderFrame(cut: cut)
-                    .stroke(GoPhotoDesign.primary.opacity(isSelected ? 0.9 : 0.6),
+                    .stroke(PotoDesign.primary.opacity(isSelected ? 0.9 : 0.6),
                             style: StrokeStyle(lineWidth: 1, dash: [2.5, 2]))
                 ViewfinderCorners(cut: cut)
-                    .stroke(GoPhotoDesign.primary, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
+                    .stroke(PotoDesign.primary, style: StrokeStyle(lineWidth: 1.6, lineCap: .round))
             }
         }
         .aspectRatio(0.86, contentMode: .fit)

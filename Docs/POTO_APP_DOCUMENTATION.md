@@ -1,4 +1,4 @@
-# Dokumentasi Lengkap Aplikasi Vacato (codebase: GoPhoto)
+# Dokumentasi Lengkap Aplikasi Poto (codebase: gophoto)
 
 > Dokumen ini disusun dengan membaca seluruh source code repository (reverse-engineering), bukan dari asumsi.
 > Setiap klaim merujuk ke file di `gophoto/…`. Hal yang tidak bisa dipastikan dari kode ditandai **[PERLU KONFIRMASI]**.
@@ -6,7 +6,7 @@
 > - **Snapshot kode:** branch `main`, commit `63a19cd` ("camera permissions updated"), 237 commit sejak 2026-10-10.
 > - **Pembaruan 13 Nov 2026 (branch `Adjust-Live-Guidance`, setelah merge `main`):** perubahan guide Phased, analisis preset, dan fitur developer 12–13 Nov dimasukkan ke §6.4, §6.6, §6.7, §6.12, §6.15, §7.4.2, §14, §16. Ringkasannya di [§17 Changelog](#17-changelog-1215-nov-2026).
 > - **Aturan selera Mode 1 (15 Nov 2026):** analisis preset sekarang mengelompokkan foto referensi per shot size menjadi gaya, menghitung suara per scene, bertanya ke user bila hasilnya tidak jelas, dan memakai foto medoid gaya pemenang sebagai target guide. Lihat §6.15.1 dan §17.
-> - **Pembersihan 13 Nov 2026 (kode developer keluar dari repo ini):** saklar `appMode` dihapus. GoPhoto sekarang hanya berisi **Phased · Auto crop**. Semua alat developer (ExperimentBar, GuideDebugPanel, Replay, Guide log, Record GT, guide Main/Legacy, Analysis Results, Shot Analysis) pindah ke repo **debugphoto** (§6.12). Bagian lain yang masih menyebut "appMode 2" atau "dev-only" menggambarkan keadaan sebelum pembersihan; baris terkait di §13 dan §15 sudah diberi tanda **dipindah ke debugphoto**. Sumber angka: `Core/Guide/Phased/PhasedParameters.swift` dan `Docs/Experiments/PhaseGuide/Parameters.md`.
+> - **Pembersihan 13 Nov 2026 (kode developer keluar dari repo ini):** saklar `appMode` dihapus. Poto sekarang hanya berisi **Phased · Auto crop**. Semua alat developer (ExperimentBar, GuideDebugPanel, Replay, Guide log, Record GT, guide Main/Legacy, Analysis Results, Shot Analysis) pindah ke repo **debugphoto** (§6.12). Bagian lain yang masih menyebut "appMode 2" atau "dev-only" menggambarkan keadaan sebelum pembersihan; baris terkait di §13 dan §15 sudah diberi tanda **dipindah ke debugphoto**. Sumber angka: `Core/Guide/Phased/PhasedParameters.swift` dan `Docs/Experiments/PhaseGuide/Parameters.md`.
 > - **Pembaruan 16–18 Nov 2026 (poto, branch `feat/Preference-question`):** Mode 2 "Find my photos for me" (§6.15.2), batas foto 100/200, simpan hasil scan wajah, perbaikan memori picker/simpan/analisis (§6.15.3), satuan tinggi kamera 18 cm (§14). Ringkasan di [§18 Changelog](#18-changelog-1618-nov-2026).
 > - **Cakupan:** 255 file Swift (sekitar 41.900 baris), 3 model CoreML, `project.pbxproj`, `Info.plist`, entitlements, `Package.resolved`, dan semua dokumen `.md`/gambar spesifikasi di repo.
 > - **Legenda status:**
@@ -15,10 +15,9 @@
 >   - ⛔ Belum diimplementasi (stub/TODO/UI kosong, atau ada di spesifikasi tetapi tidak ada di kode)
 >   - 🗑️ Dead code (tidak dipakai di mana pun)
 > - **Catatan penamaan:**
->   - Nama tampilan app adalah **"Vacato"** (`INFOPLIST_KEY_CFBundleDisplayName`).
->   - Nama project/target/folder adalah **gophoto/GoPhoto**.
+>   - Nama tampilan app adalah **"Poto"** (`INFOPLIST_KEY_CFBundleDisplayName`).
+>   - Nama project/target/folder adalah **gophoto**.
 >   - Bundle id yang sebenarnya **`co.mango.gophoto`** (bukan `com.…`).
->   - Beberapa teks UI dan pesan error masih menyebut "GoPhoto".
 
 ## Daftar Isi
 1. [Ringkasan Eksekutif](#1-ringkasan-eksekutif)
@@ -42,9 +41,9 @@
 
 ## 1. Ringkasan Eksekutif
 
-**Vacato** adalah aplikasi kamera iOS untuk **wisatawan / orang yang ingin difoto** ("vacationist", sesuai user story di `Docs/UserFlowMangga.jpg`). Masalah yang diselesaikan: saat liburan, kita sering meminta orang lain (teman atau orang asing) memotret kita, tetapi hasilnya jarang sesuai selera. Bisa terlalu jauh, sudut kamera salah, kepala terpotong, atau HP terlalu tinggi/rendah.
+**Poto** adalah aplikasi kamera iOS untuk **wisatawan / orang yang ingin difoto** ("vacationist", sesuai user story di `Docs/UserFlowMangga.jpg`). Masalah yang diselesaikan: saat liburan, kita sering meminta orang lain (teman atau orang asing) memotret kita, tetapi hasilnya jarang sesuai selera. Bisa terlalu jauh, sudut kamera salah, kepala terpotong, atau HP terlalu tinggi/rendah.
 
-Cara Vacato menyelesaikannya:
+Cara Poto menyelesaikannya:
 1. Pemilik HP memilih **3–50 foto dirinya yang ia sukai**.
 2. App **menganalisis foto-foto itu sepenuhnya di perangkat** (Vision + CoreML: DETR segmentation, Depth Anything V2, GeoCalib). Yang dipelajari: ukuran shot favorit, posisi subjek di frame, tinggi dan kemiringan kamera relatif mata, postur, kecerahan, dan blur background. Hasilnya sebuah **"preference"** dengan persona gaya (mis. "The Explorer").
 3. Saat sesi foto, HP diserahkan ke fotografer. Kamera memberi **panduan langkah demi langkah satu instruksi per waktu**: jarak ("Move closer/back") → tinggi HP ("Raise/Lower the phone") → kemiringan ("Tilt up/down") → "Take the photo now". Panduan ini dibantu animasi HP 3D, bar, haptic, dan auto-crop, supaya hasilnya meniru gaya foto referensi.
@@ -79,7 +78,7 @@ Value proposition utamanya adalah **"orang lain bisa memotret kita persis sesuai
 
 | Item | Nilai | Sumber |
 |---|---|---|
-| Display name | **Vacato** | `gophoto.xcodeproj/project.pbxproj → INFOPLIST_KEY_CFBundleDisplayName` |
+| Display name | **Poto** | `gophoto.xcodeproj/project.pbxproj → INFOPLIST_KEY_CFBundleDisplayName` |
 | Nama project / target / produk | `gophoto` (product `gophoto.app`, `productName = MyApp`) | `project.pbxproj` |
 | Bundle identifier | `co.mango.gophoto` | `PRODUCT_BUNDLE_IDENTIFIER` |
 | Versi | Marketing 1.3, build 5 | `MARKETING_VERSION`, `CURRENT_PROJECT_VERSION` |
@@ -161,7 +160,7 @@ Karena `SWIFT_DEFAULT_ACTOR_ISOLATION = MainActor`, semua tipe tanpa `nonisolate
 ### 3.3 Struktur folder
 
 ```
-GoPhoto/                              (root repo)
+Poto/                              (root repo)
 ├── Docs/
 │   ├── SunKit-Spike.md               spike SunKit/heading/kompas (tiket S1)
 │   └── UserFlowMangga.jpg            board user story + wireframe (10 story)
@@ -497,7 +496,7 @@ sequenceDiagram
 | Kamera tidak ada (Simulator) | `CameraError.cameraUnavailable` → "Camera Unavailable" ("No camera found. (The Simulator has no camera — run on a real iPhone.)") | `CameraService.swift` |
 | Izin Photos ditolak saat memilih foto | Alert "Photo Access Needed" / "Allow photo access in Settings to choose photos." + Open Settings | `PhotoPreferencePickerFlow.swift` |
 | Akses Photos terbatas (limited) | Banner "You've limited access…" + "Add more" (`presentLimitedLibraryPicker`) | `SelectPhotoViewController.swift` |
-| Izin Photos ditolak saat menyimpan hasil | Alert "Something went wrong" dengan pesan "GoPhoto can't save to Photos. Allow it in Settings → GoPhoto → Photos." Foto **hilang** (tidak disimpan di tempat lain) | `PhotoLibraryService.swift` |
+| Izin Photos ditolak saat menyimpan hasil | Alert "Something went wrong" dengan pesan "Poto can't save to Photos. Allow it in Settings → Poto → Photos." Foto **hilang** (tidak disimpan di tempat lain) | `PhotoLibraryService.swift` |
 | Izin Photos ditolak di galeri | "No Access to Photos" + Open Settings | `GalleryView.swift` |
 | Lokasi | Tidak pernah diminta di build saat ini (lighting tidak tersambung) | §6.14 |
 | Offline | Seluruh fungsi inti berjalan offline: analisis & guide on-device; SunKit offline. Butuh jaringan hanya untuk mengunduh foto iCloud (`isNetworkAccessAllowed = true`) dan WeatherKit (tidak aktif) | §9 |
@@ -784,7 +783,7 @@ sequenceDiagram
 
 ### 6.12 Fitur developer kamera (sejak 13 Nov: repo debugphoto)
 
-**Pembersihan 13 Nov 2026.** Saklar `appMode` dihapus dari `CameraView`. GoPhoto hanya menjalankan **Phased · Auto crop** (zoom 1×, foto resolusi penuh, kunci subjek ketat). `CameraViewModel` turun dari sekitar 2.300 ke sekitar 550 baris, `CameraView` dari 656 ke 340 baris.
+**Pembersihan 13 Nov 2026.** Saklar `appMode` dihapus dari `CameraView`. Poto hanya menjalankan **Phased · Auto crop** (zoom 1×, foto resolusi penuh, kunci subjek ketat). `CameraViewModel` turun dari sekitar 2.300 ke sekitar 550 baris, `CameraView` dari 656 ke 340 baris.
 
 - **Dipindah ke debugphoto** (cadangan di `_to_delete/pra-bersih-debug/`): `Core/Replay/` (5), `Core/Guide/Legacy/` (2), `Core/Guide/Experiment/` (ExperimentMode, GuideLog, GroundTruth), `Features/AnalysisResults/` (16), `CaptureReview.swift`, dan komponen kamera `ExperimentBar`, `GuideDebugPanel`, `PoseGuidePanel`, `ReplayControls`, `GroundTruthSheet`, `ShotAnalysisScreen`, `AdaptiveFOVStatus`, `GuideChecklistView`, `HeightRuleCard`, `GuideFramesOverlay`.
 - **Dibuang dari ViewModel produksi:** pilihan eksperimen, replay, auto-zoom AdaptiveFOV, guide lama (Main / Main modified), guide log, GT, live depth, Blur On (bokeh), review, lighting, analisis lingkungan live, PoseGuide, bar lama.
@@ -1137,7 +1136,7 @@ Uji 18 Nov (100 foto, Mode 1): sebelum `UncachedImage`, Memory naik 150 → ±80
 
 ### 6.19 Galeri foto hasil jepretan
 
-- **Deskripsi:** Galeri bergaya app Photos yang hanya berisi foto hasil Vacato.
+- **Deskripsi:** Galeri bergaya app Photos yang hanya berisi foto hasil Poto.
   - Dibuka dari thumbnail di kiri shutter (`GalleryShortcutButton`), dengan transisi zoom.
   - Kamera berhenti selama galeri tampil.
   - Fitur: grid 5 kolom, filter per preferensi, urutan Newest/Oldest, tab Collections ("Albums & Styles"), Search, pilih banyak lalu hapus, pager layar penuh (share, edit, delete) dengan strip thumbnail.
@@ -1149,11 +1148,11 @@ Uji 18 Nov (100 foto, Mode 1): sebelum `UncachedImage`, Memory naik 150 → ±80
     - disk: `Caches/GalleryThumbnails-v2/` (JPEG q0.9, sisi panjang 640 px).
   - `ImageLoader` memakai `PHCachingImageManager`, membangun thumbnail dengan 3 paralel, dan fungsinya ditandai `@concurrent`.
   - Recent search disimpan di UserDefaults `gallery_recent_searches` (maks 6). Pencarian mencocokkan nama preferensi atau string tanggal.
-- **Hapus:** Di grid, dialog konfirmasi custom yang meniru teks iOS ("Allow “Vacato” to delete N photo(s)?") muncul lebih dulu, disusul alert sistem `PHAssetChangeRequest.deleteAssets`.
+- **Hapus:** Di grid, dialog konfirmasi custom yang meniru teks iOS ("Allow “Poto” to delete N photo(s)?") muncul lebih dulu, disusul alert sistem `PHAssetChangeRequest.deleteAssets`.
   - Foto **ikut terhapus dari Photos iPhone**.
   - Di pager hanya alert sistem.
   - Error: "Couldn't delete this photo. Please try again.".
-- **Share:** `SharedPhoto` (Transferable) mengekspor HEIC "GoPhoto.heic", dengan fallback JPEG.
+- **Share:** `SharedPhoto` (Transferable) mengekspor HEIC "Poto.heic", dengan fallback JPEG.
 - **Izin Photos:**
   - `.notDetermined` → minta izin;
   - ditolak → "No Access to Photos" + "Open Settings".
@@ -1268,14 +1267,14 @@ Uji 18 Nov (100 foto, Mode 1): sebelum `UncachedImage`, Memory naik 150 → ±80
 
 | Argumen | Nilai | Efek |
 |---|---|---|
-| `-GoPhotoFixtureStore` | `empty` / `one` / `multiple` / `showcase` / `interaction` | Memakai store preferensi terpisah `Application Support/PreferencesFixtures/<name>` dan mengisinya dengan preferensi contoh (mis. "Golden Hour Portraits", "Travel Portrait", "Casual Portrait", "Studio Headshots", "Missing Photos") |
-| `-GoPhotoFixtureReset YES` | bool | Menghapus folder fixture |
-| `-GoPhotoScreen preferenceSelection` | string | Memaksa onboarding selesai |
-| `-GoPhotoOnboarding` | `completed` / `fresh` | Mengatur state onboarding |
-| `-GoPhotoDeleteOnStart` | bool | Menghapus preferensi sebelum sesi dimulai |
-| `-GoPhotoDeletePreferenceAfter <name>` | string | Menghapus preferensi itu 4 s setelah launch |
-| `-GoPhotoFakeAnalysis` | `usable` / `optionalFailure` / `requiredFailure` / `noSubject` / `failOnce` / `classic` | Analisis palsu (setelah 1.5 s) |
-| `-GoPhotoDiagnoseVision YES` | bool | Menulis `Documents/vision-diagnosis.txt` |
+| `-PotoFixtureStore` | `empty` / `one` / `multiple` / `showcase` / `interaction` | Memakai store preferensi terpisah `Application Support/PreferencesFixtures/<name>` dan mengisinya dengan preferensi contoh (mis. "Golden Hour Portraits", "Travel Portrait", "Casual Portrait", "Studio Headshots", "Missing Photos") |
+| `-PotoFixtureReset YES` | bool | Menghapus folder fixture |
+| `-PotoScreen preferenceSelection` | string | Memaksa onboarding selesai |
+| `-PotoOnboarding` | `completed` / `fresh` | Mengatur state onboarding |
+| `-PotoDeleteOnStart` | bool | Menghapus preferensi sebelum sesi dimulai |
+| `-PotoDeletePreferenceAfter <name>` | string | Menghapus preferensi itu 4 s setelah launch |
+| `-PotoFakeAnalysis` | `usable` / `optionalFailure` / `requiredFailure` / `noSubject` / `failOnce` / `classic` | Analisis palsu (setelah 1.5 s) |
+| `-PotoDiagnoseVision YES` | bool | Menulis `Documents/vision-diagnosis.txt` |
 
 Overlay status untuk UI test: `DebugSessionStatus` (`debug.sessionStatus`) dan `DebugFixtureStatus` (`debug.fixtureStatus`). **Status:** ✅ (DEBUG).
 
@@ -1342,7 +1341,7 @@ DepthAnything dan GeoCalib **tidak** dipakai di kamera live, hanya di analisis p
 
 | Mode | Cara aktif | Guide yang jalan | Status |
 |---|---|---|---|
-| GoPhoto (satu-satunya mode sejak 13 Nov; `appMode` dihapus) | Default | **Phased engine + Auto crop**, zoom 1× (`Core/Guide/Phased/*`), `HorizonState`, overlay 3D `GuidanceMotion` | ✅ |
+| Poto (satu-satunya mode sejak 13 Nov; `appMode` dihapus) | Default | **Phased engine + Auto crop**, zoom 1× (`Core/Guide/Phased/*`), `HorizonState`, overlay 3D `GuidanceMotion` | ✅ |
 | debugphoto (repo terpisah, dulu `appMode = 2`) | Build debugphoto | Dipilih via `ExperimentBar`: Main (`Legacy/TeamGuideFlow` + `TeamAdaptiveFOV`, salinan beku dari commit a68494f), Main modified (`GuideFlow` + `AdaptiveFOV` + `PersonLossZoomReset`), Phased, Phased + Depth | 🟡 dev-only |
 
 Sebelum 13 Nov, di kedua mode `guideMode` dipaksa `.heightFirstCrop` ("B · Height first + crop"). Akibatnya 11 dari 12 `GuideMode` (A, A old look, A steps, B, B old, C, C old, D, E, F) dan `GuideInstruction.next()` tidak terjangkau. Kode appMode 2 tidak dibungkus `#if DEBUG`, jadi ikut ter-compile di Release.
@@ -1642,7 +1641,7 @@ erDiagram
   | **iCloud Photos** (via PhotoKit) | Mengunduh foto asli/thumbnail yang belum ada lokal (`isNetworkAccessAllowed = true`) | Saat memilih foto referensi, membuat thumbnail galeri, ekspor/share | ✅ |
   | Link web | `https://sunlitt.app`, WeatherKit legal attribution URL, teks lisensi Apache | Di `AcknowledgementsView` | 🗑️ tidak terjangkau |
 - **SunKit**, semua model CoreML, Vision, dan GeoCalib berjalan **100% on-device**.
-- Ide "AI API" eksternal tidak ada. Teks UI menegaskan "Your photos stay on this iPhone. Vacato analyses them here and never uploads them." (`PhotoSessionSetupView.swift`).
+- Ide "AI API" eksternal tidak ada. Teks UI menegaskan "Your photos stay on this iPhone. Poto analyses them here and never uploads them." (`PhotoSessionSetupView.swift`).
 
 ## 10. Permission, Privasi & Konfigurasi
 
@@ -1652,10 +1651,10 @@ Usage description di-generate dari `INFOPLIST_KEY_*` di `project.pbxproj`.
 
 | Permission | Usage description | Kapan & di mana diminta | Bila ditolak |
 |---|---|---|---|
-| Kamera (`NSCameraUsageDescription`) | "Vacato uses the camera so someone can take your photo for you." | Saat `CameraView` mulai (`CameraService.requestPermission` → `AVCaptureDevice.requestAccess`) | "Camera Access Needed" + Open Settings; dicek ulang saat app aktif kembali |
-| Photo Library baca/tulis (`NSPhotoLibraryUsageDescription`) | "Vacato shows the photos you’ve taken in its gallery" | (1) Saat "Add Your Photos" (`PHPhotoLibrary.requestAuthorization(for: .readWrite)` di `PhotoPreferencePickerFlow`); (2) saat menyimpan foto pertama (`PhotoLibraryService.save`); (3) saat membuka galeri (`GalleryViewModel.onAppear`) | Picker: alert Settings. Simpan: error, foto hilang. Galeri: "No Access to Photos". Akses limited didukung |
-| Photo Library add-only (`NSPhotoLibraryAddUsageDescription`) | "Vacato saves the photos you take to your iPhone photos library." | Tidak diminta terpisah (app selalu meminta `.readWrite`) | — |
-| Lokasi When-In-Use (`NSLocationWhenInUseUsageDescription`) | "Vacato uses your approximate location to work out where the sun is and to look up the weather, so it can suggest where to stand and how to light your photo. The location is never saved." | Didesain di `LocationService.currentLocation()` via `LightingCoordinator.run()`, yang **tidak pernah dipanggil** | Fitur diam |
+| Kamera (`NSCameraUsageDescription`) | "Poto uses the camera so someone can take your photo for you." | Saat `CameraView` mulai (`CameraService.requestPermission` → `AVCaptureDevice.requestAccess`) | "Camera Access Needed" + Open Settings; dicek ulang saat app aktif kembali |
+| Photo Library baca/tulis (`NSPhotoLibraryUsageDescription`) | "Poto shows the photos you’ve taken in its gallery" | (1) Saat "Add Your Photos" (`PHPhotoLibrary.requestAuthorization(for: .readWrite)` di `PhotoPreferencePickerFlow`); (2) saat menyimpan foto pertama (`PhotoLibraryService.save`); (3) saat membuka galeri (`GalleryViewModel.onAppear`) | Picker: alert Settings. Simpan: error, foto hilang. Galeri: "No Access to Photos". Akses limited didukung |
+| Photo Library add-only (`NSPhotoLibraryAddUsageDescription`) | "Poto saves the photos you take to your iPhone photos library." | Tidak diminta terpisah (app selalu meminta `.readWrite`) | — |
+| Lokasi When-In-Use (`NSLocationWhenInUseUsageDescription`) | "Poto uses your approximate location to work out where the sun is and to look up the weather, so it can suggest where to stand and how to light your photo. The location is never saved." | Didesain di `LocationService.currentLocation()` via `LightingCoordinator.run()`, yang **tidak pernah dipanggil** | Fitur diam |
 | Motion | Tidak memerlukan usage description (CoreMotion device motion) | `MotionHub` saat kamera tampil | — |
 
 Catatan: teks `NSPhotoLibraryUsageDescription` hanya menyebut galeri, padahal izin yang sama juga dipakai untuk memilih foto referensi. Ini berisiko saat App Review.
@@ -1678,7 +1677,7 @@ Catatan: teks `NSPhotoLibraryUsageDescription` hanya menyebut galeri, padahal iz
 
 ## 11. Design System & UI
 
-### 11.1 Warna (`Core/DesignSystem/GoPhotoDesign.swift → GoPhotoDesign`, sRGB via `Color(hex:)`)
+### 11.1 Warna (`Core/DesignSystem/PotoDesign.swift → PotoDesign`, sRGB via `Color(hex:)`)
 
 Mirror UIKit: `Features/ChoosePhotos/Theme/Theme.swift → Theme`.
 
@@ -1705,7 +1704,7 @@ Mirror UIKit: `Features/ChoosePhotos/Theme/Theme.swift → Theme`.
 | `tagBackground` | = `primarySubtle` | |
 | `tagText` | = `primaryPressed` | |
 
-`AccentColor` di Assets kosong (default sistem). Tint app diatur manual lewat `.tint(GoPhotoDesign.primary)`.
+`AccentColor` di Assets kosong (default sistem). Tint app diatur manual lewat `.tint(PotoDesign.primary)`.
 
 ### 11.2 Tipografi, bentuk, spacing
 
@@ -1738,12 +1737,12 @@ Mirror UIKit: `Features/ChoosePhotos/Theme/Theme.swift → Theme`.
 ### 11.3 Komponen & modifier reusable
 
 - **Modifier:**
-  - `goPhotoCard(isSelected:fill:cornerRadius:)`: kartu rounded dengan stroke `primary` 1.5 bila terpilih, `border` 1 bila tidak.
-  - `goPhotoTag()`: label kapsul.
-- **Gaya tombol** (`GoPhotoButtonStyles.swift`):
-  - `.goPhotoPrimary(isLoading:)`: kapsul penuh, tinggi 56, spinner saat loading.
-  - `.goPhotoSecondary`: tidak pernah dipakai.
-  - `.goPhotoText`: tinggi minimal 44.
+  - `potoCard(isSelected:fill:cornerRadius:)`: kartu rounded dengan stroke `primary` 1.5 bila terpilih, `border` 1 bila tidak.
+  - `potoTag()`: label kapsul.
+- **Gaya tombol** (`PotoButtonStyles.swift`):
+  - `.potoPrimary(isLoading:)`: kapsul penuh, tinggi 56, spinner saat loading.
+  - `.potoSecondary`: tidak pernah dipakai.
+  - `.potoText`: tinggi minimal 44.
 - **SwiftUI session setup** (`SessionSetupComponents.swift`): `SelectionIndicator`, `SessionPrimaryButton`, `.sessionBottomBar`, `SessionChip`, `ChipFlowLayout`, `PreferenceThumbnail`, `PresentationAnchor`.
 - **UIKit:** `CircleButton` (tombol bulat SF Symbol ≥44 pt), `PillButton`, `PhotoCell`, `UILabel.make(_:style:)`.
 - **Kamera:** `InstructionPill`, `PhasedInstructionPill`, `DistanceBar`, `GuideVerticalBar`, `HorizonLevelView`, `ShotSizePicker`, `CameraGridOverlay`, `GuidanceMotionOverlay` (3D).
@@ -1769,7 +1768,6 @@ Gambar ilustrasi custom preference (`assetName` pada opsi) **tidak dibundel**, s
   - Artinya app efektif light-only di luar kamera.
 - **Localization:** tidak ada file `.xcstrings`/`.strings` dan tidak ada `String(localized:)`. Semua teks UI di-hardcode dalam **Bahasa Inggris** (satu bahasa).
   - Pengecualian: label galeri DEBUG (Bahasa Indonesia).
-  - Teks yang terlihat user kadang memakai nama "GoPhoto" alih-alih "Vacato".
 - **Accessibility:**
   - Ada sekitar 192 pemakaian API `accessibility*` (label, hint, identifier untuk UI test, `isModal`, `accessibilityHidden` untuk animasi dekoratif 3D).
   - Reduce Motion dihormati di animasi 3D guide, `AnalyzingViewController`, dan `StyleCardViewController`; **tidak** di dinding foto Welcome.
@@ -1868,7 +1866,6 @@ Konfigurasi & hardcode:
 - `CameraViewModel.swift:531-544`: `guideMode` dipaksa `.heightFirstCrop` di kedua mode. Nilai UserDefaults `guideMode` tidak berguna, dan mode A–F tidak terjangkau. **✅ Beres 13 Nov: kode developer dipindah ke debugphoto (§6.12).**
 - `CameraService.swift:281-284, 476-482`, `CameraPreviewView.swift:24-27`: rotasi 90° di-hardcode (hanya portrait).
 - `CameraService.swift:416`: hanya `.builtInWideAngleCamera`, dan min zoom di-clamp ke 1 (`:447`).
-- `CameraView.swift:82, 638`: teks yang terlihat user menyebut "GoPhoto", padahal display name "Vacato".
 
 Kode mati:
 - Review/enhance: `CameraViewModel.swift:38-47, 1312-1355`, `CaptureReview.swift`, `CapturedPhotoView.swift`. `review` tidak pernah di-set, tetapi `PhotoEnhancer()` tetap diinstansiasi (`:46`). **✅ Beres 13 Nov: kode developer dipindah ke debugphoto (§6.12).**
@@ -1958,7 +1955,7 @@ Placeholder / UI palsu (`GalleryView.swift`):
 - `:881-883` Share kosong; `:891-893` Favorite kosong;
 - `:562-565` mic dekoratif;
 - `:418-426` "Recently Viewed" palsu;
-- `:20` copy "Let’s build up your gallery with the Vacato";
+- `:20` copy "Let’s build up your gallery with Poto";
 - `:57` `isDeleting` tidak dipakai.
 
 Kualitas kode:
@@ -1971,7 +1968,6 @@ Kualitas kode:
 - `GalleryButton.swift:60-62` menjalankan `GallerySync` penuh setiap kali kembali aktif.
 
 Inkonsistensi:
-- `PhotoLibraryService.swift:25` teks error "GoPhoto can't save to Photos. Allow it in Settings → GoPhoto → Photos." memakai nama lama.
 - `GalleryPhoto.swift:18` "nil if preset is deleted" tidak diimplementasi, sehingga `presetID` bisa menggantung.
 - Komentar basi:
   - `AppDatabase.swift:17` menyarankan @Model Preset;
@@ -1984,7 +1980,7 @@ Inkonsistensi:
 - `ImageLoader.swift:178` memakai `hashValue` untuk warna (tidak stabil antar-launch).
 - Golden hour "sekali" ter-reset setiap `LightingCoordinator.reset()`.
 - Kode tak terpakai:
-  - `.goPhotoSecondary`;
+  - `.potoSecondary`;
   - `FilteredPhoto`;
   - `CapturedPhotoEnhancing.cropped(_:aspect:)` dan `enhance(_:look:)`;
   - semua `Mock*` kecuali `MockImageLoader`;
@@ -2138,7 +2134,7 @@ Board `UserFlowMangga.jpg` juga memuat sisa template yang tidak relevan ("As an 
 | **appMode** | (Dihapus 13 Nov.) Dulu konstanta `CameraView.appMode`: 1 = build tester/rilis, 2 = developer. Mode developer sekarang = repo debugphoto |
 | **Main / Main modified / Legacy** | Guide step-by-step lama (`TeamGuideFlow` beku / `GuideFlow`), hanya dev |
 | **Replay** | Menjalankan guide pada video rekaman untuk uji regresi (dev) |
-| **Fixture** | Data contoh DEBUG via launch argument `-GoPhoto…` |
+| **Fixture** | Data contoh DEBUG via launch argument `-Poto…` |
 | **Look** | Preset enhance foto: Natural, Warm, Fresh, Soft, Deep |
 | **Custom preference** | Preferensi tanpa foto: 7 penempatan × 3 sudut |
 
@@ -2163,8 +2159,8 @@ Total **255** file Swift, diurutkan per path. Status per file ada di §6/§13 da
 | `gophoto/Core/CustomPreference/CustomPreferenceStyle.swift` | `SubjectPlacement`, `CameraAngleStyle`, `CustomPreferenceStyle`, `CustomStyleOption` | Enum opsi custom preference |
 | `gophoto/Core/CustomPreference/CustomPresetAnalysisFactory.swift` | `CustomPresetAnalysisFactory` | Sintesis `PresetAnalysis` dari penempatan + sudut |
 | `gophoto/Core/Database/AppDatabase.swift` | `AppDatabase` | `ModelContainer` SwiftData (hanya `GalleryPhoto`) |
-| `gophoto/Core/DesignSystem/GoPhotoButtonStyles.swift` | `GoPhotoPrimaryButtonStyle`, `GoPhotoSecondaryButtonStyle`, `GoPhotoTextButtonStyle` | Gaya tombol |
-| `gophoto/Core/DesignSystem/GoPhotoDesign.swift` | `GoPhotoDesign`, `Color(hex:)`, `goPhotoCard`, `goPhotoTag` | Token warna/tipografi/bentuk + modifier |
+| `gophoto/Core/DesignSystem/PotoButtonStyles.swift` | `PotoPrimaryButtonStyle`, `PotoSecondaryButtonStyle`, `PotoTextButtonStyle` | Gaya tombol |
+| `gophoto/Core/DesignSystem/PotoDesign.swift` | `PotoDesign`, `Color(hex:)`, `potoCard`, `potoTag` | Token warna/tipografi/bentuk + modifier |
 | `gophoto/Core/Detection/LiveEnvironmentAnalyzer.swift` | `LiveEnvironmentAnalyzer`, `LiveEnvironmentSignal` | DETR live → mask lingkungan untuk auto-zoom |
 | `gophoto/Core/Detection/PersonDetector.swift` | `PersonDetector`, `PersonDetection` | Semua Vision live: orang, wajah, pose, mask, tracker, kunci subjek |
 | `gophoto/Core/Detection/PostureClassifier.swift` | `PostureClassifier`, `BodyPosture` | Klasifikasi duduk/berdiri dari pose 2D |
@@ -2191,7 +2187,7 @@ Total **255** file Swift, diurutkan per path. Status per file ada di §6/§13 da
 | `gophoto/Core/Guide/Phased/PhasedMeasure.swift` | `PhasedMeasure`, `Span`, `Vantage`, `Crop` | Geometri: span per shot, tinggi kamera vs mata, rect crop |
 | `gophoto/Core/Guide/Phased/PhasedParameters.swift` | `PhasedParameters`, `SizeBand`, `ShotMargins`, `TimedSamples`, `Dwell` | Semua ambang/timer Phased + median berjendela waktu |
 | `gophoto/Core/Guide/Phased/PhasedSubjectPicker.swift` | `PhasedSubjectPicker` | Memilih/mengunci subjek (auto-lock, tap, point back) |
-| `gophoto/Core/Guide/Phased/FramingPolicy.swift` | `FramingPolicy` | Auto crop / No crop; dipindah dari `ExperimentMode.swift` (13 Nov), dipakai bersama GoPhoto dan debugphoto |
+| `gophoto/Core/Guide/Phased/FramingPolicy.swift` | `FramingPolicy` | Auto crop / No crop; dipindah dari `ExperimentMode.swift` (13 Nov), dipakai bersama Poto dan debugphoto |
 | `gophoto/Core/Guide/Phased/PhasedTypes.swift` | `PhasedPhase`, `PhasedInstruction`, `PhasedTarget`, `PhasedFrame`, `PhasedOutput`, `SubjectObservation`, `DepthSample` | Tipe nilai & string instruksi Phased; target dari `PresetAnalysis` |
 | `gophoto/Core/Guide/WideCrop.swift` | `WideCrop` | Geometri crop mode F/B+crop; rutinitas crop foto mati |
 | `gophoto/Core/Lighting/BacklightController.swift` | `BacklightController`, `BacklightTip` | Logika murni deteksi backlight + arah pindah (tidak tersambung) |
@@ -2366,7 +2362,7 @@ Total **255** file Swift, diurutkan per path. Status per file ada di §6/§13 da
 | `gophoto/Features/ChoosePhotos/Components/PillButton.swift` | `PillButton` | Tombol teks/prominent dengan loading (UIKit) |
 | `gophoto/Features/ChoosePhotos/Components/PreferenceEditorPresenter.swift` | `PreferenceEditorPresenter` | Membuka editor foto → analisis → style card; pertanyaan gaya sebelum style card (15 Nov) |
 | `gophoto/Features/ChoosePhotos/Extensions/UILabel+Make.swift` | `UILabel.make` | Factory label Dynamic Type |
-| `gophoto/Features/ChoosePhotos/Theme/Theme.swift` | `Theme` | Mirror token `GoPhotoDesign` ke `UIColor` |
+| `gophoto/Features/ChoosePhotos/Theme/Theme.swift` | `Theme` | Mirror token `PotoDesign` ke `UIColor` |
 | `gophoto/Features/ChoosePhotos/ViewModels/AnalyzingViewModel.swift` | `AnalyzingViewModel` | Menggerakkan layar analisis (progres, teks bergilir) |
 | `gophoto/Features/ChoosePhotos/ViewModels/ChoosePhotosViewModel.swift` | `ChoosePhotosViewModel` | State editor/pembuat set foto (min 3, maks 50) |
 | `gophoto/Features/ChoosePhotos/ViewModels/PreferencesViewModel.swift` | `PreferencesViewModel` (.shared), `PreferenceNameError` | Sumber kebenaran preferensi, persistensi, antrean analisis |

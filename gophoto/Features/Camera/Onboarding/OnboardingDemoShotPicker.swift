@@ -74,13 +74,13 @@ struct OnboardingDemoShotPicker: View {
         let isSelected = shot == current
         return Text(shot.pickerTitle)
             .font(Self.labelFont)
-            .foregroundStyle(isSelected ? GoPhotoDesign.primaryText : Color.white.opacity(0.5))
+            .foregroundStyle(isSelected ? PotoDesign.primaryText : Color.white.opacity(0.5))
             .lineLimit(1)
             .fixedSize()
             .padding(.horizontal, Self.labelPadding)
             .frame(height: itemHeight)
             .background {
-                if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GoPhotoDesign.background) }
+                if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(PotoDesign.background) }
             }
             .frame(width: itemWidth)
             .animation(.smooth(duration: 0.25), value: isSelected)

@@ -20,6 +20,6 @@ struct GalleryScreen: View {
         NavigationStack {
             GalleryView(viewModel: viewModel, onDismiss: { dismiss() })
         }
-        .tint(GoPhotoDesign.primary)
+        .tint(PotoDesign.primary)
     }
 }

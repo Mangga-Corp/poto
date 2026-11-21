@@ -44,7 +44,7 @@ struct SubjectPlacementArtwork: View {
                 Image(systemName: "figure.stand")
                     .resizable()
                     .scaledToFit()
-                    .foregroundStyle(GoPhotoDesign.primary)
+                    .foregroundStyle(PotoDesign.primary)
                     .frame(width: box.width * size.width, height: box.height * size.height)
                     .position(x: box.midX * size.width, y: box.midY * size.height)
             }
@@ -78,8 +78,8 @@ private struct ThirdsGrid: View {
                     ForEach(thirdsX, id: \.self) { x in
                         ForEach(thirdsY, id: \.self) { y in
                             Circle()
-                                .fill(GoPhotoDesign.onPrimary)
-                                .overlay(Circle().strokeBorder(GoPhotoDesign.primary, lineWidth: 1.5))
+                                .fill(PotoDesign.onPrimary)
+                                .overlay(Circle().strokeBorder(PotoDesign.primary, lineWidth: 1.5))
                                 .frame(width: 8, height: 8)
                                 .position(x: x, y: y)
                         }
@@ -113,7 +113,7 @@ struct CameraAngleArtwork: View {
                 Image(systemName: "figure.stand")
                     .resizable()
                     .scaledToFit()
-                    .foregroundStyle(GoPhotoDesign.primary)
+                    .foregroundStyle(PotoDesign.primary)
                     .frame(width: Self.subjectBox.width * size.width, height: Self.subjectBox.height * size.height)
                     .position(x: Self.subjectBox.midX * size.width, y: Self.subjectBox.midY * size.height)
 
@@ -121,11 +121,11 @@ struct CameraAngleArtwork: View {
                     path.move(to: camera)
                     path.addLine(to: face)
                 }
-                .stroke(GoPhotoDesign.tagText, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [5, 4]))
+                .stroke(PotoDesign.tagText, style: StrokeStyle(lineWidth: 1.5, lineCap: .round, dash: [5, 4]))
 
                 Image(systemName: "camera.fill")
                     .font(AppFont.system(size: min(size.width, size.height) * 0.16))
-                    .foregroundStyle(GoPhotoDesign.tagText)
+                    .foregroundStyle(PotoDesign.tagText)
                     .rotationEffect(sightAngle)
                     .position(camera)
             }
@@ -157,10 +157,10 @@ private struct ArtworkScenery: View {
     var body: some View {
         GeometryReader { geometry in
             VStack(spacing: 0) {
-                LinearGradient(colors: [GoPhotoDesign.primaryBorder, GoPhotoDesign.primarySubtle],
+                LinearGradient(colors: [PotoDesign.primaryBorder, PotoDesign.primarySubtle],
                                startPoint: .top, endPoint: .bottom)
                     .frame(height: geometry.size.height * groundY)
-                GoPhotoDesign.secondaryBackground
+                PotoDesign.secondaryBackground
             }
         }
     }
@@ -181,9 +181,9 @@ struct CustomPreferenceThumbnail: View {
         .overlay(alignment: .bottomTrailing) {
             Image(systemName: style.angle.symbolName)
                 .font(AppFont.system(size: 11, weight: .semibold))
-                .foregroundStyle(GoPhotoDesign.onPrimary)
+                .foregroundStyle(PotoDesign.onPrimary)
                 .frame(width: 24, height: 24)
-                .background(GoPhotoDesign.primary, in: Circle())
+                .background(PotoDesign.primary, in: Circle())
                 .padding(5)
         }
         .clipShape(RoundedRectangle(cornerRadius: 12, style: .continuous))

@@ -134,14 +134,10 @@ final class SelectPhotoViewController: UIViewController {
                     message: "Adding these photos will update your style. Continue?",
                     preferredStyle: .alert
                 )
-                let cancelAction = UIAlertAction(title: "Cancel", style: .cancel)
-                let yesAction = UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
+                alert.addSecondaryAction("Cancel")
+                alert.addPrimaryAction("Continue") { [weak self] in
                     self?.viewModel.done(selectedIndexes: selected)
                 }
-                alert.addAction(cancelAction)
-                alert.addAction(yesAction)
-                alert.preferredAction = yesAction
-                alert.view.tintColor = Theme.accent
                 present(alert, animated: true)
                 return
             }
@@ -152,10 +148,10 @@ final class SelectPhotoViewController: UIViewController {
             title: "No photos selected",
             message: "Choose at least \(ChoosePhotosViewModel.minPhotos) photos to create it.",
             preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep Selecting", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Leave Anyway", style: .destructive) { [weak self] _ in
+        alert.addSecondaryAction("Leave Anyway") { [weak self] in
             self?.viewModel.done(selectedIndexes: [])
-        })
+        }
+        alert.addPrimaryAction("Keep Selecting")
         present(alert, animated: true)
     }
 
@@ -166,7 +162,7 @@ final class SelectPhotoViewController: UIViewController {
 
     private func showError(_ message: String) {
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default))
+        alert.addPrimaryAction("OK")
         present(alert, animated: true)
     }
     private func makeLimitedAccessBanner() -> UIView {
@@ -225,7 +221,7 @@ final class SelectPhotoViewController: UIViewController {
         stack.isLayoutMarginsRelativeArrangement = true
         stack.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 12, leading: 12, bottom: 12, trailing: 12)
         stack.backgroundColor = Theme.tagBackground
-        stack.layer.cornerRadius = GoPhotoDesign.controlCornerRadius + 2
+        stack.layer.cornerRadius = PotoDesign.controlCornerRadius + 2
         return stack
     }
 

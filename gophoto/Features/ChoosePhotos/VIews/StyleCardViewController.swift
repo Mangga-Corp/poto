@@ -165,7 +165,7 @@ final class StyleCardViewController: UIViewController {
         row.isLayoutMarginsRelativeArrangement = true
         row.directionalLayoutMargins = NSDirectionalEdgeInsets(top: 14, leading: 14, bottom: 14, trailing: 14)
         row.backgroundColor = Theme.accentSubtle
-        row.layer.cornerRadius = GoPhotoDesign.cardCornerRadius
+        row.layer.cornerRadius = PotoDesign.cardCornerRadius
 
         row.isAccessibilityElement = true
         row.accessibilityLabel = [trait.title, trait.line, trait.evidence].compactMap { $0 }.joined(separator: ". ")

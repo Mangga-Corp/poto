@@ -95,13 +95,8 @@ final class PhotoPreferencePickerFlow {
         }
 
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Add Photos", style: .default) { [weak self] _ in
-            self?.start()
-        })
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.onCancel()
-        })
-        alert.view.tintColor = Theme.accent
+        alert.addSecondaryAction("Cancel") { [weak self] in self?.onCancel() }
+        alert.addPrimaryAction("Add Photos") { [weak self] in self?.start() }
         presenter?.present(alert, animated: true)
     }
 
@@ -143,8 +138,7 @@ final class PhotoPreferencePickerFlow {
 
     private func showAlert(message: String, onDismiss: @escaping () -> Void = {}) {
         let alert = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "OK", style: .default) { _ in onDismiss() })
-        alert.view.tintColor = Theme.accent
+        alert.addPrimaryAction("OK", handler: onDismiss)
         presenter?.present(alert, animated: true)
     }
 
@@ -154,16 +148,13 @@ final class PhotoPreferencePickerFlow {
             message: "Allow photo access in Settings to choose photos.",
             preferredStyle: .alert
         )
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { [weak self] _ in
-            self?.onCancel()
-        })
-        alert.addAction(UIAlertAction(title: "Open Settings", style: .default) { [weak self] _ in
+        alert.addSecondaryAction("Cancel") { [weak self] in self?.onCancel() }
+        alert.addPrimaryAction("Open Settings") { [weak self] in
             if let url = URL(string: UIApplication.openSettingsURLString) {
                 UIApplication.shared.open(url)
             }
             self?.onCancel()
-        })
-        alert.view.tintColor = Theme.accent
+        }
         presenter?.present(alert, animated: true)
     }
 }
@@ -180,7 +171,8 @@ enum PreferenceNamePrompt {
             message: viewModel.namePromptMessage,
             preferredStyle: .alert
         )
-        let confirm = UIAlertAction(title: "Continue", style: .default) { [weak alert] _ in
+        alert.addSecondaryAction("Cancel", handler: onCancel)
+        let confirm = alert.addPrimaryAction("Continue") { [weak alert] in
             let name = alert?.textFields?.first?.text ?? ""
             completion(name.trimmingCharacters(in: .whitespacesAndNewlines))
         }
@@ -197,10 +189,6 @@ enum PreferenceNamePrompt {
                     : error
             }, for: .editingChanged)
         }
-        alert.addAction(confirm)
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in onCancel() })
-        alert.preferredAction = confirm
-        alert.view.tintColor = Theme.accent
         presenter.present(alert, animated: true)
     }
 }

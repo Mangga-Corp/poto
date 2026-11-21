@@ -4,15 +4,15 @@
 //
 //  DEBUG builds only: launch arguments for checking the session setup screens in the simulator.
 //
-//    -GoPhotoFixtureStore <empty|one|multiple|showcase|interaction>
+//    -PotoFixtureStore <empty|one|multiple|showcase|interaction>
 //        Use a separate preferences folder (`PreferencesFixtures/<name>`, never the real one) and,
 //        when it is empty, fill it with preferences made from the bundled onboarding photos.
 //        empty / one / multiple: real on-device analysis (runs on first launch).
 //        showcase / interaction: HAND-MADE fixture analyses (see `fixtureAnalysis`), for checking
 //        the available and selected card states; they say nothing about real analysis output.
-//    -GoPhotoFixtureReset YES
+//    -PotoFixtureReset YES
 //        Delete that fixture folder first (a clean store for every UI test).
-//    -GoPhotoScreen preferenceSelection
+//    -PotoScreen preferenceSelection
 //        Open the Preference Selection flow instead of the normal start screen.
 //
 //  Not compiled into release builds.
@@ -27,22 +27,22 @@ enum DebugFixtures {
     /// Lowercase letters only: the name becomes a folder name (and is deleted by the reset flag),
     /// so anything else, such as "../Preferences", is ignored and the real store is used as usual.
     static var storeName: String? {
-        guard let name = UserDefaults.standard.string(forKey: "GoPhotoFixtureStore"),
+        guard let name = UserDefaults.standard.string(forKey: "PotoFixtureStore"),
               !name.isEmpty, name.allSatisfy({ $0.isASCII && $0.isLowercase && $0.isLetter }) else { return nil }
         return name
     }
-    private static var resetsStore: Bool { UserDefaults.standard.bool(forKey: "GoPhotoFixtureReset") }
+    private static var resetsStore: Bool { UserDefaults.standard.bool(forKey: "PotoFixtureReset") }
 
     /// Fixture runs only, before any view reads the flags:
-    /// `-GoPhotoScreen preferenceSelection` (or `-GoPhotoOnboarding completed`): onboarding done,
+    /// `-PotoScreen preferenceSelection` (or `-PotoOnboarding completed`): onboarding done,
     /// so the app opens on Preference Selection like a returning user.
-    /// `-GoPhotoOnboarding fresh`: onboarding not started, like a first launch.
+    /// `-PotoOnboarding fresh`: onboarding not started, like a first launch.
     /// Written to the saved defaults (not the argument domain) so the app can still change them.
     static func prepareLaunchState() {
         guard storeName != nil else { return }
         let defaults = UserDefaults.standard
-        let mode = defaults.string(forKey: "GoPhotoScreen") == "preferenceSelection"
-            ? "completed" : defaults.string(forKey: "GoPhotoOnboarding")
+        let mode = defaults.string(forKey: "PotoScreen") == "preferenceSelection"
+            ? "completed" : defaults.string(forKey: "PotoOnboarding")
         switch mode {
         case "completed":
             defaults.set(true, forKey: "welcomeOnboardingCompleted")
@@ -56,20 +56,20 @@ enum DebugFixtures {
         }
     }
 
-    /// `-GoPhotoDeleteOnStart YES`: deletes the preference between Start Shooting's tap and the
+    /// `-PotoDeleteOnStart YES`: deletes the preference between Start Shooting's tap and the
     /// session start (a preference that became invalid after the screen validated it).
     static func beforeSessionStart(preferenceID: UUID) {
-        guard storeName != nil, UserDefaults.standard.bool(forKey: "GoPhotoDeleteOnStart") else { return }
+        guard storeName != nil, UserDefaults.standard.bool(forKey: "PotoDeleteOnStart") else { return }
         PreferencesViewModel.shared.delete(id: preferenceID, allowingLast: true)
     }
 
     // MARK: Fake analysis (UI tests of the routes; NOT evidence that the real analysis works)
 
-    /// `-GoPhotoFakeAnalysis <usable|optionalFailure|requiredFailure|noSubject|failOnce>`: the
+    /// `-PotoFakeAnalysis <usable|optionalFailure|requiredFailure|noSubject|failOnce>`: the
     /// analysis returns a HAND-MADE result after 1.5 s instead of running Vision (which cannot run
     /// in the simulator). `failOnce`: required failure the first time, usable after a retry.
     private static var fakeAnalysisMode: String? {
-        storeName == nil ? nil : UserDefaults.standard.string(forKey: "GoPhotoFakeAnalysis")
+        storeName == nil ? nil : UserDefaults.standard.string(forKey: "PotoFakeAnalysis")
     }
     private static var fakeAnalysisRuns = 0
 
@@ -110,7 +110,7 @@ enum DebugFixtures {
         return analysis
     }
 
-    /// Fills an empty fixture store. Real stores are never touched (no `-GoPhotoFixtureStore`).
+    /// Fills an empty fixture store. Real stores are never touched (no `-PotoFixtureStore`).
     static func seedIfNeeded() {
         guard let scenario = storeName else { return }
         if resetsStore {
@@ -128,11 +128,11 @@ enum DebugFixtures {
         }
     }
 
-    /// `-GoPhotoDeletePreferenceAfter <name>`: delete that fixture preference 4 s after launch
+    /// `-PotoDeletePreferenceAfter <name>`: delete that fixture preference 4 s after launch
     /// (checks a preference disappearing while Shot Size Selection is open).
     static func scheduleDeletionIfRequested() {
         guard storeName != nil,
-              let name = UserDefaults.standard.string(forKey: "GoPhotoDeletePreferenceAfter") else { return }
+              let name = UserDefaults.standard.string(forKey: "PotoDeletePreferenceAfter") else { return }
         Task { @MainActor in
             try? await Task.sleep(for: .seconds(4))
             let preferences = PreferencesViewModel.shared
@@ -241,11 +241,11 @@ enum DebugFixtures {
 }
 
 extension DebugFixtures {
-    /// `-GoPhotoDiagnoseVision YES`: runs the app's own `VisionEvidenceRunner` on the first bundled
+    /// `-PotoDiagnoseVision YES`: runs the app's own `VisionEvidenceRunner` on the first bundled
     /// onboarding photos and writes what every Vision request returned to
     /// `Documents/vision-diagnosis.txt`. Diagnostics only; the analysis code is not touched.
     static func diagnoseVisionIfRequested() {
-        guard UserDefaults.standard.bool(forKey: "GoPhotoDiagnoseVision") else { return }
+        guard UserDefaults.standard.bool(forKey: "PotoDiagnoseVision") else { return }
         Task.detached {
             var lines = ["device: \(ProcessInfo.processInfo.environment["SIMULATOR_DEVICE_NAME"] ?? "physical device")"]
             for number in [1, 2, 3, 4, 5, 8] {

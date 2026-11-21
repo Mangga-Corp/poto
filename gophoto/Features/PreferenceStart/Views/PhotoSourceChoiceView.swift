@@ -41,13 +41,13 @@ struct PhotoSourceChoiceView: View {
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {
             Text("How do you want to add photos?")
-                .font(GoPhotoDesign.largeTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.largeTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text("You can still add or remove photos before the analysis starts.")
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .padding(.top, 8)
 
@@ -61,10 +61,10 @@ struct PhotoSourceChoiceView: View {
             }
             .padding(.top, 28)
         }
-        .padding(.horizontal, GoPhotoDesign.sessionMargin)
+        .padding(.horizontal, PotoDesign.sessionMargin)
         .padding(.top, 24)
         .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
-        .background(GoPhotoDesign.background)
+        .background(PotoDesign.background)
         .sessionBottomBar {
             SessionPrimaryButton(title: "Continue") { onChoose(selected) }
         }
@@ -78,7 +78,7 @@ private struct PhotoSourceCard: View {
     let isSelected: Bool
 
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: GoPhotoDesign.cardCornerRadius, style: .continuous)
+        let shape = RoundedRectangle(cornerRadius: PotoDesign.cardCornerRadius, style: .continuous)
         HStack(spacing: 16) {
             Image(systemName: source.symbol)
                 .font(.title2)
@@ -87,39 +87,39 @@ private struct PhotoSourceCard: View {
                 // "Recommended" sits above the title so it never squeezes it.
                 if source == .suggested {
                     Text("Recommended")
-                        .font(GoPhotoDesign.smallLabel)
-                        .foregroundStyle(GoPhotoDesign.tagText)
+                        .font(PotoDesign.smallLabel)
+                        .foregroundStyle(PotoDesign.tagText)
                         .fixedSize(horizontal: false, vertical: true)
                         .padding(.horizontal, 8)
                         .padding(.vertical, 3)
                         // On a selected card the usual tag fill matches the card, so it uses the
                         // surface fill; the border keeps the pill visible either way. Its leading
                         // edge lines up with the title below.
-                        .background(isSelected ? GoPhotoDesign.surface : GoPhotoDesign.tagBackground,
+                        .background(isSelected ? PotoDesign.surface : PotoDesign.tagBackground,
                                     in: Capsule())
-                        .overlay(Capsule().strokeBorder(GoPhotoDesign.primaryBorder, lineWidth: 1))
+                        .overlay(Capsule().strokeBorder(PotoDesign.primaryBorder, lineWidth: 1))
                         .padding(.bottom, 2)
                 }
                 // Wraps onto more lines when it doesn't fit, never cut with "…".
                 Text(source.title)
-                    .font(GoPhotoDesign.cardTitle)
-                    .foregroundStyle(isSelected ? GoPhotoDesign.primary : GoPhotoDesign.primaryText)
+                    .font(PotoDesign.cardTitle)
+                    .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(source.subtitle)
-                    .font(GoPhotoDesign.secondaryBody)
-                    .foregroundStyle(isSelected ? GoPhotoDesign.primary : GoPhotoDesign.secondaryText)
+                    .font(PotoDesign.secondaryBody)
+                    .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
             Spacer(minLength: 8)
             Image(systemName: isSelected ? "checkmark.circle" : "circle")
                 .font(.title2)
         }
-        .foregroundStyle(isSelected ? GoPhotoDesign.primary : GoPhotoDesign.primaryText)
+        .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.primaryText)
         .padding(20)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? GoPhotoDesign.primarySubtle : GoPhotoDesign.surface, in: shape)
+        .background(isSelected ? PotoDesign.primarySubtle : PotoDesign.surface, in: shape)
         .overlay {
-            shape.strokeBorder(isSelected ? GoPhotoDesign.primaryBorder : GoPhotoDesign.border,
+            shape.strokeBorder(isSelected ? PotoDesign.selectedBorder : PotoDesign.border,
                                lineWidth: isSelected ? 2 : 1)
         }
         .contentShape(shape)

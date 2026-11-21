@@ -18,7 +18,7 @@ nonisolated struct FilteredPhoto: Transferable {
         DataRepresentation(exportedContentType: .jpeg) { photo in
             try await photo.renderedJPEG()
         }
-        .suggestedFileName("GoPhoto.jpg")
+        .suggestedFileName("Poto.jpg")
     }
 
     private func renderedJPEG() async throws -> Data {

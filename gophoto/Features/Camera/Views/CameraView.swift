@@ -60,7 +60,7 @@ struct CameraView: View {
             case .restricted:
                 ContentUnavailableView("Camera Not Available",
                                        systemImage: "lock",
-                                       description: Text("Camera access is restricted on this iPhone (for example by Screen Time), so GoPhoto can't use it."))
+                                       description: Text("Camera access is restricted on this iPhone (for example by Screen Time), so Poto can't use it."))
                 .foregroundStyle(.white)
 
             case .failed(let message):
@@ -90,15 +90,12 @@ struct CameraView: View {
         .onChange(of: isShowingGallery) { _, showing in
             Task { if showing { await viewModel.stopCamera() } else { await viewModel.resumeCamera() } }
         }
-        .alert("Something went wrong", isPresented: $viewModel.isShowingError) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(viewModel.errorMessage ?? "")
-        }
+        .appAlert("Something went wrong", isPresented: $viewModel.isShowingError,
+                  message: viewModel.errorMessage, actions: [.primary("OK")])
         .sheet(isPresented: $isShowingAcknowledgements) {
             AcknowledgementsView()
                 .followsSystemColorScheme()
-                .tint(GoPhotoDesign.primary)
+                .tint(PotoDesign.primary)
         }
         .fullScreenCover(isPresented: $isShowingGallery) {
             LatestPhotoView()
@@ -416,14 +413,14 @@ struct CameraView: View {
         ContentUnavailableView {
             Label("Camera Access Needed", systemImage: "camera")
         } description: {
-            Text("GoPhoto needs your camera to guide photos. Tap Open Settings, then turn on Camera.")
+            Text("Poto needs your camera to guide photos. Tap Open Settings, then turn on Camera.")
         } actions: {
             Button("Open Settings") {
                 if let url = URL(string: UIApplication.openSettingsURLString) {
                     openURL(url)
                 }
             }
-            .buttonStyle(.goPhotoPrimary)
+            .buttonStyle(.potoPrimary)
         }
         .foregroundStyle(.white)
     }

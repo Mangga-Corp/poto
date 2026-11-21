@@ -87,7 +87,7 @@ nonisolated enum AnchorSide {
     static func reading(_ result: PhotoResult, anchor: Anchor) -> Reading? {
         guard let detail = result.angleComparison?.details[.geoCalibLight] else { return nil }
         if anchor == .eye {
-            // The eye line is GoPhoto's own camera-vs-eyes angle.
+            // The eye line is Poto's own camera-vs-eyes angle.
             guard let e = detail.cameraElevation, e.isFinite else { return nil }
             return Reading(elevation: e, sigma: detail.cameraElevationUncertainty)
         }

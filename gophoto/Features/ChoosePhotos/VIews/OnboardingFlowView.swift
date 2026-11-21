@@ -93,21 +93,27 @@ struct OnboardingFlowView: View {
         .onAppear {
             if style != nil { onAnalysisCompleted() }
         }
-        .alert(
-            HumanSubjectValidationResult.exclusionTitle,
-            isPresented: Binding(get: { exclusionNotice != nil },
-                                 set: { if !$0 { exclusionNotice = nil } }),
-            presenting: exclusionNotice
-        ) { _ in
-            Button("Continue", action: confirmExclusions)
-        } message: { notice in
-            Text(notice.exclusionMessage)
-        }
-        .alert("Couldn't open the camera", isPresented: Binding(get: { finishError != nil },
-                                                              set: { if !$0 { finishError = nil } })) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(finishError ?? "")
+        .appAlert(HumanSubjectValidationResult.exclusionTitle,
+                  isPresented: Binding(get: { exclusionNotice != nil },
+                                       set: { if !$0 { exclusionNotice = nil } }),
+                  message: exclusionNotice?.exclusionMessage,
+                  actions: [.primary("Continue", handler: confirmExclusions)])
+        .appAlert("Couldn't open the camera",
+                  isPresented: Binding(get: { finishError != nil },
+                                       set: { if !$0 { finishError = nil } }),
+                  message: finishError, actions: [.primary("OK")])
+        // Until the analysis succeeds, Back must not leave the preference in the list: while
+        // analysing the way out is Cancel, and after a failure Back returns to the photos.
+        .navigationBarBackButtonHidden(onNeedsMorePhotos != nil && style == nil && styleQuestion == nil)
+        .toolbar {
+            ToolbarItem(placement: .topBarLeading) {
+                if failure != nil, style == nil, let onNeedsMorePhotos {
+                    Button(action: onNeedsMorePhotos) {
+                        Image(systemName: "chevron.left")
+                    }
+                    .accessibilityLabel("Back")
+                }
+            }
         }
     }
 
@@ -187,8 +193,8 @@ struct OnboardingFlowView: View {
         }
     }
 
-    /// Cancel on the analysing screen (18 Nov): the run is already stopped; back to the photos
-    /// (the preference stays saved), or the retry screen when there is no way back.
+    /// Stop on the analysing screen's confirmation: the run is already stopped; back to the
+    /// photos, or the retry screen when there is no way back.
     private func cancelAnalysis() {
         Self.log.notice("Analysis of \(preferenceID) cancelled")
         if let onNeedsMorePhotos {
@@ -248,23 +254,23 @@ private struct AnalysisRetryScreen: View {
             Image(systemName: failure == .noUsableFraming ? "person.fill.questionmark"
                                                           : "exclamationmark.triangle")
                 .font(AppFont.scaled(size: 36, relativeTo: .largeTitle))
-                .foregroundStyle(failure == .noUsableFraming ? GoPhotoDesign.secondaryText : GoPhotoDesign.warning)
+                .foregroundStyle(failure == .noUsableFraming ? PotoDesign.secondaryText : PotoDesign.warning)
             Text(failure == .noUsableFraming ? "We couldn't find a person in these photos."
                                              : "We couldn't read your photos.")
-                .font(GoPhotoDesign.sectionTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.sectionTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .multilineTextAlignment(.center)
             Text(failure == .noUsableFraming ? "Choose photos that clearly show one person."
                                              : "Your photos are safe. Please try again.")
-                .font(GoPhotoDesign.secondaryBody)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.secondaryBody)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .multilineTextAlignment(.center)
             Button("Try again", action: onRetry)
-                .buttonStyle(.goPhotoPrimary)
+                .buttonStyle(.potoPrimary)
                 .accessibilityIdentifier("analysis.retry")
             if let onChooseOtherPhotos {
                 Button("Choose Other Photos", action: onChooseOtherPhotos)
-                    .buttonStyle(.goPhotoSecondary)
+                    .buttonStyle(.potoSecondary)
                     .accessibilityIdentifier("analysis.chooseOtherPhotos")
             }
             #if DEBUG
@@ -278,7 +284,7 @@ private struct AnalysisRetryScreen: View {
         }
         .padding(32)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(GoPhotoDesign.background)
+        .background(PotoDesign.background)
         .accessibilityElement(children: .contain)
         .accessibilityIdentifier("analysis.failure")
     }

@@ -35,7 +35,7 @@ struct DistanceBar: View {
                 let w = geo.size.width
                 let zoneLeft = x(1 + tolerance, w), zoneRight = x(1 - tolerance, w)
                 ZStack(alignment: .leading) {
-                    Capsule().fill(GoPhotoDesign.primarySubtle)
+                    Capsule().fill(PotoDesign.primarySubtle)
                     Capsule().fill(Self.zoneColor)
                         .frame(width: max(0, zoneRight - zoneLeft))
                         .offset(x: zoneLeft)

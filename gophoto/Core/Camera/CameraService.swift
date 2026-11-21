@@ -105,7 +105,7 @@ nonisolated protocol CameraServiceProtocol: AnyObject {
     var minAvailableZoom: Double? { get }
     /// Largest zoom factor the active format supports, or nil when unavailable.
     var maxAvailableZoom: Double? { get }
-    /// Requests a zoom factor, clamped to device limits and GoPhoto's automatic zoom cap.
+    /// Requests a zoom factor, clamped to device limits and Poto's automatic zoom cap.
     /// Returns the actual applied factor.
     func applyZoom(_ factor: Double) async -> Double
     /// Developer blur (temporary): switch to the dual / triple camera so photos carry Apple's
@@ -290,7 +290,7 @@ nonisolated final class CameraService: NSObject, CameraServiceProtocol, @uncheck
                 // slowest file. .balanced is Apple's default; .speed the fastest.
                 settings.photoQualityPrioritization = .quality
                 // Developer blur: Apple's depth + portrait matte, embedded in the file (the Photos
-                // app can then treat it as a Portrait photo; GoPhoto renders the blur from it).
+                // app can then treat it as a Portrait photo; Poto renders the blur from it).
                 if self.photoOutput.isDepthDataDeliveryEnabled {
                     settings.isDepthDataDeliveryEnabled = true
                     settings.embedsDepthDataInPhoto = true
@@ -378,7 +378,7 @@ nonisolated final class CameraService: NSObject, CameraServiceProtocol, @uncheck
                     self._currentZoom = Double(clamped)   // target; the frames publish the live value
                     self.zoomContinuation?.yield(Double(clamped))
                 } catch {
-                    NSLog("GoPhoto camera zoom could not be applied: %@", error.localizedDescription)
+                    NSLog("Poto camera zoom could not be applied: %@", error.localizedDescription)
                 }
                 continuation.resume(returning: Double(clamped))
             }
@@ -454,7 +454,7 @@ nonisolated final class CameraService: NSObject, CameraServiceProtocol, @uncheck
             device.videoZoomFactor = CGFloat(baseline * scale)
             device.unlockForConfiguration()
         } catch {
-            NSLog("GoPhoto camera zoom could not be reset: %@", error.localizedDescription)
+            NSLog("Poto camera zoom could not be reset: %@", error.localizedDescription)
         }
         _currentZoom = Double(device.videoZoomFactor) / scale
         let native = device.activeFormat.secondaryNativeResolutionZoomFactors.map { Double($0) / scale }
@@ -611,7 +611,7 @@ nonisolated final class CameraService: NSObject, CameraServiceProtocol, @uncheck
                     device.activeDepthDataFormat = best
                     device.unlockForConfiguration()
                 } catch {
-                    NSLog("GoPhoto depth format could not be set: %@", error.localizedDescription)
+                    NSLog("Poto depth format could not be set: %@", error.localizedDescription)
                 }
                 var upright = false
                 if let connection = self.depthOutput.connection(with: .depthData),
@@ -798,7 +798,7 @@ nonisolated extension CameraService: AVCaptureVideoDataOutputSampleBufferDelegat
             } catch {
                 self.videoQueue.async {
                     if now - self.lastEnvironmentErrorLogTime >= 30 {
-                        NSLog("GoPhoto live environment analysis failed: %@", error.localizedDescription)
+                        NSLog("Poto live environment analysis failed: %@", error.localizedDescription)
                         self.lastEnvironmentErrorLogTime = now
                     }
                     self.environmentContinuation?.yield(nil)

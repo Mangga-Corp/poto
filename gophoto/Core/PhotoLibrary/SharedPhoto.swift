@@ -22,12 +22,12 @@ nonisolated struct SharedPhoto: Transferable {
         DataRepresentation(exportedContentType: .heic) { photo in
             try await PhotoExport.data(for: photo.assetID, as: .heic)
         }
-        .suggestedFileName("GoPhoto.heic")
+        .suggestedFileName("Poto.heic")
 
         // 2. Fallback: JPEG (opens everywhere)
         DataRepresentation(exportedContentType: .jpeg) { photo in
             try await PhotoExport.data(for: photo.assetID, as: .jpeg)
         }
-        .suggestedFileName("GoPhoto.jpg")
+        .suggestedFileName("Poto.jpg")
     }
 }

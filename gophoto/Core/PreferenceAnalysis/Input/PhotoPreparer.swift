@@ -16,7 +16,7 @@ nonisolated struct PhotoSource: @unchecked Sendable {
     let image: UIImage?
     /// 35 mm-equivalent focal length from the photo's EXIF, when known.
     let focalLength35mm: Double?
-    /// Camera-angle method. GoPhoto always uses GeoCalib fp16 (`GeoCalibNet_fp16`).
+    /// Camera-angle method. Poto always uses GeoCalib fp16 (`GeoCalibNet_fp16`).
     var angleMode: CameraAngleMethod = .geoCalibLight
     /// Changes on `AnalysisSession.rescan()` so cached results are not reused.
     var scanToken = 0

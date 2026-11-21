@@ -37,7 +37,7 @@ struct StyleChoiceView: View {
                 }
                 if question.options.count > 3 && !showsAll {
                     Button("Show other styles") { withAnimation { showsAll = true } }
-                        .buttonStyle(.goPhotoText)
+                        .buttonStyle(.potoText)
                         .frame(maxWidth: .infinity)
                 }
                 if isSaving {
@@ -45,28 +45,28 @@ struct StyleChoiceView: View {
                         .frame(maxWidth: .infinity)
                 }
             }
-            .padding(.horizontal, GoPhotoDesign.sessionMargin)
+            .padding(.horizontal, PotoDesign.sessionMargin)
             .padding(.top, 24)
             .padding(.bottom, 24)
         }
         .scrollBounceBehavior(.basedOnSize)
         .frame(maxWidth: .infinity, maxHeight: .infinity)
-        .background(GoPhotoDesign.background.ignoresSafeArea())
+        .background(PotoDesign.background.ignoresSafeArea())
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             // The shot size this question is about, as a tag (like "Step 1 of 2").
             Text(question.shotTitle)
-                .goPhotoTag()
+                .potoTag()
             Text("Which style do you want for your preset?")
-                .font(GoPhotoDesign.largeTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.largeTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text("Your photos show different ways of being photographed. Pick the one the camera should guide.")
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -87,15 +87,15 @@ struct StyleChoiceView: View {
                     if let image = option.photo?.image {
                         Image(uiImage: image).resizable().scaledToFill()
                     } else {
-                        GoPhotoDesign.secondaryBackground
+                        PotoDesign.secondaryBackground
                     }
                 }
-                .clipShape(RoundedRectangle(cornerRadius: GoPhotoDesign.controlCornerRadius))
-                .overlay(RoundedRectangle(cornerRadius: GoPhotoDesign.controlCornerRadius)
-                    .stroke(GoPhotoDesign.border, lineWidth: 1))
+                .clipShape(RoundedRectangle(cornerRadius: PotoDesign.controlCornerRadius))
+                .overlay(RoundedRectangle(cornerRadius: PotoDesign.controlCornerRadius)
+                    .stroke(PotoDesign.border, lineWidth: 1))
             Text(letter)
-                .font(GoPhotoDesign.cardTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.cardTitle)
+                .foregroundStyle(PotoDesign.primaryText)
         }
         .contentShape(Rectangle())
     }

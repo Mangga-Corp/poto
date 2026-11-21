@@ -64,7 +64,7 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
                         .transition(.opacity)
                 }
             }
-            .padding(.horizontal, GoPhotoDesign.sessionMargin)
+            .padding(.horizontal, PotoDesign.sessionMargin)
             .padding(.top, 8)
             .padding(.bottom, 24)
             .animation(.snappy, value: savedName)
@@ -78,7 +78,7 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
         } action: { _, collapse in
             titleCollapse = collapse
         }
-        .background(GoPhotoDesign.background.ignoresSafeArea())
+        .background(PotoDesign.background.ignoresSafeArea())
         .sensoryFeedback(.selection, trigger: selection)
         .sessionBottomBar {
             SessionPrimaryButton(title: primaryTitle, isEnabled: selection != nil && !isLoading,
@@ -93,7 +93,7 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
             ToolbarItem(placement: .principal) {
                 Text(title)
                     .font(AppFont.headline)
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                    .foregroundStyle(PotoDesign.primaryText)
                     .lineLimit(1)
                     .opacity(titleCollapse)
                     .offset(y: reduceMotion ? 0 : (1 - titleCollapse) * Self.compactTitleSlide)
@@ -106,10 +106,10 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("Step \(step) of \(stepCount)")
-                .goPhotoTag()
+                .potoTag()
             Text(title)
-                .font(GoPhotoDesign.largeTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.largeTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
                 .opacity(1 - titleCollapse)
@@ -119,8 +119,8 @@ struct CustomStyleOptionPage<Option: CustomStyleOption, Artwork: View>: View {
                     proxy.frame(in: .named(Self.contentSpace))
                 } action: { titleFrame = $0 }
             Text(message)
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
     }
@@ -148,12 +148,12 @@ private struct SavedNameNote: View {
         HStack(alignment: .firstTextBaseline, spacing: 10) {
             Image(systemName: "bookmark")
                 .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                .foregroundStyle(GoPhotoDesign.primary)
+                .foregroundStyle(PotoDesign.primary)
                 .accessibilityHidden(true)
             VStack(alignment: .leading, spacing: 2) {
                 Text("Saves as “\(name)”")
-                    .font(GoPhotoDesign.secondaryBody.weight(.semibold))
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                    .font(PotoDesign.secondaryBody.weight(.semibold))
+                    .foregroundStyle(PotoDesign.primaryText)
             }
             .fixedSize(horizontal: false, vertical: true)
         }
@@ -190,29 +190,29 @@ private struct CustomStyleOptionCard<Option: CustomStyleOption, Artwork: View>: 
             VStack(alignment: .leading, spacing: 6) {
                 HStack(alignment: .top, spacing: 8) {
                     Text(option.title)
-                        .font(GoPhotoDesign.cardTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .font(PotoDesign.cardTitle)
+                        .foregroundStyle(PotoDesign.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                         .frame(maxWidth: .infinity, alignment: .leading)
                     if !isAvailable {
                         Text("Already Added")
-                            .font(GoPhotoDesign.smallLabel)
-                            .foregroundStyle(GoPhotoDesign.secondaryText)
+                            .font(PotoDesign.smallLabel)
+                            .foregroundStyle(PotoDesign.secondaryText)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 3)
-                            .background(GoPhotoDesign.tagBackground, in: Capsule())
+                            .background(PotoDesign.tagBackground, in: Capsule())
                     } else {
                         SelectionIndicator(isSelected: isSelected)
                     }
                 }
                 Text(option.summary)
-                    .font(GoPhotoDesign.secondaryBody)
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
+                    .font(PotoDesign.secondaryBody)
+                    .foregroundStyle(PotoDesign.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
         }
         .padding(14)
-        .goPhotoCard(isSelected: isSelected)
+        .potoCard(isSelected: isSelected)
         .opacity(isAvailable ? 1.0 : 0.45)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isAvailable ? (isSelected ? [.isButton, .isSelected] : .isButton) : [])
