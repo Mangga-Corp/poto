@@ -11,7 +11,6 @@ import UIKit
 // MARK: - Pengaturan Animasi & Tampilan (Ukuran HP & Kegelapan Layar)
 
 enum GuidanceAnimationStyle {
-    static let sizeFraction: CGFloat = 0.35
     static let dimOpacity: Double = 0.60
 
     //timing
@@ -24,11 +23,9 @@ enum GuidanceAnimationStyle {
     static let phoneColor = UIColor.white
 
     //view lagi nih
-    static let guideColor = UIColor(red: 0.98, green: 0.78, blue: 0.46, alpha: 1)
     static let arrowColor = Color(red: 0.98, green: 0.78, blue: 0.46)
 
     static let tiltView: TiltView = .angledRight45   // yaw -45°: phone turned 45°, screen facing left
-    static let heightYawDegrees: Double = -20
     static let tiltStepDegrees: Double = 5
 }
 
@@ -207,7 +204,6 @@ struct GuidanceMotionOverlay: View {
     var isEnabled: Bool = true
 
     @Environment(\.scenePhase) private var scenePhase
-    @Environment(\.accessibilityReduceMotion) private var reduceMotion
 
     @State private var isAnimationVisible: Bool = false
 
@@ -226,59 +222,26 @@ struct GuidanceMotionOverlay: View {
     }
 
     var body: some View {
-        GeometryReader { proxy in
-            let fraction = min(max(GuidanceAnimationStyle.sizeFraction, 0.15), 0.5)
-            let height = proxy.size.height * fraction
-            let width = height * 0.72
-
-            // Posisi tepat di garis antara kotak guideline kiri dan tengah (rule of thirds: x = 1/3)
-            let gridLineX = proxy.size.width / 3.0
-            let centerY = proxy.size.height / 2.0
-
-            ZStack {
-                // 1. Layar digelapkan sedikit (muncul & hilang BARENGAN dengan animasi 3D)
-                if isAnimationVisible && motion != nil {
-                    Color.black.opacity(GuidanceAnimationStyle.dimOpacity)
-                        .ignoresSafeArea()
-                        .transition(.opacity)
-                }
-
-                // 2. 3D Mockup Phone
-                if isAnimationVisible, let motion {
-                    animation(for: motion)
-                        .frame(width: width, height: height)
-                        .position(x: gridLineX, y: centerY)
-                        .transition(.opacity)
-                }
+        ZStack {
+            // 1. Layar digelapkan sedikit (muncul & hilang BARENGAN dengan animasi 3D)
+            if isAnimationVisible && motion != nil {
+                Color.black.opacity(GuidanceAnimationStyle.dimOpacity)
+                    .ignoresSafeArea()
+                    .transition(.opacity)
             }
-            .frame(maxWidth: .infinity, maxHeight: .infinity)
+
+            // 2. HP dan panah, sama dengan yang diajarkan di onboarding kamera
+            if isAnimationVisible, let motion {
+                GuidancePhoneIllustration(motion: motion)
+                    .transition(.opacity)
+            }
         }
+        .frame(maxWidth: .infinity, maxHeight: .infinity)
         .task(id: CycleTrigger(instruction: instruction, isEnabled: isEnabled, isActive: scenePhase == .active)) {
             await runGuidanceCycle()
         }
         .allowsHitTesting(false)
         .accessibilityHidden(true)
-    }
-
-    @ViewBuilder
-    private func animation(for motion: GuidanceMotion) -> some View {
-        switch motion {
-        case .height(let direction):
-            HeightGuidanceView(direction: direction,
-                               isActive: isAnimationVisible && !reduceMotion,
-                               yawDegrees: GuidanceAnimationStyle.heightYawDegrees,
-                               guideColor: GuidanceAnimationStyle.guideColor,
-                               showsStillPose: reduceMotion)
-                .id("height-\(direction)")
-        case .tilt(let direction, let degrees, let view):
-            TiltGuidanceView(direction: direction,
-                             degrees: degrees,
-                             tiltView: view,
-                             isActive: isAnimationVisible && !reduceMotion,
-                             guideColor: GuidanceAnimationStyle.guideColor,
-                             showsStillPose: reduceMotion)
-                .id("tilt-\(direction)")
-        }
     }
 
     // MARK: - Arrow Positioning Helper untuk Height (asli sebelumnya)

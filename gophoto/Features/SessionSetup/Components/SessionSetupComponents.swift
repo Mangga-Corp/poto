@@ -57,9 +57,16 @@ struct GlassBarBackground: View {
     enum Edge { case top, bottom }
     let edge: Edge
 
+    @Environment(\.colorScheme) private var colorScheme
+
+    /// Light mode: the page's warm cream (a material turns it grey). Dark mode: frosted glass.
+    private var barFill: AnyShapeStyle {
+        colorScheme == .light ? AnyShapeStyle(PotoDesign.background) : AnyShapeStyle(.ultraThinMaterial)
+    }
+
     var body: some View {
         Rectangle()
-            .fill(.ultraThinMaterial)
+            .fill(barFill)
             .overlay(PotoDesign.background.opacity(0.12))
             // Strongest at the outer edge, fading smoothly toward the middle
             // so there is no visible seam with the content.

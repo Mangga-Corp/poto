@@ -18,6 +18,54 @@ enum PhoneDimensions {
     static let bevel: Float = 0.0014        // 1.4 mm contoured edges
 }
 
+/// The flat colours of the phone mockup. `sketch` is the live camera guidance; `guideLight` and
+/// `guideDark` are the camera tips, which follow the device's appearance.
+struct PhoneSkin: Equatable {
+    var side: UIColor
+    var front: UIColor
+    var screenLine: UIColor
+    var screen: UIColor
+    var back: UIColor
+    var plateau: UIColor
+    var lens: UIColor
+    var lensRing: UIColor
+    var island: UIColor
+    var button: UIColor
+    var outline: UIColor
+    /// The two diagonal reflection lines on the screen. Nil = none.
+    var glare: UIColor?
+    /// True shows the colours exactly as written (a pure white screen), without tone mapping.
+    var usesExactColors = true
+
+    private static func grey(_ white: CGFloat) -> UIColor { UIColor(white: white, alpha: 1) }
+
+    static let sketch = PhoneSkin(
+        side: grey(0.80), front: grey(0.93), screenLine: grey(0.20), screen: grey(0.995),
+        back: grey(0.90), plateau: grey(0.84), lens: grey(0.20), lensRing: grey(0.70),
+        island: grey(0.20), button: grey(0.70), outline: grey(0.20), glare: nil, usesExactColors: false)
+
+    static let guideLight = PhoneSkin(
+        side: grey(0.94), front: grey(0.98), screenLine: grey(0.28), screen: .white,
+        back: grey(0.90), plateau: grey(0.84), lens: grey(0.20), lensRing: grey(0.70),
+        island: grey(0.13), button: grey(0.74), outline: grey(0.30), glare: grey(0.45))
+
+    static let guideDark = PhoneSkin(
+        side: UIColor(hex: 0x3A3A3C), front: UIColor(hex: 0x2C2C2E), screenLine: UIColor(hex: 0xAEAEB2),
+        screen: UIColor(hex: 0x1C1C1E), back: UIColor(hex: 0x2C2C2E), plateau: UIColor(hex: 0x3A3A3C),
+        lens: UIColor(hex: 0x000000), lensRing: UIColor(hex: 0x636366), island: UIColor(hex: 0x000000),
+        button: UIColor(hex: 0x8E8E93), outline: UIColor(hex: 0xD1D1D6), glare: UIColor(hex: 0x8E8E93))
+}
+
+extension UnlitMaterial {
+    /// A flat colour. `exact` skips tone mapping, which would turn pure white into light grey.
+    static func flat(_ color: UIColor, exact: Bool) -> UnlitMaterial {
+        guard exact else { return UnlitMaterial(color: color) }
+        var material = UnlitMaterial(applyPostProcessToneMap: false)
+        material.color = .init(tint: color)
+        return material
+    }
+}
+
 @MainActor
 final class PhoneRig {
     let root = Entity()
@@ -25,7 +73,40 @@ final class PhoneRig {
     private let pivot = Entity()
     private let body = Entity()
 
-    init() {
+    private let frameClay: UnlitMaterial
+    private let bezelClay: UnlitMaterial
+    private let screenLineClay: UnlitMaterial
+    private let screenSurface: UnlitMaterial
+    private let backSurface: UnlitMaterial
+    private let plateauClay: UnlitMaterial
+    private let lensClay: UnlitMaterial
+    private let lensRingClay: UnlitMaterial
+    private let islandClay: UnlitMaterial
+    private let buttonClay: UnlitMaterial
+    /// Inverted-hull outline: the side wall, slightly bigger, drawn from the inside only,
+    /// so a thin dark line shows around the silhouette from any angle.
+    private let outlineMaterial: UnlitMaterial
+    private let glareMaterial: UnlitMaterial?
+
+    init(skin: PhoneSkin = .sketch) {
+        // "3D sketch" look: flat, unlit surfaces with outlines (like a line drawing of a phone),
+        // so lighting never changes how it looks.
+        let exact = skin.usesExactColors
+        frameClay = .flat(skin.side, exact: exact)
+        bezelClay = .flat(skin.front, exact: exact)
+        screenLineClay = .flat(skin.screenLine, exact: exact)
+        screenSurface = .flat(skin.screen, exact: exact)
+        backSurface = .flat(skin.back, exact: exact)
+        plateauClay = .flat(skin.plateau, exact: exact)
+        lensClay = .flat(skin.lens, exact: exact)
+        lensRingClay = .flat(skin.lensRing, exact: exact)
+        islandClay = .flat(skin.island, exact: exact)
+        buttonClay = .flat(skin.button, exact: exact)
+        var outline = UnlitMaterial.flat(skin.outline, exact: exact)
+        outline.faceCulling = .front
+        outlineMaterial = outline
+        glareMaterial = skin.glare.map { .flat($0, exact: exact) }
+
         root.name = "IPhoneMockupRig"
         root.addChild(yawNode)
         yawNode.addChild(pivot)
@@ -58,36 +139,6 @@ final class PhoneRig {
             root.components.set(OpacityComponent(opacity: v))
         }
     }
-
-    // MARK: - Sketch materials
-    // "3D sketch" look: flat, unlit light-grey surfaces with dark outlines (like a line drawing
-    // of a phone), so lighting never changes how it looks. Tweak the greys here.
-
-    private static func flat(_ white: CGFloat) -> UnlitMaterial {
-        UnlitMaterial(color: UIColor(white: white, alpha: 1))
-    }
-
-    /// Dark outline colour (also used for the screen edge, island and lenses).
-    private static let lineGrey: CGFloat = 0.20
-
-    private let frameClay = PhoneRig.flat(0.80)        // the visible side of the phone
-    private let bezelClay = PhoneRig.flat(0.93)        // front face around the screen
-    private let screenLineClay = PhoneRig.flat(PhoneRig.lineGrey)  // thin line round the screen
-    private let screenSurface = PhoneRig.flat(0.995)   // screen, almost white
-    private let backSurface = PhoneRig.flat(0.90)
-    private let plateauClay = PhoneRig.flat(0.84)
-    private let lensClay = PhoneRig.flat(PhoneRig.lineGrey)
-    private let lensRingClay = PhoneRig.flat(0.70)
-    private let islandClay = PhoneRig.flat(PhoneRig.lineGrey)
-    private let buttonClay = PhoneRig.flat(0.70)
-
-    /// Inverted-hull outline: the side wall, slightly bigger, drawn from the inside only,
-    /// so a thin dark line shows around the silhouette from any angle.
-    private let outlineMaterial: UnlitMaterial = {
-        var m = UnlitMaterial(color: UIColor(white: PhoneRig.lineGrey, alpha: 1))
-        m.faceCulling = .front
-        return m
-    }()
 
     // MARK: - Geometry Builder
 
@@ -155,6 +206,10 @@ final class PhoneRig {
         island.position = SIMD3<Float>(0, h / 2 - 0.0105, 0)
         body.addChild(island)
 
+        if let glareMaterial {
+            buildGlare(into: body, z: half + 0.00028, material: glareMaterial)
+        }
+
         // 4. Back Panel with Apple Logo texture
         body.addChild(model("BackPanel",
                             PhoneMeshFactory.cap(width: w - 2 * D.bevel, height: h - 2 * D.bevel,
@@ -167,6 +222,25 @@ final class PhoneRig {
 
         // 6. Clean Camera Module (no flash, no LiDAR, just lenses + plateau)
         buildMockupCameraModule(into: body)
+    }
+
+    // MARK: - Screen reflection
+
+    /// Two thin diagonal lines in the screen's lower-left corner.
+    private func buildGlare(into body: Entity, z: Float, material: UnlitMaterial) {
+        let lines: [(SIMD2<Float>, SIMD2<Float>)] = [
+            (SIMD2(-0.0319, -0.0506), SIMD2(-0.0222, -0.0388)),
+            (SIMD2(-0.0319, -0.0624), SIMD2(-0.0126, -0.0382)),
+        ]
+        for (index, line) in lines.enumerated() {
+            let delta = line.1 - line.0
+            let center = (line.0 + line.1) / 2
+            let entity = model("Glare\(index)",
+                               .generatePlane(width: simd_length(delta), height: 0.00055), material)
+            entity.position = SIMD3<Float>(center.x, center.y, z)
+            entity.orientation = simd_quatf(angle: atan2(delta.y, delta.x), axis: SIMD3<Float>(0, 0, 1))
+            body.addChild(entity)
+        }
     }
 
     // MARK: - Mockup Side Buttons (simple, subtle)

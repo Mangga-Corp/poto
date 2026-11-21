@@ -20,9 +20,9 @@ final class FacePickerViewModel {
     static let maxFaces = 600
     /// Photos checked per scan: favourites first, then the newest.
     static let maxPhotos = 1500
-    static let shownGroupCount = 6
-    /// People added per "Not here? Show more people" tap: three more rows (18 Nov).
-    static let moreGroupCount = 9
+    static let shownGroupCount = 4
+    /// People added per "Not here? Show more people" tap: two more rows of the 2-column grid.
+    static let moreGroupCount = 4
 
     private(set) var state: State = .idle
     private(set) var groups: [PersonGroup] = []
@@ -32,6 +32,9 @@ final class FacePickerViewModel {
     /// People on screen: `shownGroupCount` first, `moreGroupCount` more per tap, each with its face.
     private(set) var shownGroupLimit = FacePickerViewModel.shownGroupCount
     private(set) var isLoadingMoreGroups = false
+    /// The limited-access question was closed without scanning: `.idle` then waits for
+    /// "Scan my photos" instead of showing the loading page.
+    private(set) var isWaitingForManualStart = false
 
     /// The first scan was started. Coming back to the screen (from Your Photos) keeps what it shows
     /// instead of scanning again.
@@ -65,16 +68,20 @@ final class FacePickerViewModel {
 
     func start() {
         hasStarted = true
+        isWaitingForManualStart = false
         guard service != nil else { state = .unsupported; return }
         restartScan { await $0.requestAccessAndScan() }
     }
 
     func continueWithLimitedAccess() {
+        isWaitingForManualStart = false
         restartScan { await $0.scan() }
     }
 
     func dismissLimitedAccess() {
-        if state == .limitedAccess { state = .idle }
+        guard state == .limitedAccess else { return }
+        isWaitingForManualStart = true
+        state = .idle
     }
 
     func cancelScan() {
@@ -120,6 +127,7 @@ final class FacePickerViewModel {
         pickedGroup = nil
         pickedPhotos = []
         shownGroupLimit = Self.shownGroupCount
+        isWaitingForManualStart = false
         state = .idle
         guard let service else { return }
         let previous = Self.pendingCleanup

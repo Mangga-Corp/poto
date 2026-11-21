@@ -35,7 +35,7 @@ struct DistanceBar: View {
                 let w = geo.size.width
                 let zoneLeft = x(1 + tolerance, w), zoneRight = x(1 - tolerance, w)
                 ZStack(alignment: .leading) {
-                    Capsule().fill(PotoDesign.primarySubtle)
+                    Capsule().fill(Self.trackColor)
                     Capsule().fill(Self.zoneColor)
                         .frame(width: max(0, zoneRight - zoneLeft))
                         .offset(x: zoneLeft)
@@ -50,7 +50,7 @@ struct DistanceBar: View {
             }
             .frame(height: 14)
         }
-        .padding(.horizontal, 14)
+        .padding(.horizontal, 24)
         .padding(.top, 8)
         .padding(.bottom, 10)
         .frame(maxWidth: .infinity)
@@ -61,6 +61,8 @@ struct DistanceBar: View {
         .accessibilityLabel(accessibilityText)
     }
 
+    /// Light lavender track. Fixed, because the camera is always dark and the bar sits on a photo.
+    private static let trackColor = Color(hex: 0xE6DDF3)
     /// The dark purple "right distance" segment.
     private static let zoneColor = Color(hex: 0x4B2A85)
 

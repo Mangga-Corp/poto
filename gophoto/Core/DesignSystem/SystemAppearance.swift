@@ -20,9 +20,17 @@ final class SystemAppearance {
 
     private(set) var colorScheme: ColorScheme = .light
     @ObservationIgnored private var observedScene: UIWindowScene?
+    @ObservationIgnored private var activationObserver: (any NSObjectProtocol)?
 
     private init() {
         refresh()
+        // While the camera forces dark, the scene reports no style change. Control Center and
+        // Settings both deactivate the app, so the real setting is read again on the way back.
+        activationObserver = NotificationCenter.default.addObserver(
+            forName: UIScene.didActivateNotification, object: nil, queue: .main
+        ) { [weak self] _ in
+            MainActor.assumeIsolated { self?.refresh() }
+        }
     }
 
     /// Reads the current scene's appearance and starts observing it (once per scene).
@@ -33,12 +41,14 @@ final class SystemAppearance {
             ?? UIApplication.shared.connectedScenes.compactMap({ $0 as? UIWindowScene }).first
         else { return }
 
-        update(from: scene.traitCollection)
+        // The screen's traits, not the scene's: `.preferredColorScheme(.dark)` on the camera can
+        // reach the scene, while the screen always reports the device's real setting.
+        update(from: scene.screen.traitCollection)
 
         guard observedScene !== scene else { return }
         observedScene = scene
         scene.registerForTraitChanges([UITraitUserInterfaceStyle.self]) { [weak self] (scene: UIWindowScene, _) in
-            self?.update(from: scene.traitCollection)
+            self?.update(from: scene.screen.traitCollection)
         }
     }
 

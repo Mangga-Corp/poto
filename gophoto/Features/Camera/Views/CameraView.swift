@@ -161,6 +161,7 @@ struct CameraView: View {
             shotSizePicker
             controlPanel
         }
+        .reportOnboardingFrame(.controls, into: $onboardingFrames)
     }
 
     /// Dark rounded panel: gallery shortcut (left) · shutter (centre) · photo ratio (right),
@@ -169,7 +170,6 @@ struct CameraView: View {
         shutterButton
             .frame(maxWidth: .infinity)
             .frame(height: 108)
-            .reportOnboardingFrame(.shutter, into: $onboardingFrames)
             .background(Color(hex: 0x1A1A1A), in: RoundedRectangle(cornerRadius: 40, style: .continuous))
             .overlay(RoundedRectangle(cornerRadius: 40, style: .continuous).stroke(.white.opacity(0.12), lineWidth: 1))
             .overlay(alignment: .leading) {
@@ -244,8 +244,6 @@ struct CameraView: View {
             DistanceBar(sizeRatio: viewModel.phased.sizeRatio.map { $0 / centre },
                         tolerance: (hi - lo) / 2 / centre,
                         isOK: viewModel.phased.sizeRatio.map { $0 >= lo && $0 <= hi } ?? false)
-                .padding(.horizontal, 24)
-                .padding(.bottom, 12)
         }
     }
 
@@ -379,7 +377,9 @@ struct CameraView: View {
         }
         if !options.isEmpty {
             ShotSizePicker(options: options, selection: viewModel.activeShot,
-                           posture: viewModel.posture) { viewModel.selectShot($0) }
+                           posture: viewModel.posture,
+                           onHighlightFrameChange: showsCameraOnboarding
+                               ? { onboardingFrames[.selectedShot] = $0 } : nil) { viewModel.selectShot($0) }
                 .sensoryFeedback(.selection, trigger: viewModel.activeShot)
         }
     }

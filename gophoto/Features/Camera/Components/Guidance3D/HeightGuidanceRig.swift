@@ -15,9 +15,10 @@ final class HeightGuidanceRig {
     static let travelMeters: Float = 0.07
 
     let root = Entity()
-    private let phone = PhoneRig()
+    private let phone: PhoneRig
 
-    init() {
+    init(skin: PhoneSkin = .sketch) {
+        phone = PhoneRig(skin: skin)
         root.name = "HeightGuidanceRig"
         root.addChild(phone.root)
     }

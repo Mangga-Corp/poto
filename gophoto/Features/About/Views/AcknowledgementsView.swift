@@ -45,6 +45,7 @@ struct AcknowledgementsView: View {
                                 .font(AppFont.caption.monospaced())
                                 .padding()
                         }
+                        .appPatternBackground()
                         .navigationTitle("SunKit license")
                         .navigationBarTitleDisplayMode(.inline)
                     }
@@ -56,6 +57,8 @@ struct AcknowledgementsView: View {
                          destination: weatherAttribution?.legalPageURL ?? Self.fallbackLegalURL)
                 }
             }
+            .scrollContentBackground(.hidden)
+            .appPatternBackground()
             .navigationTitle("Acknowledgements")
             .navigationBarTitleDisplayMode(.inline)
             .toolbar {

@@ -338,7 +338,7 @@ struct PhotoSessionSetupView: View {
                 .font(AppFont.scaled(size: 18, weight: .semibold, relativeTo: .body))
                 .foregroundStyle(PotoDesign.primary)
 
-            Text("Your photos stay on this iPhone. They're analyzed on your device and never uploaded.")
+            Text("Our AI model runs offline, so your photos never leave this iPhone.")
                 .font(AppFont.scaled(size: 15, weight: .regular, relativeTo: .subheadline))
                 .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)

@@ -13,6 +13,8 @@ struct ShotSizePicker: View {
     let options: [PresetAnalysis.ShotSize]
     let selection: PresetAnalysis.ShotSize?
     let posture: BodyPosture?
+    /// Global frame of the highlighted chip (the camera tips keep it bright). Nil = not needed.
+    var onHighlightFrameChange: ((CGRect) -> Void)? = nil
     let onSelect: (PresetAnalysis.ShotSize) -> Void
 
     /// Every option has the same width, so snapping one to the leading content margin centres it.
@@ -90,13 +92,19 @@ struct ShotSizePicker: View {
         } label: {
             Text(shot.pickerTitle)
                 .font(Self.labelFont)
-                .foregroundStyle(isSelected ? PotoDesign.primaryText : Color.white.opacity(0.5))
+                .foregroundStyle(isSelected ? Color.black : Color.white.opacity(0.5))
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, Self.labelPadding)
                 .frame(height: itemHeight)
                 .background {
-                    if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(PotoDesign.background).matchedGeometryEffect(id: "shotHighlight", in: highlight) }
+                    // Fixed white: the camera is always dark.
+                    if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(.white).matchedGeometryEffect(id: "shotHighlight", in: highlight) }
+                }
+                .onGeometryChange(for: CGRect?.self) { proxy in
+                    isSelected ? proxy.frame(in: .global) : nil
+                } action: { frame in
+                    if let frame { onHighlightFrameChange?(frame) }
                 }
                 .frame(width: itemWidth)
                 .contentShape(Rectangle())

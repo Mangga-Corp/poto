@@ -20,15 +20,15 @@ enum PhotoPickMethod: CaseIterable, Identifiable {
 
     var subtitle: String {
         switch self {
-        case .suggested: "Poto looks through your library and picks photos of you"
-        case .manual: "Pick photos from your library yourself"
+        case .suggested: "Poto looks through your photos and groups them for you."
+        case .manual: "Pick photos from your library yourself."
         }
     }
 
     var symbol: String {
         switch self {
-        case .suggested: "sparkles"
-        case .manual: "hand.tap"
+        case .suggested: "photo.badge.magnifyingglass.fill"
+        case .manual: "photo.badge.plus.fill"
         }
     }
 }
@@ -44,37 +44,42 @@ struct PhotoSourceChoiceView: View {
     }
 
     var body: some View {
-        VStack(alignment: .leading, spacing: 0) {
-            Text("How do you want to add photos?")
-                .font(PotoDesign.largeTitle)
-                .foregroundStyle(PotoDesign.primaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .accessibilityAddTraits(.isHeader)
-            Text("You can still add or remove photos before the analysis starts.")
-                .font(PotoDesign.body)
-                .foregroundStyle(PotoDesign.secondaryText)
-                .fixedSize(horizontal: false, vertical: true)
-                .padding(.top, 8)
+        ScrollView {
+            VStack(alignment: .leading, spacing: 24) {
+                Text("How do you want to add photos?")
+                    .font(PotoDesign.largeTitle)
+                    .foregroundStyle(PotoDesign.primaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .accessibilityAddTraits(.isHeader)
 
-            VStack(spacing: 12) {
-                ForEach(PhotoPickMethod.allCases) { source in
-                    PhotoSourceCard(source: source, isSelected: source == selected)
-                        .onTapGesture { selected = source }
-                        .accessibilityAction { selected = source }
-                        .accessibilityInputLabels([source.title])
+                // Both cards take the taller one's height.
+                VStack(spacing: 16) {
+                    ForEach(PhotoPickMethod.allCases) { source in
+                        PhotoSourceCard(source: source, isSelected: source == selected)
+                            .onTapGesture { select(source) }
+                            .accessibilityAction { select(source) }
+                            .accessibilityInputLabels([source.title])
+                    }
                 }
+                .fixedSize(horizontal: false, vertical: true)
             }
-            .padding(.top, 28)
+            .padding(.horizontal, PotoDesign.sessionMargin)
+            .padding(.top, 8)
+            .padding(.bottom, 16)
+            .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .padding(.horizontal, PotoDesign.sessionMargin)
-        .padding(.top, 24)
-        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .scrollBounceBehavior(.basedOnSize)
         .background(PotoDesign.background)
+        .sensoryFeedback(.selection, trigger: selected)
         .sessionBottomBar {
             SessionPrimaryButton(title: "Continue") { onChoose(selected) }
         }
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
+    }
+
+    private func select(_ source: PhotoPickMethod) {
+        withAnimation(.snappy(duration: 0.2)) { selected = source }
     }
 }
 
@@ -82,54 +87,79 @@ private struct PhotoSourceCard: View {
     let source: PhotoPickMethod
     let isSelected: Bool
 
+    private static let cornerRadius: CGFloat = 24
+    private static let iconTileSize: CGFloat = 44
+
     var body: some View {
-        let shape = RoundedRectangle(cornerRadius: PotoDesign.cardCornerRadius, style: .continuous)
-        HStack(spacing: 16) {
-            Image(systemName: source.symbol)
-                .font(.title2)
-                .frame(width: 32)
-            VStack(alignment: .leading, spacing: 4) {
-                // "Recommended" sits above the title so it never squeezes it.
+        let shape = RoundedRectangle(cornerRadius: Self.cornerRadius, style: .continuous)
+        VStack(alignment: .leading, spacing: 14) {
+            HStack(spacing: 12) {
+                iconTile
                 if source == .suggested {
                     Text("Recommended")
                         .font(PotoDesign.smallLabel)
                         .foregroundStyle(PotoDesign.tagText)
-                        .fixedSize(horizontal: false, vertical: true)
-                        .padding(.horizontal, 8)
-                        .padding(.vertical, 3)
-                        // On a selected card the usual tag fill matches the card, so it uses the
-                        // surface fill; the border keeps the pill visible either way. Its leading
-                        // edge lines up with the title below.
-                        .background(isSelected ? PotoDesign.surface : PotoDesign.tagBackground,
-                                    in: Capsule())
-                        .overlay(Capsule().strokeBorder(PotoDesign.primaryBorder, lineWidth: 1))
-                        .padding(.bottom, 2)
+                        .fixedSize()
+                        .padding(.horizontal, 16)
+                        .padding(.vertical, 6)
+                        .background(PotoDesign.selectedAccent, in: Capsule())
                 }
+                Spacer(minLength: 8)
+                PhotoSourceRadio(isSelected: isSelected)
+            }
+
+            VStack(alignment: .leading, spacing: 6) {
                 // Wraps onto more lines when it doesn't fit, never cut with "…".
                 Text(source.title)
-                    .font(PotoDesign.cardTitle)
-                    .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.primaryText)
+                    .font(PotoDesign.sectionTitle)
+                    .foregroundStyle(PotoDesign.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                 Text(source.subtitle)
                     .font(PotoDesign.secondaryBody)
-                    .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.secondaryText)
+                    .foregroundStyle(PotoDesign.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
             }
-            Spacer(minLength: 8)
-            Image(systemName: isSelected ? "checkmark.circle" : "circle")
-                .font(.title2)
         }
-        .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.primaryText)
         .padding(20)
-        .frame(maxWidth: .infinity, alignment: .leading)
-        .background(isSelected ? PotoDesign.primarySubtle : PotoDesign.surface, in: shape)
+        .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .topLeading)
+        .background(isSelected ? PotoDesign.selectedSurface : PotoDesign.surface, in: shape)
         .overlay {
-            shape.strokeBorder(isSelected ? PotoDesign.selectedBorder : PotoDesign.border,
+            shape.strokeBorder(isSelected ? PotoDesign.selectedContent : PotoDesign.border,
                                lineWidth: isSelected ? 2 : 1)
         }
         .contentShape(shape)
         .accessibilityElement(children: .combine)
         .accessibilityAddTraits(isSelected ? [.isButton, .isSelected] : .isButton)
+    }
+
+    private var iconTile: some View {
+        Image(systemName: source.symbol)
+            .font(AppFont.system(size: 22))
+            .foregroundStyle(isSelected ? PotoDesign.selectedContent : PotoDesign.secondaryText)
+            .frame(width: Self.iconTileSize, height: Self.iconTileSize)
+            .background(isSelected ? PotoDesign.selectedAccent : PotoDesign.background,
+                        in: RoundedRectangle(cornerRadius: 12, style: .continuous))
+            .accessibilityHidden(true)
+    }
+}
+
+/// Radio mark: an empty ring, or a ring with a filled dot.
+private struct PhotoSourceRadio: View {
+    let isSelected: Bool
+
+    var body: some View {
+        ZStack {
+            Circle()
+                .strokeBorder(isSelected ? PotoDesign.selectedContent : PotoDesign.primaryText, lineWidth: 1.5)
+            if isSelected {
+                Circle()
+                    .fill(PotoDesign.selectedContent)
+                    .padding(4)
+                    .transition(.scale.combined(with: .opacity))
+            }
+        }
+        .frame(width: 24, height: 24)
+        .accessibilityHidden(true)
     }
 }
 

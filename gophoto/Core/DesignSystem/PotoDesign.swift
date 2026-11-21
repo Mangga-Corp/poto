@@ -55,6 +55,10 @@ enum PotoPalette {
     static let selectedContent = UIColor.adaptive(light: 0x6C30A6, dark: 0xD7C3F2)
     /// Border of a selected card. Light: same as `primaryBorder`. Dark: 5.6:1 on the dark tint.
     static let selectedBorder = UIColor.adaptive(light: 0xDCC9ED, dark: 0xB794F0)
+    /// Fill of a selected choice card and of soft status pills.
+    static let selectedSurface = UIColor.adaptive(light: 0xF5EFFA, dark: 0x35234F)
+    /// Icon tile or tag sitting on `selectedSurface`, one step stronger so it stays visible.
+    static let selectedAccent = UIColor.adaptive(light: 0xEBDFF6, dark: 0x4A3270)
     static let onPrimary = UIColor.white
 
     // MARK: Neutrals
@@ -103,6 +107,10 @@ enum PotoDesign {
     static let selectedContent = Color(uiColor: PotoPalette.selectedContent)
     /// Border of a selected card.
     static let selectedBorder = Color(uiColor: PotoPalette.selectedBorder)
+    /// Fill of a selected choice card and of soft status pills.
+    static let selectedSurface = Color(uiColor: PotoPalette.selectedSurface)
+    /// Icon tile or tag sitting on `selectedSurface`.
+    static let selectedAccent = Color(uiColor: PotoPalette.selectedAccent)
     static let onPrimary = Color(uiColor: PotoPalette.onPrimary)
 
     // MARK: Neutrals
