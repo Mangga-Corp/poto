@@ -8,7 +8,7 @@
 import SwiftUI
 
 struct AppPatternBackground: View {
-    private let surface = GoPhotoDesign.background
+    private let surface = PotoDesign.background
 
     var body: some View {
         surface
@@ -17,7 +17,7 @@ struct AppPatternBackground: View {
 }
 
 extension View {
-    /// Applies the standard GoPhoto background (plain surface color)
+    /// Applies the standard Poto background (plain surface color)
     func appPatternBackground() -> some View {
         background {
             AppPatternBackground()

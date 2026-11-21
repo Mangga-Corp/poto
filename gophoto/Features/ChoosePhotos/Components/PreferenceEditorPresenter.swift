@@ -71,7 +71,7 @@ final class PreferenceEditorPresenter {
             if let self, let analyzing, let notice = self.preferences.exclusionNotice(for: id) {
                 let alert = UIAlertController(title: HumanSubjectValidationResult.exclusionTitle,
                                               message: notice.exclusionMessage, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Continue", style: .default) { [weak self, weak analyzing] _ in
+                alert.addPrimaryAction("Continue") { [weak self, weak analyzing] in
                     guard let self else { return }
                     self.preferences.confirmExclusions(for: id) { result in
                         guard let analyzing, let host = analyzing.presentingViewController else { return }
@@ -85,12 +85,12 @@ final class PreferenceEditorPresenter {
                             case .failure(let error):
                                 let errorAlert = UIAlertController(title: "Something went wrong",
                                                                    message: error.message, preferredStyle: .alert)
-                                errorAlert.addAction(UIAlertAction(title: "OK", style: .cancel))
+                                errorAlert.addPrimaryAction("OK")
                                 host.present(errorAlert, animated: true)
                             }
                         }
                     }
-                })
+                }
                 analyzing.present(alert, animated: true)
                 return
             }
@@ -100,11 +100,11 @@ final class PreferenceEditorPresenter {
             if let self, let analyzing, let warning = self.preferences.validationFailure(for: id) {
                 let alert = UIAlertController(title: HumanSubjectValidationResult.warningTitle,
                                               message: warning.warningMessage, preferredStyle: .alert)
-                alert.addAction(UIAlertAction(title: "Continue", style: .default) { [weak self, weak analyzing] _ in
+                alert.addSecondaryAction("Cancel", handler: finish)
+                alert.addPrimaryAction("Continue") { [weak self, weak analyzing] in
                     onPhotosCleaned?(self?.preferences.preference(id: id)?.photos ?? [])
                     analyzing?.dismiss(animated: true)
-                })
-                alert.addAction(UIAlertAction(title: "Cancel", style: .cancel) { _ in finish() })
+                }
                 analyzing.present(alert, animated: true)
                 return
             }

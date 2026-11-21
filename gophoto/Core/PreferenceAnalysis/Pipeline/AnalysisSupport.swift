@@ -2,7 +2,7 @@ import Foundation
 
 // MARK: - Which evidence a scan collects
 
-/// GoPhoto reads the camera angle with GeoCalib, so the evidence only the older
+/// Poto reads the camera angle with GeoCalib, so the evidence only the older
 /// angle method used (3D body pose, background vertical lines) is not collected.
 nonisolated struct EvidenceOptions: Sendable, Equatable {
     /// Vision 3D body pose. Used only by the older angle method.

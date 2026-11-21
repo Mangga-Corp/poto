@@ -71,56 +71,68 @@ struct PhotoSessionSetupView: View {
 
     // Split in two so the compiler type-checks each half in reasonable time.
     var body: some View {
-        withSubjectAlerts(screen)
+        withScreenAlerts(withSubjectAlerts(screen))
+    }
+
+    private func withScreenAlerts<Content: View>(_ content: Content) -> some View {
+        content
+        .appAlert("Leave without saving?", isPresented: $isConfirmingLeave,
+                  message: "If you leave now, your selected photos won't be saved.",
+                  actions: [.secondary("Leave", handler: leaveWithoutSaving), .primary("Stay")])
+        .appAlert("Something went wrong", isPresented: Binding(
+            get: { updateError != nil },
+            set: { if !$0 { updateError = nil } }
+        ), message: updateError, actions: [.primary("OK")])
+        .appAlert("Update your style?", isPresented: $isConfirmingDeletePhotos,
+                  message: "Removing these photos will update your style. Continue?",
+                  actions: [.secondary("Cancel"), .primary("Continue", handler: removeSelectedPhotos)])
     }
 
     /// The person-check alerts: "Not Enough Photos with People" and a tapped flagged photo.
     private func withSubjectAlerts<Content: View>(_ content: Content) -> some View {
         content
-        .alert(
-            HumanSubjectValidationResult.warningTitle,
-            isPresented: Binding(get: { subjectWarning != nil },
-                                 set: { if !$0 { subjectWarning = nil } }),
-            presenting: subjectWarning
-        ) { _ in
-            // The confirmed invalid photos were already removed (and saved) by the check: the
-            // grid behind shows what is left. Continue stays here to add photos; photos that
-            // could not be checked are tapped one by one (Check Again / Remove Photo).
-            Button("Continue") { subjectWarning = nil }
-            Button("Cancel", role: .cancel) {
-                subjectWarning = nil
-                discardPreference()
-            }
-        } message: { warning in
-            Text(warning.warningMessage)
+        // The confirmed invalid photos were already removed (and saved) by the check: the
+        // grid behind shows what is left. Continue stays here to add photos; photos that
+        // could not be checked are tapped one by one (Check Again / Remove Photo).
+        .appAlert(HumanSubjectValidationResult.warningTitle,
+                  isPresented: Binding(get: { subjectWarning != nil },
+                                       set: { if !$0 { subjectWarning = nil } }),
+                  message: subjectWarning?.warningMessage,
+                  actions: [.secondary("Cancel") {
+                                subjectWarning = nil
+                                discardPreference()
+                            },
+                            .primary("Continue") { subjectWarning = nil }])
+        .appAlert(inspectedPhoto?.title ?? "",
+                  isPresented: Binding(get: { inspectedPhoto != nil },
+                                       set: { if !$0 { inspectedPhoto = nil } }),
+                  message: inspectedPhoto?.message,
+                  actions: inspectedPhotoActions)
+    }
+
+    /// One main action: Check Again when the photo can be checked again, otherwise Keep.
+    private var inspectedPhotoActions: [AppAlertAction] {
+        guard let inspected = inspectedPhoto else { return [] }
+        let remove = AppAlertAction.secondary("Remove Photo") {
+            inspectedPhoto = nil
+            removePhoto(inspected.photoID)
         }
-        .alert(
-            inspectedPhoto?.title ?? "",
-            isPresented: Binding(get: { inspectedPhoto != nil },
-                                 set: { if !$0 { inspectedPhoto = nil } }),
-            presenting: inspectedPhoto
-        ) { inspected in
-            if inspected.canCheckAgain {
-                Button("Check Again") {
+        guard inspected.canCheckAgain else {
+            return [remove, .primary("Keep") { inspectedPhoto = nil }]
+        }
+        return [.primary("Check Again") {
                     inspectedPhoto = nil
                     startAnalyzingSavedPreference(checkingAgain: true)
-                }
-            }
-            Button("Remove Photo", role: .destructive) {
-                inspectedPhoto = nil
-                removePhoto(inspected.photoID)
-            }
-            Button("Keep", role: .cancel) { inspectedPhoto = nil }
-        } message: { inspected in
-            Text(inspected.message)
-        }
+                },
+                remove,
+                .secondary("Keep") { inspectedPhoto = nil }]
     }
 
     private var screen: some View {
         GeometryReader { geometry in
             let thumbnailWidth = min(
                 180,
-                max(80, (geometry.size.width - GoPhotoDesign.sessionMargin * 2 - 24) / 3)
+                max(80, (geometry.size.width - PotoDesign.sessionMargin * 2 - 24) / 3)
             )
 
             ZStack {
@@ -158,7 +170,7 @@ struct PhotoSessionSetupView: View {
                             .frame(maxWidth: .infinity, maxHeight: .infinity)
                     }
                 }
-                .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                .padding(.horizontal, PotoDesign.sessionMargin)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
         }
@@ -179,30 +191,23 @@ struct PhotoSessionSetupView: View {
                         Image(systemName: "chevron.left")
                     }
                     .accessibilityLabel("Back")
+                    // Leaving may delete this preference, which must wait for a running save.
+                    .disabled(selection.isSavingPhotos)
                 }
             }
         }
         // Naming the new preference: the system alert with a text field (HIG: a short single
         // input), so it looks, scales and reads like every iOS prompt.
-        .alert("What's this collection for?", isPresented: $isShowingNameModal) {
-            TextField("Name", text: $collectionName)
-                .textInputAutocapitalization(.words)
-                .accessibilityInputLabels(["Collection name", "Name"])
-            Button("Cancel", role: .cancel) { }
-            Button("Continue") {
-                guard let name = trimmedCollectionName else { return }
-                saveAndAnalyze(name: name)
-            }
-            .disabled(trimmedCollectionName == nil)
-        } message: {
-            Text("For example: beach trip, outfit of the day, city, or night out.")
-        }
-        .alert("Leave without saving?", isPresented: $isConfirmingLeave) {
-            Button("Leave", role: .destructive) { dismiss() }
-            Button("Stay", role: .cancel) { }
-        } message: {
-            Text("If you leave now, your selected photos won't be saved.")
-        }
+        .appAlert("What's this collection for?", isPresented: $isShowingNameModal,
+                  message: "For example: beach trip, outfit of the day, city, or night out.",
+                  textField: AppAlertTextField(text: $collectionName,
+                                               inputLabels: ["Collection name", "Name"],
+                                               requiresText: true),
+                  actions: [.secondary("Cancel"),
+                            .primary("Continue") {
+                                guard let name = trimmedCollectionName else { return }
+                                saveAndAnalyze(name: name)
+                            }])
         .navigationDestination(isPresented: isShowingCustomPreference) {
             if let customPreferenceFlow {
                 SubjectPlacementSelectionView(model: customPreferenceFlow)
@@ -234,7 +239,6 @@ struct PhotoSessionSetupView: View {
             reloadSavedPreference()
             showSubjectWarningIfNeeded()
         }
-        .tint(GoPhotoDesign.primary)
         .fullScreenCover(isPresented: $isPresentingPicker) {
             PhotoSessionPhotoPicker(
                 initialPhotos: selection.photos,
@@ -247,20 +251,7 @@ struct PhotoSessionSetupView: View {
             )
             .ignoresSafeArea()
         }
-        .alert("Something went wrong", isPresented: Binding(
-            get: { updateError != nil },
-            set: { if !$0 { updateError = nil } }
-        )) {
-            Button("OK", role: .cancel) { updateError = nil }
-        } message: {
-            Text(updateError ?? "")
-        }
-        .alert("Update your style?", isPresented: $isConfirmingDeletePhotos) {
-            Button("Cancel", role: .cancel) { }
-            Button("Continue", action: removeSelectedPhotos)
-        } message: {
-            Text("Removing these photos will update your style. Continue?")
-        }
+        .tint(PotoDesign.primary)
     }
 
     // MARK: - Header (Image 2 style)
@@ -272,10 +263,10 @@ struct PhotoSessionSetupView: View {
                 VStack(alignment: .leading, spacing: 2) {
                     Text("Reference Photos")
                         .font(AppFont.scaled(size: 22, weight: .bold, relativeTo: .title2))
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .foregroundStyle(PotoDesign.primaryText)
                     Text("\(selection.photos.count)/\(max(selection.limit, selection.photos.count))")
                         .font(AppFont.scaled(size: 14, weight: .regular, relativeTo: .footnote))
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
+                        .foregroundStyle(PotoDesign.secondaryText)
                 }
 
                 Spacer()
@@ -289,25 +280,43 @@ struct PhotoSessionSetupView: View {
                 } label: {
                     Text(isSelecting ? "Cancel" : "Select")
                         .font(AppFont.scaled(size: 17, weight: .medium, relativeTo: .body))
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .foregroundStyle(PotoDesign.primaryText)
                         .padding(.horizontal, 26)
                         .padding(.vertical, 14)
-                        .background(GoPhotoDesign.surface, in: Capsule())
+                        .background(PotoDesign.surface, in: Capsule())
                         .shadow(color: Color.black.opacity(0.06), radius: 6, x: 0, y: 2)
                 }
                 .buttonStyle(.plain)
             }
 
             privacyNote
+
+            // Plain text, not a button: it says what is missing, and the "+ Add photos" tile
+            // right below is the action.
+            if let minimumPhotosHint {
+                Text(minimumPhotosHint)
+                    .font(PotoDesign.body)
+                    .foregroundStyle(PotoDesign.secondaryText)
+                    .fixedSize(horizontal: false, vertical: true)
+                    .frame(maxWidth: .infinity, alignment: .leading)
+            }
         }
+    }
+
+    /// What is still needed before Analyze appears; nil once there are enough photos, and while
+    /// selecting photos to delete.
+    private var minimumPhotosHint: String? {
+        let missing = ChoosePhotosViewModel.minPhotos - analyzablePhotoCount
+        guard missing > 0, !isSelecting else { return nil }
+        return "Add \(missing) more photo\(missing == 1 ? "" : "s") to analyze your style."
     }
 
     private var headerEmpty: some View {
         VStack(spacing: 12) {
             VStack(spacing: 8) {
                 Text("New Preference")
-                    .font(GoPhotoDesign.largeTitle)
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                    .font(PotoDesign.largeTitle)
+                    .foregroundStyle(PotoDesign.primaryText)
                     .multilineTextAlignment(.center)
 
                 privacyNote
@@ -320,33 +329,33 @@ struct PhotoSessionSetupView: View {
         HStack(spacing: 10) {
             Image(systemName: "shield.lefthalf.filled")
                 .font(AppFont.scaled(size: 18, weight: .semibold, relativeTo: .body))
-                .foregroundStyle(GoPhotoDesign.primary)
+                .foregroundStyle(PotoDesign.primary)
 
             Text("Your photos stay on this iPhone. They're analyzed on your device and never uploaded.")
                 .font(AppFont.scaled(size: 15, weight: .regular, relativeTo: .subheadline))
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.horizontal, 14)
         .padding(.vertical, 12)
         .frame(maxWidth: .infinity, alignment: .leading)
-        .background(GoPhotoDesign.tagBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
+        .background(PotoDesign.tagBackground, in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .overlay(
             RoundedRectangle(cornerRadius: 14, style: .continuous)
-                .strokeBorder(GoPhotoDesign.primaryBorder.opacity(0.3), lineWidth: 1)
+                .strokeBorder(PotoDesign.primaryBorder.opacity(0.3), lineWidth: 1)
         )
     }
 
     private var emptyState: some View {
         VStack(spacing: 12) {
             Text("No photos yet")
-                .font(GoPhotoDesign.sectionTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.sectionTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .multilineTextAlignment(.center)
 
             Text("Add at least \(ChoosePhotosViewModel.minPhotos) photos you love to begin.")
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .multilineTextAlignment(.center)
         }
     }
@@ -378,18 +387,18 @@ struct PhotoSessionSetupView: View {
         let shape = RoundedRectangle(cornerRadius: 18, style: .continuous)
         return Button(action: openPicker) {
             shape
-                .fill(GoPhotoDesign.primarySubtle)
+                .fill(PotoDesign.primarySubtle)
                 .overlay {
-                    shape.strokeBorder(GoPhotoDesign.primaryBorder, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
+                    shape.strokeBorder(PotoDesign.primaryBorder, style: StrokeStyle(lineWidth: 1.5, dash: [6, 4]))
                 }
                 .overlay {
                     VStack(spacing: 6) {
                         Image(systemName: "plus")
                             .font(AppFont.scaled(size: 24, weight: .medium, relativeTo: .title2))
-                            .foregroundStyle(GoPhotoDesign.primary)
+                            .foregroundStyle(PotoDesign.primary)
                         Text("Add photos")
                             .font(AppFont.scaled(size: 12, weight: .medium, relativeTo: .caption))
-                            .foregroundStyle(GoPhotoDesign.primary)
+                            .foregroundStyle(PotoDesign.primary)
                             .multilineTextAlignment(.center)
                     }
                     .padding(8)
@@ -427,7 +436,7 @@ struct PhotoSessionSetupView: View {
                     if isSelecting {
                         ZStack {
                             Circle()
-                                .fill(isChecked ? GoPhotoDesign.primary : Color.black.opacity(0.3))
+                                .fill(isChecked ? PotoDesign.primary : Color.black.opacity(0.3))
                                 .frame(width: 24, height: 24)
                             if isChecked {
                                 Image(systemName: "checkmark")
@@ -458,7 +467,16 @@ struct PhotoSessionSetupView: View {
 
     // MARK: - Bottom Actions (Floating purple pill button)
 
+    /// With some photos but fewer than the minimum there is no bottom bar at all: the header says
+    /// how many are missing and the "+ Add photos" tile adds them.
+    @ViewBuilder
     private var bottomActions: some View {
+        if isSelecting || selection.photos.isEmpty || analyzablePhotoCount >= ChoosePhotosViewModel.minPhotos {
+            bottomActionsBar
+        }
+    }
+
+    private var bottomActionsBar: some View {
         VStack(spacing: 0) {
             if isSelecting {
                 // Delete selected button when in select mode
@@ -479,15 +497,14 @@ struct PhotoSessionSetupView: View {
                     .frame(maxWidth: .infinity)
                     .padding(.vertical, 12)
                     .frame(minHeight: 52)
-                    .background(selectedPhotoIDs.isEmpty ? Color.gray : GoPhotoDesign.error, in: Capsule())
+                    .background(selectedPhotoIDs.isEmpty ? Color.gray : PotoDesign.error, in: Capsule())
                 }
                 .disabled(selectedPhotoIDs.isEmpty)
                 .accessibilityInputLabels(["Delete", "Delete photos", "Delete selected photos"])
-                .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                .padding(.horizontal, PotoDesign.sessionMargin)
                 .padding(.bottom, 12)
             } else if analyzablePhotoCount >= ChoosePhotosViewModel.minPhotos {
-                // "Analyze X photos": only once enough photos can count (see `analyzablePhotoCount`);
-                // below that it is not shown at all.
+                // "Analyze X photos": only once enough photos can count (see `analyzablePhotoCount`).
                 Button {
                     if selection.hasSavedPreference {
                         startAnalyzingSavedPreference()
@@ -504,33 +521,26 @@ struct PhotoSessionSetupView: View {
                         .frame(minHeight: 54)
                         .background(
                             canAnalyze
-                                ? GoPhotoDesign.primary
-                                : GoPhotoDesign.primary.opacity(0.5),
+                                ? PotoDesign.primary
+                                : PotoDesign.primary.opacity(0.5),
                             in: Capsule()
                         )
-                        .shadow(color: GoPhotoDesign.primary.opacity(0.3), radius: 8, x: 0, y: 4)
+                        .shadow(color: PotoDesign.primary.opacity(0.3), radius: 8, x: 0, y: 4)
                 }
                 .disabled(!canAnalyze)
                 .accessibilityInputLabels(["Analyze", "Analyze photos"])
                 .padding(.horizontal, 24)
                 .padding(.bottom, 12)
-            } else if !selection.photos.isEmpty {
-                // Fewer than the minimum: no Analyze; the existing Add Your Photos action instead
-                // (the photos stay in the grid above).
-                SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle",
-                                     isEnabled: !isAddingDisabled, action: addYourPhotos)
-                    .padding(.horizontal, GoPhotoDesign.sessionMargin)
-                    .padding(.bottom, 12)
             } else {
                 SessionPrimaryButton(title: "Add Your Photos", systemImage: "plus.circle", action: addYourPhotos)
-                .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                .padding(.horizontal, PotoDesign.sessionMargin)
                 .padding(.bottom, 8)
 
                 // A saved preference left without photos (all removed as having no person)
                 // gets photos added to it, not a second, custom preference.
                 if !selection.hasSavedPreference {
                     Button("Create Custom Preference", action: openCustomPreference)
-                        .buttonStyle(.goPhotoText)
+                        .buttonStyle(.potoText)
                         .padding(.bottom, 12)
                 }
             }
@@ -655,7 +665,7 @@ struct PhotoSessionSetupView: View {
             Image(systemName: couldNotCheck ? "exclamationmark.triangle.fill" : "exclamationmark.circle.fill")
                 .font(.system(size: 16, weight: .semibold))
                 .symbolRenderingMode(.palette)
-                .foregroundStyle(.white, couldNotCheck ? GoPhotoDesign.warning : GoPhotoDesign.error)
+                .foregroundStyle(.white, couldNotCheck ? PotoDesign.warning : PotoDesign.error)
                 .padding(6)
                 .accessibilityLabel(Self.badgeLabel(for: status))
         }
@@ -682,8 +692,16 @@ struct PhotoSessionSetupView: View {
     }
 
     private func goBack() {
-        if hasUnsavedPhotos {
+        if hasUnsavedPhotos || isUnfinishedNewPreference {
             isConfirmingLeave = true
+        } else {
+            dismiss()
+        }
+    }
+
+    private func leaveWithoutSaving() {
+        if isUnfinishedNewPreference {
+            discardPreference()
         } else {
             dismiss()
         }
@@ -691,6 +709,13 @@ struct PhotoSessionSetupView: View {
 
     private var hasUnsavedPhotos: Bool {
         !selection.photos.isEmpty && !selection.hasSavedPreference
+    }
+
+    /// A preference being created whose analysis was stopped or failed: it is saved only so the
+    /// user can fix its photos here, and leaving deletes it. Only the Add New Preference flow
+    /// passes `onDiscardPreference` with a Back button, so an existing preference never gets here.
+    private var isUnfinishedNewPreference: Bool {
+        showsBackButton && onDiscardPreference != nil && selection.hasSavedPreference
     }
 
     private func reloadSavedPreference() {
@@ -713,10 +738,29 @@ struct PhotoSessionSetupView: View {
     }
 
     private func removeSelectedPhotos() {
-        withAnimation {
-            selection.removePhotos(withIDs: selectedPhotoIDs)
-            selectedPhotoIDs.removeAll()
-            isSelecting = false
+        guard let id = selection.preferenceID else {
+            withAnimation {
+                selection.removePhotos(withIDs: selectedPhotoIDs)
+                selectedPhotoIDs.removeAll()
+                isSelecting = false
+            }
+            return
+        }
+        // A saved preference: removed from its saved copy (never the Photos library).
+        guard !selection.isSavingPhotos else { return }
+        selection.isSavingPhotos = true
+        preferences.removePhotosPersisted(selectedPhotoIDs, from: id) { result in
+            selection.isSavingPhotos = false
+            switch result {
+            case .success(let preference):
+                withAnimation {
+                    selection.reloadSavedPreference(preference)
+                    selectedPhotoIDs.removeAll()
+                    isSelecting = false
+                }
+            case .failure(let error):
+                updateError = error.message
+            }
         }
     }
 

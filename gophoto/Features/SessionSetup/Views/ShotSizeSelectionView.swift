@@ -27,14 +27,14 @@ struct ShotSizeSelectionView: View {
                     .padding(.top, 8)
 
                 Text("Choose Your Shot")
-                    .font(GoPhotoDesign.largeTitle)
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                    .font(PotoDesign.largeTitle)
+                    .foregroundStyle(PotoDesign.primaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .accessibilityAddTraits(.isHeader)
                     .padding(.top, 12)
                 Text("How much of you should show?")
-                    .font(GoPhotoDesign.body)
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
+                    .font(PotoDesign.body)
+                    .foregroundStyle(PotoDesign.secondaryText)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.top, 6)
 
@@ -57,7 +57,7 @@ struct ShotSizeSelectionView: View {
                         .transition(.opacity)
                 }
             }
-            .padding(.horizontal, GoPhotoDesign.sessionMargin)
+            .padding(.horizontal, PotoDesign.sessionMargin)
             .padding(.bottom, 24)
             .animation(.easeInOut(duration: 0.2), value: model.notice)
         }
@@ -72,16 +72,14 @@ struct ShotSizeSelectionView: View {
             .accessibilityIdentifier("shotSize.startShooting")
         }
         .toolbar(.hidden, for: .navigationBar)
-        .alert("Couldn't open the camera", isPresented: Binding(get: { startError != nil },
-                                                              set: { if !$0 { startError = nil } }),
-               presenting: startError) { error in
-            Button("OK", role: .cancel) {
-                // The preference is gone: back to Preference Selection, which has a valid state.
-                if error == .preferenceNotFound { dismiss() }
-            }
-        } message: { error in
-            Text(error.message)
-        }
+        .appAlert("Couldn't open the camera",
+                  isPresented: Binding(get: { startError != nil },
+                                       set: { if !$0 { startError = nil } }),
+                  message: startError?.message,
+                  actions: [.primary("OK") {
+                      // The preference is gone: back to Preference Selection, which has a valid state.
+                      if startError == .preferenceNotFound { dismiss() }
+                  }])
     }
 
     private func startShooting() {
@@ -101,7 +99,7 @@ struct ShotSizeSelectionView: View {
             Button { dismiss() } label: {
                 Image(systemName: "chevron.left")
                     .font(AppFont.system(size: 20, weight: .semibold))
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                    .foregroundStyle(PotoDesign.primaryText)
                     .frame(width: 44, height: 44)
                     .contentShape(Rectangle())
             }
@@ -118,12 +116,12 @@ struct ShotSizeSelectionView: View {
     private var eyebrow: some View {
         Label {
             Text("Pick Your Shot")
-                .font(GoPhotoDesign.smallLabel)
+                .font(PotoDesign.smallLabel)
         } icon: {
             Image(systemName: "viewfinder")
-                .font(GoPhotoDesign.smallLabel)
+                .font(PotoDesign.smallLabel)
         }
-        .goPhotoTag()
+        .potoTag()
     }
 }
 
@@ -147,24 +145,24 @@ private struct ShotSizeCard: View {
             VStack(alignment: .leading, spacing: 5) {
                 titleLayout {
                     Text(shot.title)
-                        .font(GoPhotoDesign.cardTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .font(PotoDesign.cardTitle)
+                        .foregroundStyle(PotoDesign.primaryText)
                         .fixedSize(horizontal: false, vertical: true)
                     if shot.isRecommended {
                         Text("Recommended")
                             .font(AppFont.scaled(size: 11, weight: .semibold, relativeTo: .caption2))
                             .lineLimit(1)
                             .fixedSize()
-                            .foregroundStyle(GoPhotoDesign.onPrimary)
+                            .foregroundStyle(PotoDesign.onPrimary)
                             .padding(.horizontal, 8)
                             .padding(.vertical, 4)
-                            .background(GoPhotoDesign.primary, in: Capsule())
+                            .background(PotoDesign.primary, in: Capsule())
                             .layoutPriority(1)
                     }
                 }
                 Text(shot.detail)
-                    .font(GoPhotoDesign.secondaryBody)
-                    .foregroundStyle(GoPhotoDesign.secondaryText)
+                    .font(PotoDesign.secondaryBody)
+                    .foregroundStyle(PotoDesign.secondaryText)
                 SessionChip(text: shot.cropLabel, onSelectedCard: isSelected)
                     .padding(.top, 2)
             }
@@ -173,7 +171,7 @@ private struct ShotSizeCard: View {
             SelectionIndicator(isSelected: isSelected)
         }
         .padding(14)
-        .goPhotoCard(isSelected: isSelected)
+        .potoCard(isSelected: isSelected)
     }
 }
 
@@ -185,20 +183,20 @@ private struct ShotSizeNoticeView: View {
         HStack(alignment: .top, spacing: 10) {
             switch notice.kind {
             case .fallback:
-                Image(systemName: "info.circle.fill").foregroundStyle(GoPhotoDesign.primary)
+                Image(systemName: "info.circle.fill").foregroundStyle(PotoDesign.primary)
             case .loading:
                 ProgressView().controlSize(.small)
             case .error:
-                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(GoPhotoDesign.warning)
+                Image(systemName: "exclamationmark.triangle.fill").foregroundStyle(PotoDesign.warning)
             }
             Text(notice.text)
-                .font(GoPhotoDesign.secondaryBody)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.secondaryBody)
+                .foregroundStyle(PotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
         .padding(14)
-        .background(notice.kind == .error ? GoPhotoDesign.warning.opacity(0.10) : GoPhotoDesign.primarySubtle,
+        .background(notice.kind == .error ? PotoDesign.warning.opacity(0.10) : PotoDesign.primarySubtle,
                     in: RoundedRectangle(cornerRadius: 14, style: .continuous))
         .accessibilityElement(children: .combine)
         .accessibilityIdentifier("shotSize.notice")

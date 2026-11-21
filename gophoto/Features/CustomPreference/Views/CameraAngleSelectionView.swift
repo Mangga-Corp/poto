@@ -29,14 +29,10 @@ struct CameraAngleSelectionView: View {
             CameraAngleArtwork(angle: angle)
         }
         .navigationBarBackButtonHidden(model.isSaving)
-        .alert("Couldn't save your preference", isPresented: Binding(
+        .appAlert("Couldn't save your preference", isPresented: Binding(
             get: { model.errorMessage != nil },
             set: { if !$0 { model.errorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(model.errorMessage ?? "")
-        }
+        ), message: model.errorMessage, actions: [.primary("OK")])
     }
 }
 

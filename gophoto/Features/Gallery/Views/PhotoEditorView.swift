@@ -72,18 +72,12 @@ struct PhotoEditorView: View {
         .interactiveDismissDisabled(hasChanges || isSaving)
         // An alert, not a confirmationDialog: from a toolbar button iOS shows the dialog as a
         // popover without its Cancel button, leaving only "Discard Changes".
-        .alert("Discard your edits?", isPresented: $isConfirmingDiscard) {
-            Button("Discard Changes", role: .destructive) { dismiss() }
-            Button("Cancel", role: .cancel) { }
-        } message: {
-            Text("Your changes won't be saved.")
-        }
-        .alert("Couldn't Save", isPresented: Binding(get: { errorMessage != nil },
-                                                    set: { if !$0 { errorMessage = nil } })) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .appAlert("Discard your edits?", isPresented: $isConfirmingDiscard,
+                  message: "Your changes won't be saved.",
+                  actions: [.secondary("Discard Changes") { dismiss() }, .primary("Cancel")])
+        .appAlert("Couldn't Save", isPresented: Binding(get: { errorMessage != nil },
+                                                        set: { if !$0 { errorMessage = nil } }),
+                  message: errorMessage, actions: [.primary("OK")])
         .onChange(of: tool) { _, newTool in
             if newTool == .adjust, adjustments == nil { Task { await startAdjusting() } }
         }

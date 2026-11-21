@@ -92,7 +92,7 @@ final class PreferencesStorage {
     }
 
     #if DEBUG
-    /// Debug builds launched with `-GoPhotoFixtureStore <name>` use a separate folder, so fixture
+    /// Debug builds launched with `-PotoFixtureStore <name>` use a separate folder, so fixture
     /// data never touches the real preferences. Without the argument: the normal folder.
     private static var directoryName: String {
         DebugFixtures.storeName.map { "PreferencesFixtures/\($0)" } ?? "Preferences"

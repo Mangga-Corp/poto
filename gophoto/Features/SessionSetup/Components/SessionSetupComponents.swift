@@ -16,13 +16,13 @@ struct SelectionIndicator: View {
     var body: some View {
         ZStack {
             if isSelected {
-                Circle().fill(GoPhotoDesign.primary)
+                Circle().fill(PotoDesign.primary)
                 Image(systemName: "checkmark")
                     .font(AppFont.system(size: 13, weight: .bold))
-                    .foregroundStyle(GoPhotoDesign.onPrimary)
+                    .foregroundStyle(PotoDesign.onPrimary)
             } else {
-                Circle().fill(GoPhotoDesign.secondaryBackground)
-                Circle().strokeBorder(GoPhotoDesign.border, lineWidth: 1)
+                Circle().fill(PotoDesign.secondaryBackground)
+                Circle().strokeBorder(PotoDesign.border, lineWidth: 1)
             }
         }
         .frame(width: 30, height: 30)
@@ -30,7 +30,7 @@ struct SelectionIndicator: View {
     }
 }
 
-/// The fixed bottom primary button ("Continue", "Start Shooting"): `.goPhotoPrimary`.
+/// The fixed bottom primary button ("Continue", "Start Shooting"): `.potoPrimary`.
 struct SessionPrimaryButton: View {
     let title: String
     var systemImage: String?
@@ -46,7 +46,7 @@ struct SessionPrimaryButton: View {
                 Text(title)
             }
         }
-        .buttonStyle(.goPhotoPrimary(isLoading: isLoading))
+        .buttonStyle(.potoPrimary(isLoading: isLoading))
         .disabled(!isEnabled)
     }
 }
@@ -60,7 +60,7 @@ struct GlassBarBackground: View {
     var body: some View {
         Rectangle()
             .fill(.ultraThinMaterial)
-            .overlay(GoPhotoDesign.background.opacity(0.12))
+            .overlay(PotoDesign.background.opacity(0.12))
             // Strongest at the outer edge, fading smoothly toward the middle
             // so there is no visible seam with the content.
             .mask {
@@ -89,7 +89,7 @@ extension View {
     func sessionBottomBar<Button: View>(@ViewBuilder _ button: () -> Button) -> some View {
         safeAreaInset(edge: .bottom, spacing: 0) {
             button()
-                .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                .padding(.horizontal, PotoDesign.sessionMargin)
                 .padding(.vertical, 14)
                 .frame(maxWidth: .infinity)
                 .glassBar(.bottom)
@@ -106,12 +106,12 @@ struct SessionChip: View {
         // Wraps onto more lines when the chip is wider than its row (Larger Text); a capsule-like
         // rounded rectangle, since a real capsule would cut into multi-line text.
         Text(text)
-            .font(GoPhotoDesign.smallLabel)
-            .foregroundStyle(GoPhotoDesign.secondaryText)
+            .font(PotoDesign.smallLabel)
+            .foregroundStyle(PotoDesign.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
             .padding(.horizontal, 9)
             .padding(.vertical, 4)
-            .background(onSelectedCard ? GoPhotoDesign.surface : GoPhotoDesign.secondaryBackground,
+            .background(onSelectedCard ? PotoDesign.surface : PotoDesign.secondaryBackground,
                         in: RoundedRectangle(cornerRadius: 12, style: .continuous))
     }
 }
@@ -177,13 +177,13 @@ struct PreferenceThumbnail: View {
 
     var body: some View {
         ZStack {
-            GoPhotoDesign.secondaryBackground
+            PotoDesign.secondaryBackground
             if let thumbnail {
                 Image(uiImage: thumbnail).resizable().scaledToFill()
             } else if image == nil {
                 Image(systemName: "person.crop.rectangle")
                     .font(AppFont.system(size: 26, weight: .regular))
-                    .foregroundStyle(GoPhotoDesign.secondaryText.opacity(0.7))
+                    .foregroundStyle(PotoDesign.secondaryText.opacity(0.7))
             }
         }
         .frame(width: size.width, height: size.height)

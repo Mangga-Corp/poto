@@ -14,28 +14,28 @@ struct FacePickerView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     VStack(alignment: .leading, spacing: 8) {
                         Text("Which one is you?")
-                            .font(GoPhotoDesign.largeTitle)
-                            .foregroundStyle(GoPhotoDesign.primaryText)
+                            .font(PotoDesign.largeTitle)
+                            .foregroundStyle(PotoDesign.primaryText)
                             .accessibilityAddTraits(.isHeader)
                         Text("Poto looks through your photos for your face. Everything stays on this iPhone.")
-                            .font(GoPhotoDesign.body)
-                            .foregroundStyle(GoPhotoDesign.secondaryText)
+                            .font(PotoDesign.body)
+                            .foregroundStyle(PotoDesign.secondaryText)
                             .fixedSize(horizontal: false, vertical: true)
                     }
                     content
                 }
-                .padding(GoPhotoDesign.sessionMargin)
+                .padding(PotoDesign.sessionMargin)
                 // At least the screen's height, so the scanning progress can sit in the middle.
                 .frame(minHeight: geometry.size.height, alignment: .top)
             }
         }
-        .background(GoPhotoDesign.background)
+        .background(PotoDesign.background)
         // Cancel while scanning: in the bottom bar like Continue on the other photo screens (18 Nov).
         .safeAreaInset(edge: .bottom, spacing: 0) {
             if isScanning {
                 Button("Cancel") { viewModel.cancelScan() }
-                    .buttonStyle(.goPhotoSecondary)
-                    .padding(.horizontal, GoPhotoDesign.sessionMargin)
+                    .buttonStyle(.potoSecondary)
+                    .padding(.horizontal, PotoDesign.sessionMargin)
                     .padding(.vertical, 14)
                     .frame(maxWidth: .infinity)
                     .glassBar(.bottom)
@@ -49,16 +49,16 @@ struct FacePickerView: View {
         .onChange(of: viewModel.state) { _, state in
             isShowingLimitedAccessAlert = state == .limitedAccess
         }
-        .alert("Works best with full access", isPresented: $isShowingLimitedAccessAlert) {
-            Button("Open Settings") {
-                viewModel.dismissLimitedAccess()
-                openSettings()
-            }
-            Button("Continue anyway") { viewModel.continueWithLimitedAccess() }
-            Button("Cancel", role: .cancel) { viewModel.dismissLimitedAccess() }
-        } message: {
-            Text("Poto can only look through the photos you've shared with it. Allow access to all photos in Settings to find more photos of you.")
-        }
+        .appAlert("Works best with full access", isPresented: $isShowingLimitedAccessAlert,
+                  message: "Poto can only look through the photos you've shared with it. Allow access to all photos in Settings to find more photos of you.",
+                  actions: [
+                    .primary("Open Settings") {
+                        viewModel.dismissLimitedAccess()
+                        openSettings()
+                    },
+                    .secondary("Continue anyway") { viewModel.continueWithLimitedAccess() },
+                    .secondary("Cancel") { viewModel.dismissLimitedAccess() }
+                  ])
         .navigationDestination(isPresented: $isShowingReview) {
             PhotoReviewView(candidates: viewModel.includedPhotos, leftOut: viewModel.groupPhotos) { items in
                 viewModel.clear()
@@ -82,7 +82,7 @@ struct FacePickerView: View {
         case .needsAccess:
             message("Allow Poto to access your photos in Settings to scan them.")
             Button("Open Settings", action: openSettings)
-                .buttonStyle(.goPhotoText)
+                .buttonStyle(.potoText)
         case .scanning(let progress):
             scanningProgress(progress)
         case .done:
@@ -94,7 +94,7 @@ struct FacePickerView: View {
         case .failed(let text):
             message(text)
             Button("Try again") { viewModel.start() }
-                .buttonStyle(.goPhotoText)
+                .buttonStyle(.potoText)
         }
     }
 
@@ -109,8 +109,8 @@ struct FacePickerView: View {
                         VStack(spacing: 6) {
                             PersonCover(image: viewModel.covers[group.id])
                             Text("\(group.assetIDs.count) photos")
-                                .font(GoPhotoDesign.caption)
-                                .foregroundStyle(GoPhotoDesign.secondaryText)
+                                .font(PotoDesign.caption)
+                                .foregroundStyle(PotoDesign.secondaryText)
                         }
                     }
                     .buttonStyle(.plain)
@@ -126,12 +126,12 @@ struct FacePickerView: View {
                 Button(viewModel.isLoadingMoreGroups ? "Loading…" : "Not here? Show more people") {
                     Task { await viewModel.showMoreGroups() }
                 }
-                .buttonStyle(.goPhotoText)
+                .buttonStyle(.potoText)
                 .disabled(viewModel.isLoadingMoreGroups)
             }
             Text("\(viewModel.groups.count) people from \(viewModel.faceCount) faces in \(viewModel.photosChecked) photos")
-                .font(GoPhotoDesign.caption)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.caption)
+                .foregroundStyle(PotoDesign.secondaryText)
         }
     }
 
@@ -140,13 +140,13 @@ struct FacePickerView: View {
         VStack(spacing: 8) {
             ProgressView()
                 .controlSize(.large)
-                .tint(GoPhotoDesign.primary)
+                .tint(PotoDesign.primary)
             Text("Looking for faces…")
-                .font(GoPhotoDesign.cardTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.cardTitle)
+                .foregroundStyle(PotoDesign.primaryText)
             Text("\(progress.photosChecked) photos · \(progress.facesFound) faces")
-                .font(GoPhotoDesign.caption)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.caption)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .monospacedDigit()
         }
         .frame(maxWidth: .infinity, maxHeight: .infinity)
@@ -155,8 +155,8 @@ struct FacePickerView: View {
 
     private func message(_ text: String) -> some View {
         Text(text)
-            .font(GoPhotoDesign.body)
-            .foregroundStyle(GoPhotoDesign.secondaryText)
+            .font(PotoDesign.body)
+            .foregroundStyle(PotoDesign.secondaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -173,8 +173,8 @@ private struct PersonCover: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
-                Circle().fill(GoPhotoDesign.primarySubtle)
-                    .overlay { Image(systemName: "person.fill").foregroundStyle(GoPhotoDesign.primary) }
+                Circle().fill(PotoDesign.primarySubtle)
+                    .overlay { Image(systemName: "person.fill").foregroundStyle(PotoDesign.primary) }
             }
         }
         .frame(width: 88, height: 88)

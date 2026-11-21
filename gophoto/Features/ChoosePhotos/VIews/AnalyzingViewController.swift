@@ -241,6 +241,8 @@ final class AnalyzingViewController: UIViewController {
     private let viewModel: AnalyzingViewModel
     private let photos: [PhotoItem]
     private var didStart = false
+    /// "Stop Analyzing?" while it is open.
+    private weak var stopAlert: UIAlertController?
 
     // MARK: - ⚙️ Pengaturan Dimensi Foto Carousel
     /// Ukuran foto di tengah (sedang di-train, lebih besar)
@@ -773,7 +775,12 @@ final class AnalyzingViewController: UIViewController {
         viewModel.onFinish = { [weak self] in
             guard let self = self else { return }
             self.updateProgressBar(finishedCount: self.photos.count)
-            self.onFinish?()
+            // Finished while "Stop Analyzing?" was open: nothing is left to stop.
+            if let stopAlert = self.stopAlert {
+                stopAlert.dismiss(animated: true) { self.onFinish?() }
+            } else {
+                self.onFinish?()
+            }
         }
     }
 
@@ -801,10 +808,18 @@ final class AnalyzingViewController: UIViewController {
 
     @objc private func cancelTapped() {
         if let onCancel = onCancel {
-            // Embedded screen (onboarding, new preference): stop the run itself, then the owner
-            // leaves. `dismiss` does nothing there, so Cancel looked stuck (18 Nov).
-            viewModel.cancelAnalysis()
-            onCancel()
+            // Embedded screen (onboarding, new preference): after confirming, stop the run
+            // itself, then the owner leaves. `dismiss` does nothing there (18 Nov).
+            let alert = UIAlertController(title: "Stop Analyzing?",
+                                          message: "Your style won't be created. You'll go back to your photos and can try again.",
+                                          preferredStyle: .alert)
+            alert.addSecondaryAction("Stop") { [weak self] in
+                self?.viewModel.cancelAnalysis()
+                onCancel()
+            }
+            alert.addPrimaryAction("Keep Analyzing")
+            stopAlert = alert
+            present(alert, animated: true)
         } else {
             viewModel.cancel()
             dismiss(animated: true)

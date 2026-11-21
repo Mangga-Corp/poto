@@ -89,7 +89,7 @@ enum IPhoneTextureGenerator {
             ctx.addPath(islandPath.cgPath)
             ctx.fillPath()
 
-            // 4. Minimalist Camera Viewfinder Corners (GoPhoto accent)
+            // 4. Minimalist Camera Viewfinder Corners (Poto accent)
             let frameRect = CGRect(x: 54, y: 160, width: size.width - 108, height: size.height - 360)
             drawMinimalistViewfinder(in: ctx, rect: frameRect)
 

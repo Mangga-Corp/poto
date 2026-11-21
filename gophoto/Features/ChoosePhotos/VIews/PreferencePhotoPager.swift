@@ -29,7 +29,7 @@ struct PreferencePhotoPager: View {
 
     var body: some View {
         ZStack(alignment: .top) {
-            GoPhotoDesign.background.ignoresSafeArea()
+            PotoDesign.background.ignoresSafeArea()
 
             TabView(selection: $current) {
                 ForEach(images.indices, id: \.self) { index in
@@ -44,20 +44,20 @@ struct PreferencePhotoPager: View {
                 Button(action: onClose) {
                     Image(systemName: "xmark")
                         .font(AppFont.body.weight(.semibold))
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .foregroundStyle(PotoDesign.primaryText)
                         .frame(width: 44, height: 44)
-                        .background(GoPhotoDesign.primarySubtle, in: Circle())
+                        .background(PotoDesign.primarySubtle, in: Circle())
                 }
                 .accessibilityLabel("Close")
                 Spacer()
                 // Wraps onto more lines if it ever doesn't fit (a capsule would cut into a second line).
                 Text(title)
                     .font(AppFont.subheadline.weight(.semibold))
-                    .foregroundStyle(GoPhotoDesign.primaryText)
+                    .foregroundStyle(PotoDesign.primaryText)
                     .multilineTextAlignment(.center)
                     .fixedSize(horizontal: false, vertical: true)
                     .padding(.horizontal, 12).padding(.vertical, 6)
-                    .background(GoPhotoDesign.primarySubtle,
+                    .background(PotoDesign.primarySubtle,
                                 in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                 Spacer()
                 Color.clear.frame(width: 44, height: 44)

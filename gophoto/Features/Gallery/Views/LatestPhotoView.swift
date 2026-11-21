@@ -35,7 +35,7 @@ struct LatestPhotoView: View {
             }
         }
         .followsSystemColorScheme()
-        .tint(GoPhotoDesign.primary)
+        .tint(PotoDesign.primary)
         .task { await viewModel.onAppear() }
         .task(id: photos.map(\.assetID)) {
             await viewModel.prepareThumbnails(for: photos.map(\.assetID))
@@ -47,14 +47,10 @@ struct LatestPhotoView: View {
         .onChange(of: scenePhase) { _, phase in
             if phase == .active { Task { await viewModel.removeDeletedPhotos() } }
         }
-        .alert("Couldn't Delete", isPresented: Binding(
+        .appAlert("Couldn't Delete", isPresented: Binding(
             get: { viewModel.deleteErrorMessage != nil },
             set: { if !$0 { viewModel.deleteErrorMessage = nil } }
-        )) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(viewModel.deleteErrorMessage ?? "")
-        }
+        ), message: viewModel.deleteErrorMessage, actions: [.primary("OK")])
     }
 
     private var topBar: some View {
@@ -67,10 +63,10 @@ struct LatestPhotoView: View {
                 VStack(spacing: 0) {
                     Text(title)
                         .font(AppFont.headline)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .foregroundStyle(PotoDesign.primaryText)
                     Text(time)
                         .font(AppFont.caption)
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
+                        .foregroundStyle(PotoDesign.secondaryText)
                 }
                 .lineLimit(1)
                 .padding(.horizontal, 60)   // clear of the 44 pt buttons on both sides
@@ -90,7 +86,7 @@ struct LatestPhotoView: View {
                         .font(AppFont.system(size: 16, weight: .semibold))
                         .foregroundStyle(.white)
                         .frame(width: 44, height: 44)
-                        .background(GoPhotoDesign.primary, in: Circle())
+                        .background(PotoDesign.primary, in: Circle())
                 }
                 .accessibilityLabel("Open Photos")
                 .accessibilityShowsLargeContentViewer { Label("Open Photos", systemImage: "photo.on.rectangle") }
@@ -138,13 +134,13 @@ struct LatestPhotoView: View {
             Spacer()
             Image(systemName: "photo.on.rectangle.angled")
                 .font(AppFont.scaled(size: 40, relativeTo: .largeTitle))
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .foregroundStyle(PotoDesign.secondaryText)
             Text("No photos yet")
-                .font(GoPhotoDesign.sectionTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.sectionTitle)
+                .foregroundStyle(PotoDesign.primaryText)
             Text("Photos you take with Poto will show up here.")
-                .font(GoPhotoDesign.secondaryBody)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.secondaryBody)
+                .foregroundStyle(PotoDesign.secondaryText)
             Spacer()
         }
         .multilineTextAlignment(.center)
@@ -154,10 +150,10 @@ struct LatestPhotoView: View {
     private func circleIcon(_ name: String) -> some View {
         Image(systemName: name)
             .font(AppFont.system(size: 16, weight: .semibold))
-            .foregroundStyle(GoPhotoDesign.primaryText)
+            .foregroundStyle(PotoDesign.primaryText)
             .frame(width: 44, height: 44)
             .background(.ultraThinMaterial, in: Circle())
-            .overlay(Circle().stroke(GoPhotoDesign.border, lineWidth: 0.8))
+            .overlay(Circle().stroke(PotoDesign.border, lineWidth: 0.8))
     }
 
     private func openPhotosApp() {

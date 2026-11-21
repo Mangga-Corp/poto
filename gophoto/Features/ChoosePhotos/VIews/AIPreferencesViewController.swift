@@ -328,15 +328,15 @@ final class AIPreferencesViewController: UIViewController {
             tf.text = self?.viewModel.title
             tf.autocapitalizationType = .words
         }
-        alert.addAction(UIAlertAction(title: "Cancel", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Save", style: .default) { [weak self, weak alert] _ in
+        alert.addSecondaryAction("Cancel")
+        alert.addPrimaryAction("Save") { [weak self, weak alert] in
             guard let newName = alert?.textFields?.first?.text, let self else { return }
             if let error = self.viewModel.rename(to: newName) {
                 self.showAlert(message: error)
             } else {
                 self.renderItems()
             }
-        })
+        }
         present(alert, animated: true)
     }
 
@@ -378,8 +378,8 @@ final class AIPreferencesViewController: UIViewController {
 
     private func confirmDiscard() {
         let alert = UIAlertController(title: "Discard this preference?", message: "The photos you picked won't be saved.", preferredStyle: .alert)
-        alert.addAction(UIAlertAction(title: "Keep Editing", style: .cancel))
-        alert.addAction(UIAlertAction(title: "Discard", style: .destructive) { [weak self] _ in self?.onBack?() })
+        alert.addSecondaryAction("Discard") { [weak self] in self?.onBack?() }
+        alert.addPrimaryAction("Keep Editing")
         present(alert, animated: true)
     }
 
@@ -393,20 +393,18 @@ final class AIPreferencesViewController: UIViewController {
             message: "Removing these photos will update your style. Continue?",
             preferredStyle: .alert
         )
-        let cancelAction = UIAlertAction(title: "Cancel", style: .cancel) { _ in }
-        let yesAction = UIAlertAction(title: "Continue", style: .default) { [weak self] _ in
+        alert.addSecondaryAction("Cancel")
+        alert.addPrimaryAction("Continue") { [weak self] in
             guard let self else { return }
             self.viewModel.deleteChecked()
             if self.viewModel.mode == .editor { self.backTapped() }
         }
-        alert.addAction(cancelAction)
-        alert.addAction(yesAction)
         present(alert, animated: true)
     }
 
     private func showAlert(message: String) {
         let a = UIAlertController(title: nil, message: message, preferredStyle: .alert)
-        a.addAction(UIAlertAction(title: "OK", style: .default))
+        a.addPrimaryAction("OK")
         present(a, animated: true)
     }
 }

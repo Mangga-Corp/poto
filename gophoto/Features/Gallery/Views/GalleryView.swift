@@ -6,7 +6,7 @@
 //
 //  Gallery with Apple Photos layout: floating top header in ZStack (title & subtitle),
 //  floating bottom capsule tab bar (Library & Collections) and floating circular search button,
-//  styled with the GoPhoto design system colors.
+//  styled with the Poto design system colors.
 //
 
 import SwiftUI
@@ -18,7 +18,7 @@ enum EmptyGalleryConfig {
     static let topCardImage: String = "OnboardingPhoto01"
     static let leftCardImage: String = "OnboardingPhoto02"
     static let rightCardImage: String = "OnboardingPhoto03"
-    static let emptyText: String = "Let’s build up your gallery with the Vacato"
+    static let emptyText: String = "Let’s build up your gallery with Poto"
 }
 
 // MARK: - Navigation Tab Model (Apple Photos Layout)
@@ -50,7 +50,6 @@ struct GalleryView: View {
     private var photos: [GalleryPhoto]
 
     @Environment(\.openURL) private var openURL
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
     @Environment(\.scenePhase) private var scenePhase
     @Namespace private var photoZoom
 
@@ -135,18 +134,13 @@ struct GalleryView: View {
         }
         .toolbar(.hidden, for: .navigationBar)
         // Error alert untuk delete
-        .alert("Couldn't Delete", isPresented: deleteErrorBinding(when: isSelecting)) {
-            Button("OK", role: .cancel) { }
-        } message: {
-            Text(viewModel.deleteErrorMessage ?? "")
-        }
-        // Custom Delete Confirmation Modal
-        .overlay {
-            if isShowingDeleteConfirmation {
-                deleteConfirmationOverlay
-                    .transition(.opacity)
-            }
-        }
+        .appAlert("Couldn't Delete", isPresented: deleteErrorBinding(when: isSelecting),
+                  message: viewModel.deleteErrorMessage, actions: [.primary("OK")])
+        .appAlert("Delete \(selectedIDs.count) \(selectedIDs.count == 1 ? "photo" : "photos")?",
+                  isPresented: $isShowingDeleteConfirmation,
+                  message: selectedIDs.count == 1 ? "This photo will also be deleted from an album."
+                                                  : "These photos will also be deleted from an album.",
+                  actions: [.secondary("Delete") { Task { await deleteSelected() } }, .primary("Cancel")])
         .task {
             await viewModel.onAppear()
             syncFavoritesFromPhotoLibrary()
@@ -169,11 +163,8 @@ struct GalleryView: View {
                 onSaveEdit: viewModel.saveEdited
             )
             .navigationTransition(.zoom(sourceID: photo.assetID, in: photoZoom))
-            .alert("Couldn't Delete", isPresented: deleteErrorBinding(when: !isSelecting)) {
-                Button("OK", role: .cancel) { }
-            } message: {
-                Text(viewModel.deleteErrorMessage ?? "")
-            }
+            .appAlert("Couldn't Delete", isPresented: deleteErrorBinding(when: !isSelecting),
+                      message: viewModel.deleteErrorMessage, actions: [.primary("OK")])
         }
     }
 
@@ -186,24 +177,24 @@ struct GalleryView: View {
             VStack {
                 Spacer()
                 ProgressView()
-                    .tint(GoPhotoDesign.primary)
+                    .tint(PotoDesign.primary)
                 Spacer()
             }
 
         case .denied:
             ContentUnavailableView {
                 Label("No Access to Photos", systemImage: "photo.badge.exclamationmark")
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
             } description: {
-                Text("Allow Vacato to access your photos in Settings to see the photos you took.")
-                    .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                Text("Allow Poto to access your photos in Settings to see the photos you took.")
+                    .foregroundStyle(Color(PotoDesign.secondaryText))
             } actions: {
                 Button("Open Settings") {
                     if let url = URL(string: UIApplication.openSettingsURLString) {
                         openURL(url)
                     }
                 }
-                .tint(GoPhotoDesign.primary)
+                .tint(PotoDesign.primary)
             }
             .padding(.top, 100)
 
@@ -280,9 +271,9 @@ struct GalleryView: View {
     private var topGradientOverlay: some View {
         LinearGradient(
             colors: [
-                Color(GoPhotoDesign.background).opacity(0.96),
-                Color(GoPhotoDesign.background).opacity(0.75),
-                Color(GoPhotoDesign.background).opacity(0.2),
+                Color(PotoDesign.background).opacity(0.96),
+                Color(PotoDesign.background).opacity(0.75),
+                Color(PotoDesign.background).opacity(0.2),
                 Color.clear
             ],
             startPoint: .top,
@@ -303,11 +294,11 @@ struct GalleryView: View {
                         Button(action: onDismiss) {
                             Image(systemName: "chevron.left")
                                 .font(AppFont.system(size: 15, weight: .bold))
-                                .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                                .foregroundStyle(Color(PotoDesign.primaryText))
                                 .frame(width: 38, height: 38)
                                 .background(.ultraThinMaterial, in: Circle())
                                 .overlay(
-                                    Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                    Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                                 )
                                 .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                         }
@@ -317,8 +308,8 @@ struct GalleryView: View {
 
                     VStack(alignment: .leading, spacing: 3) {
                         Text("Gallery")
-                            .font(GoPhotoDesign.largeTitle)
-                            .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                            .font(PotoDesign.largeTitle)
+                            .foregroundStyle(Color(PotoDesign.primaryText))
 
                         // Subtitle: nama filter aktif & jumlah foto yang dihasilkan
                         HStack(spacing: 5) {
@@ -329,7 +320,7 @@ struct GalleryView: View {
                             Image(systemName: "chevron.right")
                                 .font(AppFont.scaled(size: 10, weight: .bold, relativeTo: .footnote))
                         }
-                        .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                        .foregroundStyle(Color(PotoDesign.secondaryText))
                     }
                 }
 
@@ -351,13 +342,13 @@ struct GalleryView: View {
                     } label: {
                         Text(isSelecting ? "Done" : "Select")
                             .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                            .foregroundStyle(Color(PotoDesign.primaryText))
                             .padding(.horizontal, 16)
                             .padding(.vertical, 8)
                             .frame(minHeight: 38)
                             .background(.ultraThinMaterial, in: Capsule())
                             .overlay(
-                                Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                Capsule().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                             )
                             .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                     }
@@ -378,8 +369,8 @@ struct GalleryView: View {
                 VStack(alignment: .leading, spacing: 20) {
                     // Judul "Search" di paling atas
                     Text("Search")
-                        .font(GoPhotoDesign.largeTitle)
-                        .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                        .font(PotoDesign.largeTitle)
+                        .foregroundStyle(Color(PotoDesign.primaryText))
                         .padding(.horizontal, 16)
                         .padding(.top, headerTopPadding)
 
@@ -389,7 +380,7 @@ struct GalleryView: View {
                             HStack {
                                 Text("Recents")
                                     .font(AppFont.scaled(size: 22, weight: .bold, relativeTo: .title2))
-                                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                                    .foregroundStyle(Color(PotoDesign.primaryText))
 
                                 Spacer()
 
@@ -403,22 +394,22 @@ struct GalleryView: View {
                                         } label: {
                                             Text("Clear")
                                                 .font(AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline))
-                                                .foregroundStyle(GoPhotoDesign.primary)
+                                                .foregroundStyle(PotoDesign.primary)
                                                 .padding(.horizontal, 12)
                                                 .padding(.vertical, 6)
                                                 .background(.ultraThinMaterial, in: Capsule())
                                                 .overlay(
-                                                    Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                                    Capsule().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                                                 )
                                         }
 
                                         Image(systemName: "chevron.right")
                                             .font(AppFont.system(size: 11, weight: .bold))
-                                            .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                                            .foregroundStyle(Color(PotoDesign.secondaryText))
                                             .frame(width: 28, height: 28)
                                             .background(.ultraThinMaterial, in: Circle())
                                             .overlay(
-                                                Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                                Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                                             )
                                     }
                                 }
@@ -475,12 +466,12 @@ struct GalleryView: View {
                                     } label: {
                                         Text(query)
                                             .font(AppFont.scaled(size: 15, weight: .medium, relativeTo: .subheadline))
-                                            .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                                            .foregroundStyle(Color(PotoDesign.primaryText))
                                             .padding(.horizontal, 16)
                                             .padding(.vertical, 10)
                                             .background(.ultraThinMaterial, in: Capsule())
                                             .overlay(
-                                                Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                                Capsule().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                                             )
                                             .shadow(color: .black.opacity(0.04), radius: 4, y: 1)
                                     }
@@ -495,17 +486,17 @@ struct GalleryView: View {
                         VStack(alignment: .leading, spacing: 12) {
                             Text("Results for “\(searchText)”")
                                 .font(AppFont.scaled(size: 16, weight: .semibold, relativeTo: .callout))
-                                .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                                .foregroundStyle(Color(PotoDesign.secondaryText))
                                 .padding(.horizontal, 16)
 
                             if searchResults.isEmpty {
                                 VStack(spacing: 10) {
                                     Image(systemName: "magnifyingglass")
                                         .font(AppFont.scaled(size: 36, relativeTo: .largeTitle))
-                                        .foregroundStyle(Color(GoPhotoDesign.disabledText))
+                                        .foregroundStyle(Color(PotoDesign.disabledText))
                                     Text("No matching photos found")
                                         .font(AppFont.scaled(size: 15, relativeTo: .subheadline))
-                                        .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                                        .foregroundStyle(Color(PotoDesign.secondaryText))
                                 }
                                 .frame(maxWidth: .infinity)
                                 .padding(.top, 40)
@@ -546,12 +537,12 @@ struct GalleryView: View {
             } label: {
                 Image(systemName: "photo.on.rectangle")
                     .font(AppFont.system(size: 19))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .frame(width: 52, height: 52)
                     .background(.ultraThinMaterial, in: RoundedRectangle(cornerRadius: 16, style: .continuous))
                     .overlay(
                         RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                            .stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
@@ -562,12 +553,12 @@ struct GalleryView: View {
             HStack(spacing: 8) {
                 Image(systemName: "magnifyingglass")
                     .font(AppFont.scaled(size: 17, relativeTo: .body))
-                    .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                    .foregroundStyle(Color(PotoDesign.secondaryText))
 
                 TextField("Search your library...", text: $searchText)
                     .accessibilityLabel("Search")
                     .font(AppFont.scaled(size: 16, relativeTo: .callout))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .focused($isSearchFieldFocused)
                     .submitLabel(.search)
                     .onSubmit {
@@ -580,7 +571,7 @@ struct GalleryView: View {
                     } label: {
                         Image(systemName: "xmark.circle.fill")
                             .font(AppFont.scaled(size: 16, relativeTo: .callout))
-                            .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                            .foregroundStyle(Color(PotoDesign.secondaryText))
                     }
                     .buttonStyle(.plain)
                     .accessibilityLabel("Clear search text")
@@ -588,7 +579,7 @@ struct GalleryView: View {
                     // Decorative: it is not a button, so it must not be offered as one.
                     Image(systemName: "mic.fill")
                         .font(AppFont.scaled(size: 16, relativeTo: .callout))
-                        .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                        .foregroundStyle(Color(PotoDesign.secondaryText))
                         .accessibilityHidden(true)
                 }
             }
@@ -596,7 +587,7 @@ struct GalleryView: View {
             .frame(height: 52)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
-                Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                Capsule().stroke(Color(PotoDesign.border), lineWidth: 0.8)
             )
             .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
 
@@ -610,11 +601,11 @@ struct GalleryView: View {
             } label: {
                 Image(systemName: "xmark")
                     .font(AppFont.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .frame(width: 52, height: 52)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(
-                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
@@ -629,7 +620,7 @@ struct GalleryView: View {
         Button(action: action) {
             ZStack(alignment: .bottomLeading) {
                 RoundedRectangle(cornerRadius: 16, style: .continuous)
-                    .fill(Color(GoPhotoDesign.secondaryBackground))
+                    .fill(Color(PotoDesign.secondaryBackground))
                     .frame(width: 140, height: 140)
 
                 if let assetID {
@@ -642,7 +633,7 @@ struct GalleryView: View {
                 } else {
                     Image(systemName: "photo.stack")
                         .font(AppFont.system(size: 34))
-                        .foregroundStyle(Color(GoPhotoDesign.disabledText))
+                        .foregroundStyle(Color(PotoDesign.disabledText))
                         .frame(maxWidth: .infinity, maxHeight: .infinity)
                 }
 
@@ -767,13 +758,13 @@ struct GalleryView: View {
                     .fill(.ultraThinMaterial)
                     .frame(width: 38, height: 38)
                     .overlay(
-                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
 
                 Image(systemName: "line.3.horizontal")
                     .font(AppFont.system(size: 15, weight: .semibold))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
             }
         }
         .accessibilityLabel("Filter and sort")
@@ -798,7 +789,7 @@ struct GalleryView: View {
                         Text("Library")
                             .font(AppFont.system(size: 11, weight: .semibold))
                     }
-                    .foregroundStyle(currentTab == .library ? GoPhotoDesign.primary : Color(GoPhotoDesign.secondaryText))
+                    .foregroundStyle(currentTab == .library ? PotoDesign.primary : Color(PotoDesign.secondaryText))
                 }
                 .buttonStyle(.plain)
                 // Bar items keep their size (like the system tab bar); long-press shows them large.
@@ -819,7 +810,7 @@ struct GalleryView: View {
                         ZStack(alignment: .topTrailing) {
                             Image(systemName: "rectangle.stack.fill")
                                 .font(AppFont.system(size: 20))
-                                .foregroundStyle(currentTab == .collections ? GoPhotoDesign.primary : Color(GoPhotoDesign.secondaryText))
+                                .foregroundStyle(currentTab == .collections ? PotoDesign.primary : Color(PotoDesign.secondaryText))
 
                             // Badge merah "1"
                             Text("1")
@@ -832,7 +823,7 @@ struct GalleryView: View {
 
                         Text("Collections")
                             .font(AppFont.system(size: 11, weight: .medium))
-                            .foregroundStyle(currentTab == .collections ? GoPhotoDesign.primary : Color(GoPhotoDesign.secondaryText))
+                            .foregroundStyle(currentTab == .collections ? PotoDesign.primary : Color(PotoDesign.secondaryText))
                     }
                 }
                 .buttonStyle(.plain)
@@ -847,7 +838,7 @@ struct GalleryView: View {
             .frame(height: 60)
             .background(.ultraThinMaterial, in: Capsule())
             .overlay(
-                Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                Capsule().stroke(Color(PotoDesign.border), lineWidth: 0.8)
             )
             .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
 
@@ -861,11 +852,11 @@ struct GalleryView: View {
             } label: {
                 Image(systemName: "magnifyingglass")
                     .font(AppFont.system(size: 21, weight: .semibold))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .frame(width: 60, height: 60)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(
-                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
             }
@@ -889,7 +880,7 @@ struct GalleryView: View {
                 } label: {
                     Image(systemName: "square.and.arrow.up")
                         .font(AppFont.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color(GoPhotoDesign.disabledText))
+                        .foregroundStyle(Color(PotoDesign.disabledText))
                 }
                 .disabled(true)
                 .buttonStyle(.plain)
@@ -902,14 +893,14 @@ struct GalleryView: View {
                 ) {
                     Image(systemName: "square.and.arrow.up")
                         .font(AppFont.system(size: 20, weight: .medium))
-                        .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                        .foregroundStyle(Color(PotoDesign.primaryText))
                 }
                 .buttonStyle(.plain)
                 .accessibilityLabel("Share")
                 .accessibilityShowsLargeContentViewer { Label("Share", systemImage: "square.and.arrow.up") }
             }
 
-            // Tombol Favorite (Love Warna Ungu GoPhoto)
+            // Tombol Favorite (Love Warna Ungu Poto)
             Button {
                 toggleFavoriteSelected()
             } label: {
@@ -917,8 +908,8 @@ struct GalleryView: View {
                     .font(AppFont.system(size: 20, weight: .medium))
                     .foregroundStyle(
                         selectedIDs.isEmpty
-                            ? Color(GoPhotoDesign.disabledText)
-                            : (isAllSelectedFavorite ? GoPhotoDesign.primary : Color(GoPhotoDesign.primaryText))
+                            ? Color(PotoDesign.disabledText)
+                            : (isAllSelectedFavorite ? PotoDesign.primary : Color(PotoDesign.primaryText))
                     )
             }
             .disabled(selectedIDs.isEmpty)
@@ -937,7 +928,7 @@ struct GalleryView: View {
             } label: {
                 Image(systemName: "trash")
                     .font(AppFont.system(size: 20, weight: .medium))
-                    .foregroundStyle(selectedIDs.isEmpty ? Color(GoPhotoDesign.error).opacity(0.35) : Color(GoPhotoDesign.error))
+                    .foregroundStyle(selectedIDs.isEmpty ? Color(PotoDesign.error).opacity(0.35) : Color(PotoDesign.error))
             }
             .disabled(selectedIDs.isEmpty)
             .buttonStyle(.plain)
@@ -948,7 +939,7 @@ struct GalleryView: View {
         .frame(height: 56)
         .background(.ultraThinMaterial, in: Capsule())
         .overlay(
-            Capsule().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+            Capsule().stroke(Color(PotoDesign.border), lineWidth: 0.8)
         )
         .shadow(color: .black.opacity(0.08), radius: 16, y: 6)
         .padding(.horizontal, 20)
@@ -966,7 +957,7 @@ struct GalleryView: View {
                     HStack {
                         Text("Albums & Styles")
                             .font(AppFont.scaled(size: 20, weight: .bold, relativeTo: .title3))
-                            .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                            .foregroundStyle(Color(PotoDesign.primaryText))
 
                         Spacer()
 
@@ -977,7 +968,7 @@ struct GalleryView: View {
                         } label: {
                             Image(systemName: isCollectionsCollapsed ? "chevron.down" : "chevron.up")
                                 .font(AppFont.scaled(size: 13, weight: .semibold, relativeTo: .footnote))
-                                .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                                .foregroundStyle(Color(PotoDesign.secondaryText))
                         }
                         .accessibilityLabel(isCollectionsCollapsed ? "Expand albums" : "Collapse albums")
                     }
@@ -1061,7 +1052,7 @@ struct GalleryView: View {
         VStack(alignment: .leading, spacing: 6) {
             ZStack {
                 RoundedRectangle(cornerRadius: 12, style: .continuous)
-                    .fill(Color(GoPhotoDesign.secondaryBackground))
+                    .fill(Color(PotoDesign.secondaryBackground))
 
                 if let firstAssetID {
                     DialogThumbnailPreview(
@@ -1072,19 +1063,19 @@ struct GalleryView: View {
                 } else {
                     Image(systemName: "photo.on.rectangle")
                         .font(AppFont.system(size: 32))
-                        .foregroundStyle(Color(GoPhotoDesign.disabledText))
+                        .foregroundStyle(Color(PotoDesign.disabledText))
                 }
             }
             .frame(width: width, height: height)
 
             Text(title)
                 .font(AppFont.scaled(size: 14, weight: .semibold, relativeTo: .subheadline))
-                .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                .foregroundStyle(Color(PotoDesign.primaryText))
                 .fixedSize(horizontal: false, vertical: true)
 
             Text("\(count) Photos")
                 .font(AppFont.scaled(size: 12, relativeTo: .caption))
-                .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                .foregroundStyle(Color(PotoDesign.secondaryText))
         }
         .frame(width: width)
     }
@@ -1111,7 +1102,7 @@ struct GalleryView: View {
                         .overlay {
                             if isSelected {
                                 Rectangle()
-                                    .stroke(GoPhotoDesign.primary, lineWidth: 2)
+                                    .stroke(PotoDesign.primary, lineWidth: 2)
                             }
                         }
 
@@ -1119,19 +1110,19 @@ struct GalleryView: View {
                     if isFavorited {
                         Image(systemName: "heart.fill")
                             .font(AppFont.system(size: 13, weight: .bold))
-                            .foregroundStyle(GoPhotoDesign.primary)
+                            .foregroundStyle(PotoDesign.primary)
                             .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
                             .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
                             .padding(5)
                             .transition(.scale.combined(with: .opacity))
                     }
 
-                    // Checkmark indicator dengan warna brand GoPhoto di kanan bawah
+                    // Checkmark indicator dengan warna brand Poto di kanan bawah
                     ZStack {
                         if isSelected {
                             Image(systemName: "checkmark.circle.fill")
                                 .font(AppFont.system(size: 19))
-                                .foregroundStyle(GoPhotoDesign.primary, .white)
+                                .foregroundStyle(PotoDesign.primary, .white)
                         } else {
                             Circle()
                                 .strokeBorder(Color.white.opacity(0.9), lineWidth: 1.5)
@@ -1157,7 +1148,7 @@ struct GalleryView: View {
                     if isFavorited {
                         Image(systemName: "heart.fill")
                             .font(AppFont.system(size: 13, weight: .bold))
-                            .foregroundStyle(GoPhotoDesign.primary)
+                            .foregroundStyle(PotoDesign.primary)
                             .shadow(color: .black.opacity(0.4), radius: 3, x: 0, y: 1)
                             .padding(5)
                             .transition(.scale.combined(with: .opacity))
@@ -1193,12 +1184,12 @@ struct GalleryView: View {
                 if let title {
                     Text(title)
                         .font(AppFont.scaled(size: 17, weight: .semibold, relativeTo: .headline))
-                        .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                        .foregroundStyle(Color(PotoDesign.primaryText))
                 }
 
                 Text(message)
                     .font(AppFont.scaled(size: 15, weight: .regular, relativeTo: .subheadline))
-                    .foregroundStyle(Color(GoPhotoDesign.secondaryText))
+                    .foregroundStyle(Color(PotoDesign.secondaryText))
                     .multilineTextAlignment(.center)
             }
             .padding(.horizontal, 32)
@@ -1207,100 +1198,6 @@ struct GalleryView: View {
     }
 
     // MARK: - Custom Delete Confirmation Dialog
-
-    private var deleteConfirmationOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isShowingDeleteConfirmation = false
-                    }
-                }
-
-            VStack(spacing: 16) {
-                VStack(spacing: 6) {
-                    Text("Allow “Vacato” to delete\n\(selectedIDs.count) \(selectedIDs.count == 1 ? "photo" : "photos")?")
-                        .font(AppFont.scaled(size: 18, weight: .bold, relativeTo: .headline))
-                        .foregroundStyle(Color(GoPhotoDesign.primaryText))
-                        .multilineTextAlignment(.center)
-
-                    Text("These photos will also be deleted from an album.")
-                        .font(AppFont.scaled(size: 13, weight: .regular, relativeTo: .footnote))
-                        .foregroundStyle(Color(GoPhotoDesign.secondaryText))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 10)
-                .padding(.horizontal, 16)
-
-                // At accessibility text sizes the text and buttons need the room: no preview then.
-                if !dynamicTypeSize.isAccessibilitySize {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(GoPhotoDesign.secondaryBackground))
-
-                        if let firstSelectedID = selectedIDs.first {
-                            DialogThumbnailPreview(
-                                assetID: firstSelectedID,
-                                loadThumbnail: viewModel.thumbnail
-                            )
-                        }
-                    }
-                    .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .padding(.horizontal, 8)
-                }
-
-                HStack(spacing: 12) {
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            isShowingDeleteConfirmation = false
-                        }
-                    } label: {
-                        Text("Don’t Allow")
-                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundStyle(Color(GoPhotoDesign.primaryText))
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .frame(minHeight: 48)
-                            .background(Color(.systemGray5), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        Task {
-                            await deleteSelected()
-                            withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                                isShowingDeleteConfirmation = false
-                            }
-                        }
-                    } label: {
-                        Text("Delete")
-                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .frame(minHeight: 48)
-                            .background(Color(GoPhotoDesign.error), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 6)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThickMaterial)
-                    .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
-            )
-            .padding(.horizontal, 32)
-            // Hides the gallery behind the card from VoiceOver / Voice Control.
-            .accessibilityAddTraits(.isModal)
-        }
-    }
 
     // MARK: - Actions
 
@@ -1398,10 +1295,10 @@ private struct PlaceholderCard: View {
                     .scaledToFill()
             } else {
                 ZStack {
-                    Color(GoPhotoDesign.secondaryBackground)
+                    Color(PotoDesign.secondaryBackground)
                     Image(systemName: "photo")
                         .font(AppFont.largeTitle)
-                        .foregroundStyle(Color(GoPhotoDesign.disabledText))
+                        .foregroundStyle(Color(PotoDesign.disabledText))
                 }
             }
         }
@@ -1425,7 +1322,7 @@ struct DialogThumbnailPreview: View {
                     .scaledToFill()
             } else {
                 ProgressView()
-                    .tint(GoPhotoDesign.primary)
+                    .tint(PotoDesign.primary)
             }
         }
         .task {

@@ -23,7 +23,7 @@ struct StyleTraceView: View {
                 .padding(16)
                 .frame(maxWidth: .infinity, alignment: .leading)
         }
-        .background(GoPhotoDesign.background)
+        .background(PotoDesign.background)
         .navigationTitle("How it was grouped")
         .navigationBarTitleDisplayMode(.inline)
         .toolbar { ToolbarItem(placement: .confirmationAction) { Button("Done") { dismiss() } } }
@@ -38,15 +38,15 @@ struct StyleTraceView: View {
         if let trace {
             VStack(alignment: .leading, spacing: 4) {
                 Text(trace.mode == ReferencePhotoMode.allOfMe.rawValue ? "Mode 2 · All photos of me" : "Mode 1 · Photos I love")
-                    .font(GoPhotoDesign.cardTitle)
+                    .font(PotoDesign.cardTitle)
                 Text("Analysed \(trace.createdAt.formatted(date: .abbreviated, time: .shortened))")
-                    .font(GoPhotoDesign.caption).foregroundStyle(GoPhotoDesign.secondaryText)
+                    .font(PotoDesign.caption).foregroundStyle(PotoDesign.secondaryText)
             }
             if let review = trace.review { reviewSection(review) }
             ForEach(trace.shots, id: \.key) { shot in shotSection(shot, mode: trace.mode) }
         } else if loaded {
             Text("No grouping saved for this preference yet. Analyse it again to record one.")
-                .font(GoPhotoDesign.body).foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body).foregroundStyle(PotoDesign.secondaryText)
         }
     }
 
@@ -69,8 +69,8 @@ struct StyleTraceView: View {
         let byID = Dictionary(shot.photos.map { ($0.id, $0) }, uniquingKeysWith: { a, _ in a })
         let choice = preference?.analysis?.styleVariant(forKey: shot.key)?.styleChoice
         return VStack(alignment: .leading, spacing: 16) {
-            Text(title(shot.key)).font(GoPhotoDesign.sectionTitle)
-            Text("\(shot.photos.count) photos").font(GoPhotoDesign.caption).foregroundStyle(GoPhotoDesign.secondaryText)
+            Text(title(shot.key)).font(PotoDesign.sectionTitle)
+            Text("\(shot.photos.count) photos").font(PotoDesign.caption).foregroundStyle(PotoDesign.secondaryText)
 
             // 1. Scenes
             VStack(alignment: .leading, spacing: 8) {
@@ -90,12 +90,12 @@ struct StyleTraceView: View {
                 ForEach(Array(shot.styles.enumerated()), id: \.offset) { s, style in
                     VStack(alignment: .leading, spacing: 6) {
                         HStack {
-                            Text("Style \(letter(s))").font(GoPhotoDesign.cardTitle)
+                            Text("Style \(letter(s))").font(PotoDesign.cardTitle)
                             if shot.candidateStyles.contains(s) {
-                                Text("candidate").font(GoPhotoDesign.smallLabel)
+                                Text("candidate").font(PotoDesign.smallLabel)
                                     .padding(.horizontal, 6).padding(.vertical, 2)
-                                    .background(GoPhotoDesign.tagBackground, in: Capsule())
-                                    .foregroundStyle(GoPhotoDesign.tagText)
+                                    .background(PotoDesign.tagBackground, in: Capsule())
+                                    .foregroundStyle(PotoDesign.tagText)
                             }
                         }
                         line("\(style.photoIDs.count) photos · \(style.scenes) scenes · votes \(String(format: "%.2f", style.votes))")
@@ -106,10 +106,10 @@ struct StyleTraceView: View {
                         }
                     }
                     .padding(12)
-                    .background(GoPhotoDesign.surface, in: RoundedRectangle(cornerRadius: 12))
+                    .background(PotoDesign.surface, in: RoundedRectangle(cornerRadius: 12))
                 }
                 Text("Border = target (medoid) · dot = scene representative · S = fits more than one style (vote split)")
-                    .font(GoPhotoDesign.caption).foregroundStyle(GoPhotoDesign.secondaryText)
+                    .font(PotoDesign.caption).foregroundStyle(PotoDesign.secondaryText)
             }
 
             // 3. Decision
@@ -144,7 +144,7 @@ struct StyleTraceView: View {
                     heading("Result: style \(letter(usedStyle))")
                     HStack(alignment: .top, spacing: 12) {
                         thumb(target, size: 110, highlight: true)
-                        if let photo = byID[target] { Text(values(photo)).font(GoPhotoDesign.caption) }
+                        if let photo = byID[target] { Text(values(photo)).font(PotoDesign.caption) }
                     }
                 }
             }
@@ -154,11 +154,11 @@ struct StyleTraceView: View {
     // MARK: Pieces
 
     private func heading(_ text: String) -> some View {
-        Text(text).font(GoPhotoDesign.smallLabel).foregroundStyle(GoPhotoDesign.primary)
+        Text(text).font(PotoDesign.smallLabel).foregroundStyle(PotoDesign.primary)
     }
 
     private func line(_ text: String) -> some View {
-        Text(text).font(GoPhotoDesign.secondaryBody).foregroundStyle(GoPhotoDesign.primaryText)
+        Text(text).font(PotoDesign.secondaryBody).foregroundStyle(PotoDesign.primaryText)
             .fixedSize(horizontal: false, vertical: true)
     }
 
@@ -178,15 +178,15 @@ struct StyleTraceView: View {
         let image = preference?.photos.first { $0.id.uuidString == id }?.image
         return ZStack(alignment: .topTrailing) {
             Group {
-                if let image { Image(uiImage: image).resizable().scaledToFill() } else { GoPhotoDesign.secondaryBackground }
+                if let image { Image(uiImage: image).resizable().scaledToFill() } else { PotoDesign.secondaryBackground }
             }
             .frame(width: size, height: size * 4 / 3)
             .clipShape(RoundedRectangle(cornerRadius: 6))
-            .overlay(RoundedRectangle(cornerRadius: 6).stroke(highlight ? GoPhotoDesign.primary : .clear, lineWidth: 3))
-            if dot { Circle().fill(GoPhotoDesign.primary).frame(width: 10, height: 10).padding(4) }
+            .overlay(RoundedRectangle(cornerRadius: 6).stroke(highlight ? PotoDesign.primary : .clear, lineWidth: 3))
+            if dot { Circle().fill(PotoDesign.primary).frame(width: 10, height: 10).padding(4) }
             if shared {
                 Text("S").font(.caption2.bold()).foregroundStyle(.white).padding(3)
-                    .background(GoPhotoDesign.warning, in: Circle()).padding(4)
+                    .background(PotoDesign.warning, in: Circle()).padding(4)
                     .frame(maxWidth: .infinity, maxHeight: .infinity, alignment: .bottomLeading)
             }
         }

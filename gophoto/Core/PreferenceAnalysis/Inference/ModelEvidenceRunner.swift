@@ -119,7 +119,7 @@ actor DepthEvidenceModel {
 // MARK: - Model set
 
 /// The Core ML models, created together so they can be released together.
-/// GoPhoto runs DETR and Depth Anything only (no FastViT classifier).
+/// Poto runs DETR and Depth Anything only (no FastViT classifier).
 nonisolated final class AnalysisModels: @unchecked Sendable {
     let segmenter = DETRSegmenter()
     let depth = DepthEvidenceModel()
@@ -224,7 +224,7 @@ nonisolated enum ModelEvidenceRunner {
 
     private static func runClassifier(_ image: CGImage, _ models: AnalysisModels) async
         -> (outcome: EvidenceOutcome<[ScoredLabel]>, record: SourceRunRecord) {
-        let reason = "FastViT is not used in GoPhoto"
+        let reason = "FastViT is not used in Poto"
         return (.skipped(reason),
                 SourceRunRecord(source: .fastViT, state: .skipped, durationMilliseconds: 0, detail: reason))
     }

@@ -46,7 +46,7 @@ private struct RatioMenuButton: UIViewRepresentable {
         button.layer.borderWidth = 1
         button.layer.borderColor = UIColor.white.withAlphaComponent(0.15).cgColor
         button.backgroundColor = UIColor.white.withAlphaComponent(0.1)
-        button.tintColor = GoPhotoPalette.tagText
+        button.tintColor = PotoPalette.tagText
         return button
     }
 

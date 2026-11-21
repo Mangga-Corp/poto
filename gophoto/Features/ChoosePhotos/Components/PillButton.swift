@@ -10,7 +10,7 @@ import UIKit
 /// Text button ("Select", "Done", "Add", "Edit").
 /// Non-prominent: system Liquid Glass on iOS 26, system gray before that.
 /// Prominent: the app's primary button (`Theme.accent`-tinted Liquid Glass capsule, muted
-/// when disabled), matching the SwiftUI `.goPhotoPrimary` style. Use it for the single most likely
+/// when disabled), matching the SwiftUI `.potoPrimary` style. Use it for the single most likely
 /// action in a view; `fullWidthHeight` gives it the standard 56 pt primary height.
 /// Always at least 44 pt tall.
 final class PillButton: UIButton {

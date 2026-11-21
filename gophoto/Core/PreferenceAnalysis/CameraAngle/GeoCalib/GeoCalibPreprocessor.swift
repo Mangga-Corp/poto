@@ -1,7 +1,7 @@
 // Derived from GeoCalib (https://github.com/cvg/GeoCalib), geocalib/utils.py ImagePreprocessor (+ kornia resize).
 // Copyright 2024 ETH Zurich. Licensed under the Apache License, Version 2.0
 // (see ThirdPartyNotices/GeoCalib/LICENSE). MODIFIED: ported from Python/PyTorch to Swift,
-// pinhole camera and single image only, by the GoPhoto team, October 2026.
+// pinhole camera and single image only, by the Poto team, October 2026.
 
 import CoreGraphics
 import Foundation

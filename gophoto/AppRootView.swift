@@ -75,7 +75,7 @@ struct AppRootView: View {
                     },
                     onFinish: continueToCamera
                 )
-                .tint(GoPhotoDesign.primary)
+                .tint(PotoDesign.primary)
             } else if welcomeOnboardingStarted {
                 NavigationStack {
                     PhotoSessionSetupView(
@@ -89,7 +89,7 @@ struct AppRootView: View {
                         onDiscardPreference: discardOnboardingPreference
                     )
                 }
-                .tint(GoPhotoDesign.primary)
+                .tint(PotoDesign.primary)
             } else if !welcomeOnboardingStarted, PreferencesViewModel.shared.hasPreferences {
                 // Older releases completed onboarding without setting the flag: returning users.
                 SessionSetupFlowView()
@@ -108,7 +108,7 @@ struct AppRootView: View {
             pendingOnboardingPreferenceIDString = ""
             welcomeOnboardingStarted = true
         }
-        .tint(GoPhotoDesign.primary)
+        .tint(PotoDesign.primary)
     }
 
     private func createOnboardingPreference(

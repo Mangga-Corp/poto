@@ -90,13 +90,13 @@ struct ShotSizePicker: View {
         } label: {
             Text(shot.pickerTitle)
                 .font(Self.labelFont)
-                .foregroundStyle(isSelected ? GoPhotoDesign.primaryText : Color.white.opacity(0.5))
+                .foregroundStyle(isSelected ? PotoDesign.primaryText : Color.white.opacity(0.5))
                 .lineLimit(1)
                 .fixedSize()
                 .padding(.horizontal, Self.labelPadding)
                 .frame(height: itemHeight)
                 .background {
-                    if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(GoPhotoDesign.background).matchedGeometryEffect(id: "shotHighlight", in: highlight) }
+                    if isSelected { RoundedRectangle(cornerRadius: 10, style: .continuous).fill(PotoDesign.background).matchedGeometryEffect(id: "shotHighlight", in: highlight) }
                 }
                 .frame(width: itemWidth)
                 .contentShape(Rectangle())

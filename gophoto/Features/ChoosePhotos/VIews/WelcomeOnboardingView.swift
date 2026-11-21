@@ -15,14 +15,14 @@ struct WelcomeOnboardingView: View {
                     Spacer(minLength: 18)
 
                     Text("Start with your favorite photos")
-                        .font(GoPhotoDesign.largeTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .font(PotoDesign.largeTitle)
+                        .foregroundStyle(PotoDesign.primaryText)
                         .multilineTextAlignment(.center)
                         .fixedSize(horizontal: false, vertical: true)
 
                     Text("Add photos you love. We'll guide you to match them.")
-                        .font(GoPhotoDesign.body)
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
+                        .font(PotoDesign.body)
+                        .foregroundStyle(PotoDesign.secondaryText)
                         .multilineTextAlignment(.center)
                         .lineSpacing(4)
                         .padding(.top, 16)
@@ -30,11 +30,11 @@ struct WelcomeOnboardingView: View {
                     Spacer(minLength: 28)
 
                     Button("Choose Photos", action: onContinue)
-                        .buttonStyle(.goPhotoPrimary)
+                        .buttonStyle(.potoPrimary)
                     .accessibilityHint("Continue to choose reference photos")
                     .padding(.bottom, 14)
                 }
-                .padding(.horizontal, GoPhotoDesign.horizontalMargin)
+                .padding(.horizontal, PotoDesign.horizontalMargin)
                 .frame(maxWidth: .infinity, maxHeight: .infinity)
             }
             .frame(width: geometry.size.width, height: geometry.size.height)

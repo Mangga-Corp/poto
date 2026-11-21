@@ -57,11 +57,11 @@ struct LookPickerView: View {
                 .clipShape(RoundedRectangle(cornerRadius: 8))
                 .overlay {
                     RoundedRectangle(cornerRadius: 8)
-                        .stroke(isSelected ? GoPhotoDesign.primary : .clear, lineWidth: 2)
+                        .stroke(isSelected ? PotoDesign.primary : .clear, lineWidth: 2)
                 }
                 Text(title)
                     .font(AppFont.caption2)
-                    .foregroundStyle(isSelected ? GoPhotoDesign.primary : .secondary)
+                    .foregroundStyle(isSelected ? PotoDesign.primary : .secondary)
             }
         }
         .buttonStyle(.plain)

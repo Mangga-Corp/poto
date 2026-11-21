@@ -123,10 +123,10 @@ struct AdjustPanelView: View {
                                 Image(systemName: item.icon)
                                     .font(AppFont.title3)
                                     .frame(width: 44, height: 44)
-                                    .background(isSelected ? GoPhotoDesign.primary.opacity(0.2) : Color.clear, in: Circle())
+                                    .background(isSelected ? PotoDesign.primary.opacity(0.2) : Color.clear, in: Circle())
                                 Text(item.title).font(AppFont.caption2)
                             }
-                            .foregroundStyle(isSelected ? GoPhotoDesign.primary : .secondary)
+                            .foregroundStyle(isSelected ? PotoDesign.primary : .secondary)
                             .frame(minWidth: 64)
                         }
                         .buttonStyle(.plain)

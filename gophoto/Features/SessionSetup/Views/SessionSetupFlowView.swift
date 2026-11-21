@@ -57,12 +57,17 @@ struct SessionSetupFlowView: View {
                 case .photoSessionSetup:
                     PhotoSessionSetupView(
                         onCreatePreference: { photos, name, completion in
-                            selection.preferences.addPersisted(name: name, photos: photos) { result in
+                            // Marked before saving, so closing the app at any point before its
+                            // analysis succeeds never leaves it in the list.
+                            let newID = UUID()
+                            selection.preferences.markUnfinished(newID)
+                            selection.preferences.addPersisted(id: newID, name: name, photos: photos) { result in
                                 switch result {
                                 case .success(let id):
                                     path = [.createdPreferenceAnalysis(preferenceID: id)]
                                     completion(.success(id))
                                 case .failure(let error):
+                                    selection.preferences.clearUnfinished(newID)
                                     completion(.failure(error))
                                 }
                             }
@@ -99,7 +104,7 @@ struct SessionSetupFlowView: View {
                             return nil
                         }
                     )
-                    .tint(GoPhotoDesign.primary)
+                    .tint(PotoDesign.primary)
                 case .addMorePhotos(let preferenceID):
                     // The same preference: added photos are saved to it, and Analyze runs it
                     // again (never a second preference).
@@ -123,7 +128,7 @@ struct SessionSetupFlowView: View {
                 }
             }
         }
-        .tint(GoPhotoDesign.primary)
+        .tint(PotoDesign.primary)
     }
 
     /// Starts the selected preference with the existing default shot size; the store revalidates it.

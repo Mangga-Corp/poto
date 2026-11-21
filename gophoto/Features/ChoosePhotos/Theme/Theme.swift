@@ -8,7 +8,7 @@
 import SwiftUI
 import UIKit
 
-/// UIKit view of `GoPhotoDesign`: the same tokens as `UIColor`/`UIFont`, so UIKit screens never
+/// UIKit view of `PotoDesign`: the same tokens as `UIColor`/`UIFont`, so UIKit screens never
 /// define their own colors.
 ///
 /// Every color is dynamic (Light / Dark). Views and labels resolve them automatically; a
@@ -16,24 +16,24 @@ import UIKit
 /// trait collection — `Theme.stroke.resolvedColor(with: traitCollection).cgColor` — and refresh it
 /// from `registerForTraitChanges([UITraitUserInterfaceStyle.self])`.
 enum Theme {
-    static let background = GoPhotoPalette.background
-    static let surface = GoPhotoPalette.surface
-    static let stroke = GoPhotoPalette.border
-    static let divider = GoPhotoPalette.divider
-    static let text = GoPhotoPalette.primaryText
-    static let secondaryText = GoPhotoPalette.secondaryText
-    static let disabledText = GoPhotoPalette.disabledText
-    static let accent = GoPhotoPalette.primary
-    static let accentPressed = GoPhotoPalette.primaryPressed
-    static let accentSubtle = GoPhotoPalette.primarySubtle
-    static let accentBorder = GoPhotoPalette.primaryBorder
-    static let tagBackground = GoPhotoPalette.primarySubtle
-    static let tagText = GoPhotoPalette.tagText
-    static let disabledFill = GoPhotoPalette.secondaryBackground
-    static let destructive = GoPhotoPalette.error
-    static let onAccent = GoPhotoPalette.onPrimary
-    static let cardCornerRadius = GoPhotoDesign.cardCornerRadius
-    static let buttonHeight = GoPhotoDesign.buttonHeight
+    static let background = PotoPalette.background
+    static let surface = PotoPalette.surface
+    static let stroke = PotoPalette.border
+    static let divider = PotoPalette.divider
+    static let text = PotoPalette.primaryText
+    static let secondaryText = PotoPalette.secondaryText
+    static let disabledText = PotoPalette.disabledText
+    static let accent = PotoPalette.primary
+    static let accentPressed = PotoPalette.primaryPressed
+    static let accentSubtle = PotoPalette.primarySubtle
+    static let accentBorder = PotoPalette.primaryBorder
+    static let tagBackground = PotoPalette.primarySubtle
+    static let tagText = PotoPalette.tagText
+    static let disabledFill = PotoPalette.secondaryBackground
+    static let destructive = PotoPalette.error
+    static let onAccent = PotoPalette.onPrimary
+    static let cardCornerRadius = PotoDesign.cardCornerRadius
+    static let buttonHeight = PotoDesign.buttonHeight
 }
 
 extension UIView {

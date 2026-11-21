@@ -13,15 +13,15 @@ struct PhotoReviewView: View {
 
     var body: some View {
         GeometryReader { geometry in
-            let width = (geometry.size.width - GoPhotoDesign.sessionMargin * 2 - 20) / 3
+            let width = (geometry.size.width - PotoDesign.sessionMargin * 2 - 20) / 3
             ScrollView {
                 VStack(alignment: .leading, spacing: 16) {
                     Text("Your photos")
-                        .font(GoPhotoDesign.largeTitle)
-                        .foregroundStyle(GoPhotoDesign.primaryText)
+                        .font(PotoDesign.largeTitle)
+                        .foregroundStyle(PotoDesign.primaryText)
                     Text("We picked the best ones. Tap a photo to change the selection.")
-                        .font(GoPhotoDesign.body)
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
+                        .font(PotoDesign.body)
+                        .foregroundStyle(PotoDesign.secondaryText)
                         .fixedSize(horizontal: false, vertical: true)
 
                     switch viewModel.state {
@@ -32,15 +32,15 @@ struct PhotoReviewView: View {
                         footer
                     case .failed(let text):
                         Text(text)
-                            .font(GoPhotoDesign.body)
-                            .foregroundStyle(GoPhotoDesign.error)
+                            .font(PotoDesign.body)
+                            .foregroundStyle(PotoDesign.error)
                     }
                 }
-                .padding(GoPhotoDesign.sessionMargin)
+                .padding(PotoDesign.sessionMargin)
                 .padding(.bottom, 80)
             }
         }
-        .background(GoPhotoDesign.background)
+        .background(PotoDesign.background)
         .toolbar(.visible, for: .navigationBar)
         .navigationBarTitleDisplayMode(.inline)
         .toolbar {
@@ -93,14 +93,14 @@ struct PhotoReviewView: View {
                 Text("\(viewModel.droppedCount) photos were left out for blur or lighting.")
             }
         }
-        .font(GoPhotoDesign.caption)
-        .foregroundStyle(GoPhotoDesign.secondaryText)
+        .font(PotoDesign.caption)
+        .foregroundStyle(PotoDesign.secondaryText)
 
         #if DEBUG
         if !leftOut.isEmpty {
             Text("Debug · left out as group photos: \(leftOut.count)")
-                .font(GoPhotoDesign.cardTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.cardTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .padding(.top, 12)
             LazyVGrid(columns: [GridItem(.adaptive(minimum: 72), spacing: 8)], spacing: 8) {
                 ForEach(leftOut) { photo in
@@ -118,7 +118,7 @@ private struct SelectionMark: View {
     var body: some View {
         ZStack {
             Circle()
-                .fill(isSelected ? GoPhotoDesign.primary : Color.black.opacity(0.3))
+                .fill(isSelected ? PotoDesign.primary : Color.black.opacity(0.3))
                 .frame(width: 24, height: 24)
             if isSelected {
                 Image(systemName: "checkmark")

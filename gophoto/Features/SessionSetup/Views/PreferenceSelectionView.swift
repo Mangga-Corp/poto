@@ -62,7 +62,7 @@ struct PreferenceSelectionView: View {
                 .padding(.top, 12)
                 .padding(.bottom, 24)
             }
-            .padding(.horizontal, GoPhotoDesign.sessionMargin)
+            .padding(.horizontal, PotoDesign.sessionMargin)
         }
         .scrollIndicators(.hidden)
         .appPatternBackground()
@@ -88,38 +88,29 @@ struct PreferenceSelectionView: View {
             }
         }
         .onChange(of: selection.reconcileKey) { selection.reconcile() }
-        .alert("Rename Preference", isPresented: isPresented($renameTarget), presenting: renameTarget) { card in
-            TextField("Name", text: $renameText)
-                .textInputAutocapitalization(.words)
-            Button("Cancel", role: .cancel) {}
-            Button("Save") { saveRename(card) }
-        } message: { _ in
-            Text("Give this preference a new name.")
-        }
-        .alert(deleteTarget.map { "Delete “\($0.name)”?" } ?? "", isPresented: isPresented($deleteTarget),
-               presenting: deleteTarget) { card in
-            Button("Delete", role: .destructive) { selection.delete(card.id) }
-            Button("Cancel", role: .cancel) {}
-        } message: { _ in
-            Text("Its photos will be removed. This can’t be undone.")
-        }
-        .alert("Something went wrong", isPresented: isPresented($errorMessage)) {
-            Button("OK", role: .cancel) {}
-        } message: {
-            Text(errorMessage ?? "")
-        }
+        .appAlert("Rename Preference", isPresented: isPresented($renameTarget),
+                  message: "Give this preference a new name.",
+                  textField: AppAlertTextField(text: $renameText),
+                  actions: [.secondary("Cancel"),
+                            .primary("Save") { if let card = renameTarget { saveRename(card) } }])
+        .appAlert(deleteTarget.map { "Delete “\($0.name)”?" } ?? "", isPresented: isPresented($deleteTarget),
+                  message: "Its photos will be removed. This can’t be undone.",
+                  actions: [.secondary("Delete") { if let card = deleteTarget { selection.delete(card.id) } },
+                            .primary("Cancel")])
+        .appAlert("Something went wrong", isPresented: isPresented($errorMessage),
+                  message: errorMessage, actions: [.primary("OK")])
     }
 
     private var header: some View {
         VStack(alignment: .leading, spacing: 8) {
             Text("What shall we shoot today?")
-                .font(GoPhotoDesign.largeTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.largeTitle)
+                .foregroundStyle(PotoDesign.primaryText)
                 .fixedSize(horizontal: false, vertical: true)
                 .accessibilityAddTraits(.isHeader)
             Text("Pick a preference for your next shoot.")
-                .font(GoPhotoDesign.body)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.body)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .fixedSize(horizontal: false, vertical: true)
         }
         .padding(.top, 36)
@@ -127,8 +118,8 @@ struct PreferenceSelectionView: View {
 
     private var preferencesTitle: some View {
         Text("Your Preferences")
-            .font(GoPhotoDesign.sectionTitle)
-            .foregroundStyle(GoPhotoDesign.primaryText)
+            .font(PotoDesign.sectionTitle)
+            .foregroundStyle(PotoDesign.primaryText)
             .accessibilityAddTraits(.isHeader)
     }
 
@@ -143,7 +134,7 @@ struct PreferenceSelectionView: View {
                 Text("Add Style")
                     .font(AppFont.system(.subheadline, weight: .semibold))
             }
-            .foregroundStyle(GoPhotoDesign.primary)
+            .foregroundStyle(PotoDesign.primary)
             .padding(.horizontal, 14)
             .padding(.vertical, 9)
             .glassEffect(.regular.interactive(), in: Capsule())
@@ -161,19 +152,19 @@ struct PreferenceSelectionView: View {
         VStack(spacing: 10) {
             Image(systemName: "photo.on.rectangle.angled")
                 .font(AppFont.scaled(size: 30, relativeTo: .title))
-                .foregroundStyle(GoPhotoDesign.primary)
+                .foregroundStyle(PotoDesign.primary)
             Text("No preferences yet")
-                .font(GoPhotoDesign.cardTitle)
-                .foregroundStyle(GoPhotoDesign.primaryText)
+                .font(PotoDesign.cardTitle)
+                .foregroundStyle(PotoDesign.primaryText)
             Text("Tap Add Style, then add reference photos to begin.")
-                .font(GoPhotoDesign.secondaryBody)
-                .foregroundStyle(GoPhotoDesign.secondaryText)
+                .font(PotoDesign.secondaryBody)
+                .foregroundStyle(PotoDesign.secondaryText)
                 .multilineTextAlignment(.center)
         }
         .frame(maxWidth: .infinity)
         .padding(.vertical, 28)
         .padding(.horizontal, 20)
-        .goPhotoCard()
+        .potoCard()
     }
 
     private func cardView(_ card: PreferenceCardModel) -> some View {
@@ -201,7 +192,7 @@ struct PreferenceSelectionView: View {
                 Menu { managementActions(card) } label: {
                     Image(systemName: "ellipsis")
                         .font(AppFont.system(size: 15, weight: .semibold))
-                        .foregroundStyle(GoPhotoDesign.secondaryText)
+                        .foregroundStyle(PotoDesign.secondaryText)
                         .frame(width: 44, height: 40)
                         .contentShape(Rectangle())
                 }

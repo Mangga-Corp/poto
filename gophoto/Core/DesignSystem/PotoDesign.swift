@@ -36,12 +36,12 @@ extension UIColor {
 }
 
 /// The raw, appearance-aware palette as `UIColor`. Every token has a light and a dark value.
-/// Read it through `GoPhotoDesign` (SwiftUI) or `Theme` (UIKit), never directly from a screen.
+/// Read it through `PotoDesign` (SwiftUI) or `Theme` (UIKit), never directly from a screen.
 ///
 /// Dark values follow the dark-mode design: true-black canvas, charcoal cards/sheets, deep-purple
 /// tinted notes and chips, a slightly lifted brand purple so it keeps its punch on black, and
 /// white / light-gray text.
-enum GoPhotoPalette {
+enum PotoPalette {
 
     // MARK: Brand
 
@@ -50,6 +50,11 @@ enum GoPhotoPalette {
     static let primaryPressed = UIColor.adaptive(light: 0x55238A, dark: 0x6C30A6)
     static let primarySubtle = UIColor.adaptive(light: 0xEEE5F5, dark: 0x35234F)
     static let primaryBorder = UIColor.adaptive(light: 0xDCC9ED, dark: 0x5B3E86)
+    /// Text and icons on a selected `primarySubtle` card. Light: same as `primary`.
+    /// Dark: lavender, 8.6:1 on the dark tint (`primary` is only 2.5:1 there).
+    static let selectedContent = UIColor.adaptive(light: 0x6C30A6, dark: 0xD7C3F2)
+    /// Border of a selected card. Light: same as `primaryBorder`. Dark: 5.6:1 on the dark tint.
+    static let selectedBorder = UIColor.adaptive(light: 0xDCC9ED, dark: 0xB794F0)
     static let onPrimary = UIColor.white
 
     // MARK: Neutrals
@@ -82,43 +87,47 @@ enum GoPhotoPalette {
 /// The single source of design tokens: color, typography, shape, spacing.
 /// UIKit screens read the same values through `Theme` (which wraps these tokens).
 /// All colors are dynamic: they follow the device's Light / Dark appearance automatically.
-enum GoPhotoDesign {
+enum PotoDesign {
 
     // MARK: Brand
 
     /// Brand purple. White text on it stays above 4.5:1 in both appearances.
-    static let primary = Color(uiColor: GoPhotoPalette.primary)
+    static let primary = Color(uiColor: PotoPalette.primary)
     /// Pressed state of a primary surface.
-    static let primaryPressed = Color(uiColor: GoPhotoPalette.primaryPressed)
+    static let primaryPressed = Color(uiColor: PotoPalette.primaryPressed)
     /// Selected / tinted background behind primary-colored content.
-    static let primarySubtle = Color(uiColor: GoPhotoPalette.primarySubtle)
+    static let primarySubtle = Color(uiColor: PotoPalette.primarySubtle)
     /// Border of selected or purple-tinted surfaces.
-    static let primaryBorder = Color(uiColor: GoPhotoPalette.primaryBorder)
-    static let onPrimary = Color(uiColor: GoPhotoPalette.onPrimary)
+    static let primaryBorder = Color(uiColor: PotoPalette.primaryBorder)
+    /// Text and icons on a selected card.
+    static let selectedContent = Color(uiColor: PotoPalette.selectedContent)
+    /// Border of a selected card.
+    static let selectedBorder = Color(uiColor: PotoPalette.selectedBorder)
+    static let onPrimary = Color(uiColor: PotoPalette.onPrimary)
 
     // MARK: Neutrals
 
-    static let background = Color(uiColor: GoPhotoPalette.background)
-    static let secondaryBackground = Color(uiColor: GoPhotoPalette.secondaryBackground)
+    static let background = Color(uiColor: PotoPalette.background)
+    static let secondaryBackground = Color(uiColor: PotoPalette.secondaryBackground)
     /// Cards and sheets.
-    static let surface = Color(uiColor: GoPhotoPalette.surface)
-    static let inputBackground = Color(uiColor: GoPhotoPalette.inputBackground)
+    static let surface = Color(uiColor: PotoPalette.surface)
+    static let inputBackground = Color(uiColor: PotoPalette.inputBackground)
 
-    static let primaryText = Color(uiColor: GoPhotoPalette.primaryText)
+    static let primaryText = Color(uiColor: PotoPalette.primaryText)
     /// 5.3:1 on `background`, 4.8:1 on `primarySubtle` (light); ≥7:1 on black (dark).
-    static let secondaryText = Color(uiColor: GoPhotoPalette.secondaryText)
-    static let disabledText = Color(uiColor: GoPhotoPalette.disabledText)
-    static let placeholderText = Color(uiColor: GoPhotoPalette.placeholderText)
+    static let secondaryText = Color(uiColor: PotoPalette.secondaryText)
+    static let disabledText = Color(uiColor: PotoPalette.disabledText)
+    static let placeholderText = Color(uiColor: PotoPalette.placeholderText)
 
-    static let border = Color(uiColor: GoPhotoPalette.border)
-    static let divider = Color(uiColor: GoPhotoPalette.divider)
+    static let border = Color(uiColor: PotoPalette.border)
+    static let divider = Color(uiColor: PotoPalette.divider)
 
     // MARK: Semantic (state only, never decoration)
 
-    static let success = Color(uiColor: GoPhotoPalette.success)
-    static let warning = Color(uiColor: GoPhotoPalette.warning)
-    static let error = Color(uiColor: GoPhotoPalette.error)
-    static let info = Color(uiColor: GoPhotoPalette.info)
+    static let success = Color(uiColor: PotoPalette.success)
+    static let warning = Color(uiColor: PotoPalette.warning)
+    static let error = Color(uiColor: PotoPalette.error)
+    static let info = Color(uiColor: PotoPalette.info)
 
     // MARK: Typography
     // App font (see AppFont.swift) on Dynamic Type text styles, so every role scales.
@@ -144,36 +153,36 @@ enum GoPhotoDesign {
 }
 
 /// Chip / tag look, shared by "Last Used", "N saved", privacy note and similar labels.
-extension GoPhotoDesign {
+extension PotoDesign {
     static let tagBackground = primarySubtle
     /// Purple text on `primarySubtle`: dark purple in light mode (8.6:1), lavender in dark mode.
-    static let tagText = Color(uiColor: GoPhotoPalette.tagText)
+    static let tagText = Color(uiColor: PotoPalette.tagText)
 }
 
 // MARK: - Shared surfaces
 
 extension View {
     /// Card surface: white with a neutral border, or `primarySubtle` with a purple border when selected.
-    func goPhotoCard(
+    func potoCard(
         isSelected: Bool = false,
         fill: Color? = nil,
-        cornerRadius: CGFloat = GoPhotoDesign.cardCornerRadius
+        cornerRadius: CGFloat = PotoDesign.cardCornerRadius
     ) -> some View {
         let shape = RoundedRectangle(cornerRadius: cornerRadius, style: .continuous)
         return self
-            .background(fill ?? (isSelected ? GoPhotoDesign.primarySubtle : GoPhotoDesign.surface), in: shape)
-            .overlay(shape.strokeBorder(isSelected ? GoPhotoDesign.primary : GoPhotoDesign.border,
+            .background(fill ?? (isSelected ? PotoDesign.primarySubtle : PotoDesign.surface), in: shape)
+            .overlay(shape.strokeBorder(isSelected ? PotoDesign.primary : PotoDesign.border,
                                         lineWidth: isSelected ? 1.5 : 1))
             .contentShape(shape)
     }
 
     /// Tag / chip look ("Last Used", "3 saved").
-    func goPhotoTag() -> some View {
+    func potoTag() -> some View {
         self
-            .font(GoPhotoDesign.smallLabel)
-            .foregroundStyle(GoPhotoDesign.tagText)
+            .font(PotoDesign.smallLabel)
+            .foregroundStyle(PotoDesign.tagText)
             .padding(.horizontal, 10)
             .padding(.vertical, 5)
-            .background(GoPhotoDesign.tagBackground, in: Capsule())
+            .background(PotoDesign.tagBackground, in: Capsule())
     }
 }

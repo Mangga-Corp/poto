@@ -11,7 +11,7 @@ struct PhotoThumbnail: View {
             if let image {
                 Image(uiImage: image).resizable().scaledToFill()
             } else {
-                Rectangle().fill(GoPhotoDesign.secondaryBackground)
+                Rectangle().fill(PotoDesign.secondaryBackground)
             }
         }
         .frame(width: width, height: width * 4 / 3)

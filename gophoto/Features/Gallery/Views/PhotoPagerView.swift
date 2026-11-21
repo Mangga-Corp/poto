@@ -32,7 +32,6 @@ struct PhotoPagerView: View {
     }()
 
     @Environment(\.dismiss) private var dismiss
-    @Environment(\.dynamicTypeSize) private var dynamicTypeSize
 
     init(photos: [GalleryPhoto],
          startID: String,
@@ -80,7 +79,7 @@ struct PhotoPagerView: View {
                                     .frame(width: 42, height: 42)
                                     .background(.ultraThinMaterial, in: Circle())
                                     .overlay(
-                                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                                     )
                                     .shadow(color: .black.opacity(0.12), radius: 6, y: 2)
                                     .padding(.trailing, 20)
@@ -109,22 +108,17 @@ struct PhotoPagerView: View {
 
             // Top Header Bar: Back & Delete (dan favorite indicator)
             topHeaderBar
-
-            // Custom Delete Confirmation Modal (Sesuai Gambar 2)
-            if isShowingDeleteConfirmation {
-                deleteConfirmationOverlay
-                    .transition(.opacity)
-                    .zIndex(20)
-            }
         }
         .toolbar(.hidden, for: .navigationBar)
         .fullScreenCover(isPresented: $isEditing) {
             editor
         }
-        .alert(savedMessage ?? "", isPresented: Binding(get: { savedMessage != nil },
-                                                        set: { if !$0 { savedMessage = nil } })) {
-            Button("OK", role: .cancel) { }
-        }
+        .appAlert("Delete 1 photo?", isPresented: $isShowingDeleteConfirmation,
+                  message: "This photo will also be deleted from an album.",
+                  actions: [.secondary("Delete") { Task { await deleteCurrent() } }, .primary("Cancel")])
+        .appAlert(savedMessage ?? "", isPresented: Binding(get: { savedMessage != nil },
+                                                           set: { if !$0 { savedMessage = nil } }),
+                  actions: [.primary("OK")])
     }
 
     // MARK: - Top Header Bar (Sesuai Gambar 1)
@@ -137,11 +131,11 @@ struct PhotoPagerView: View {
             } label: {
                 Image(systemName: "chevron.left")
                     .font(AppFont.system(size: 16, weight: .bold))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .frame(width: 44, height: 44)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(
-                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
@@ -162,7 +156,7 @@ struct PhotoPagerView: View {
                             .frame(width: 44, height: 44)
                             .background(.ultraThinMaterial, in: Circle())
                             .overlay(
-                                Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                                Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                             )
                             .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                     }
@@ -179,11 +173,11 @@ struct PhotoPagerView: View {
                 } label: {
                     Image(systemName: "trash")
                         .font(AppFont.system(size: 16, weight: .semibold))
-                        .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                        .foregroundStyle(Color(PotoDesign.primaryText))
                         .frame(width: 44, height: 44)
                         .background(.ultraThinMaterial, in: Circle())
                         .overlay(
-                            Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                            Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                         )
                         .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
                 }
@@ -205,11 +199,11 @@ struct PhotoPagerView: View {
             } label: {
                 Image(systemName: "info")
                     .font(AppFont.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .frame(width: 48, height: 48)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(
-                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
@@ -243,110 +237,16 @@ struct PhotoPagerView: View {
             ) {
                 Image(systemName: "square.and.arrow.up")
                     .font(AppFont.system(size: 18, weight: .semibold))
-                    .foregroundStyle(Color(GoPhotoDesign.primaryText))
+                    .foregroundStyle(Color(PotoDesign.primaryText))
                     .frame(width: 48, height: 48)
                     .background(.ultraThinMaterial, in: Circle())
                     .overlay(
-                        Circle().stroke(Color(GoPhotoDesign.border), lineWidth: 0.8)
+                        Circle().stroke(Color(PotoDesign.border), lineWidth: 0.8)
                     )
                     .shadow(color: .black.opacity(0.06), radius: 6, y: 2)
             }
             .buttonStyle(.plain)
             .accessibilityLabel("Share")
-        }
-    }
-
-    // MARK: - Custom Delete Confirmation Modal (Sesuai Gambar 2)
-
-    private var deleteConfirmationOverlay: some View {
-        ZStack {
-            Color.black.opacity(0.4)
-                .ignoresSafeArea()
-                .onTapGesture {
-                    withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                        isShowingDeleteConfirmation = false
-                    }
-                }
-
-            VStack(spacing: 16) {
-                VStack(spacing: 6) {
-                    Text("Allow “Pico” to delete\n1 photo?")
-                        .font(AppFont.scaled(size: 18, weight: .bold, relativeTo: .headline))
-                        .foregroundStyle(Color(GoPhotoDesign.primaryText))
-                        .multilineTextAlignment(.center)
-
-                    Text("These photos will also be deleted from an album.")
-                        .font(AppFont.scaled(size: 13, weight: .regular, relativeTo: .footnote))
-                        .foregroundStyle(Color(GoPhotoDesign.secondaryText))
-                        .multilineTextAlignment(.center)
-                }
-                .padding(.top, 10)
-                .padding(.horizontal, 16)
-
-                // At accessibility text sizes the text and buttons need the room: no preview then.
-                if !dynamicTypeSize.isAccessibilitySize {
-                    ZStack {
-                        RoundedRectangle(cornerRadius: 16, style: .continuous)
-                            .fill(Color(GoPhotoDesign.secondaryBackground))
-
-                        DialogThumbnailPreview(
-                            assetID: currentID,
-                            loadThumbnail: loadThumbnail
-                        )
-                    }
-                    .frame(height: 180)
-                    .clipShape(RoundedRectangle(cornerRadius: 16, style: .continuous))
-                    .padding(.horizontal, 8)
-                }
-
-                HStack(spacing: 12) {
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            isShowingDeleteConfirmation = false
-                        }
-                    } label: {
-                        Text("Don’t Allow")
-                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundStyle(Color(GoPhotoDesign.primaryText))
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .frame(minHeight: 48)
-                            .background(Color(.systemGray5), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-
-                    Button {
-                        withAnimation(.spring(response: 0.35, dampingFraction: 0.85)) {
-                            isShowingDeleteConfirmation = false
-                        }
-                        Task {
-                            await deleteCurrent()
-                        }
-                    } label: {
-                        Text("Delete")
-                            .font(AppFont.scaled(size: 15, weight: .semibold, relativeTo: .subheadline))
-                            .foregroundStyle(.white)
-                            .multilineTextAlignment(.center)
-                            .frame(maxWidth: .infinity)
-                            .padding(.vertical, 12)
-                            .frame(minHeight: 48)
-                            .background(Color(GoPhotoDesign.error), in: Capsule())
-                    }
-                    .buttonStyle(.plain)
-                }
-                .padding(.horizontal, 8)
-                .padding(.bottom, 6)
-            }
-            .padding(16)
-            .background(
-                RoundedRectangle(cornerRadius: 24, style: .continuous)
-                    .fill(.ultraThickMaterial)
-                    .shadow(color: .black.opacity(0.18), radius: 24, y: 10)
-            )
-            .padding(.horizontal, 32)
-            // Hides the photo screen behind the card from VoiceOver / Voice Control.
-            .accessibilityAddTraits(.isModal)
         }
     }
 

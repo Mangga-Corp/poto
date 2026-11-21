@@ -27,7 +27,10 @@ final class PreferencesViewModel {
     /// Shot size key of older versions (the popover's switch, saved across launches). Shot size
     /// is now chosen per session and never saved, so the stale value is removed at launch.
     private static let legacyShotSizeKey = "presetShotSize"
+    /// New preferences whose analysis has not succeeded yet (see `markUnfinished`).
+    private static let unfinishedPreferenceIDsKey = "unfinishedPreferenceIDs"
 
+    @ObservationIgnored private let defaults: UserDefaults
     @ObservationIgnored private let storage: PreferencesStorage
     @ObservationIgnored private let logger = Logger(subsystem: "co.mango.gophoto", category: "preferences.analysis")
     private(set) var preferences: [Preference]
@@ -40,6 +43,7 @@ final class PreferencesViewModel {
     private(set) var lastSelectedID: UUID?
 
     init(storage: PreferencesStorage = PreferencesStorage(), defaults: UserDefaults = .standard) {
+        self.defaults = defaults
         self.storage = storage
         let saved = storage.load()
         preferences = saved.preferences
@@ -48,6 +52,7 @@ final class PreferencesViewModel {
             saved.preferences.contains { $0.id == id } ? id : nil
         }
         defaults.removeObject(forKey: Self.legacyShotSizeKey)
+        discardUnfinishedPreferences()
         let pendingOnboardingID = defaults.string(forKey: Self.pendingOnboardingPreferenceIDKey)
             .flatMap { UUID(uuidString: $0) }
         // The onboarding flow starts this preference explicitly; startup must not start a
@@ -58,6 +63,29 @@ final class PreferencesViewModel {
             // of the analysis but stay in the preference.
             reanalyze(id: preference.id, isInteractive: false)
         }
+    }
+
+    // MARK: Unfinished new preferences
+
+    private var unfinishedPreferenceIDs: Set<UUID> {
+        get { Set((defaults.stringArray(forKey: Self.unfinishedPreferenceIDsKey) ?? []).compactMap(UUID.init(uuidString:))) }
+        set { defaults.set(newValue.map(\.uuidString), forKey: Self.unfinishedPreferenceIDsKey) }
+    }
+
+    /// Add New Preference saves the photos before analysing them. Until an analysis succeeds the
+    /// preference is marked, so one abandoned by closing the app is removed at the next launch.
+    func markUnfinished(_ id: UUID) { unfinishedPreferenceIDs.insert(id) }
+
+    func clearUnfinished(_ id: UUID) { unfinishedPreferenceIDs.remove(id) }
+
+    private func discardUnfinishedPreferences() {
+        for id in unfinishedPreferenceIDs {
+            let analysis = preference(id: id)?.analysis
+            if analysis?.isCurrent != true || analysis?.usability != .usable {
+                delete(id: id, allowingLast: true)
+            }
+        }
+        defaults.removeObject(forKey: Self.unfinishedPreferenceIDsKey)
     }
 
     var hasPreferences: Bool { !preferences.isEmpty }
@@ -359,6 +387,15 @@ final class PreferencesViewModel {
         from id: UUID,
         completion: @escaping (Result<Preference, PreferenceNameError>) -> Void
     ) {
+        removePhotosPersisted([photoID], from: id, completion: completion)
+    }
+
+    /// Removes several photos from a saved preference (Select → Delete on Photo Session Setup).
+    func removePhotosPersisted(
+        _ photoIDs: Set<UUID>,
+        from id: UUID,
+        completion: @escaping (Result<Preference, PreferenceNameError>) -> Void
+    ) {
         guard !updatingPhotoIDs.contains(id) else {
             completion(.failure(PreferenceNameError(message: "Photos are already being saved. Please wait.")))
             return
@@ -371,12 +408,13 @@ final class PreferencesViewModel {
             completion(.failure(Self.customPhotosError))
             return
         }
-        guard preference.photos.contains(where: { $0.id == photoID }) else {
+        let removedIDs = photoIDs.intersection(preference.photos.map(\.id))
+        guard !removedIDs.isEmpty else {
             completion(.success(preference))
             return
         }
-        persistPhotoRemoval([photoID], from: id,
-                            failureMessage: "Couldn't remove the photo. Your photos are unchanged. Please try again.",
+        persistPhotoRemoval(removedIDs, from: id,
+                            failureMessage: "Couldn't remove the photos. Your photos are unchanged. Please try again.",
                             completion: completion)
     }
 
@@ -682,7 +720,7 @@ final class PreferencesViewModel {
             self.analysisRunCount += 1
             StyleTraceRecorder.shared.begin()   // StyleTrace
             #if DEBUG
-            // UI tests only (`-GoPhotoFakeAnalysis <mode>`): a stand-in result instead of Vision.
+            // UI tests only (`-PotoFakeAnalysis <mode>`): a stand-in result instead of Vision.
             var analysis: PresetAnalysis?
             if let fake = await DebugFixtures.fakeAnalysis(for: photos) {
                 analysis = fake
@@ -698,6 +736,10 @@ final class PreferencesViewModel {
                 self.logger.error("Could not persist analysis for preference \(id)")
             }
             if analysis != nil { StyleTrace.saveRecorded(for: id) }   // StyleTrace
+            // Saved and usable: a new preference is finished and stays in the list.
+            if let analysis, analysis.usability == .usable, self.preference(id: id)?.analysis == analysis {
+                self.clearUnfinished(id)
+            }
             self.analyzingIDs.remove(id)
         }
         analysisChain = task
@@ -851,6 +893,7 @@ final class PreferencesViewModel {
               let index = preferences.firstIndex(where: { $0.id == id }) else { return false }
         // Its analysis (running or queued), session and person check go with it.
         cancelCurrentAnalysis(for: id)
+        clearUnfinished(id)
         preferences.remove(at: index)
         if lastSelectedID == id { lastSelectedID = nil }
         persist()
