@@ -19,10 +19,84 @@ final class ChoosePhotosService {
         }
     }
 
-    func fetchAssets() -> PHFetchResult<PHAsset> {
+    // MARK: - Albums
+
+    /// The system albums that can hold photos, in the order of the Photos app. Video-only albums are left out.
+    nonisolated private static let smartAlbumOrder: [PHAssetCollectionSubtype] = [
+        .smartAlbumUserLibrary, .smartAlbumFavorites, .smartAlbumLivePhotos, .smartAlbumDepthEffect,
+        .smartAlbumRecentlyAdded, .smartAlbumSelfPortraits, .smartAlbumPanoramas, .smartAlbumSpatial,
+        .smartAlbumBursts, .smartAlbumLongExposures, .smartAlbumAnimated, .smartAlbumRAW,
+        .smartAlbumScreenshots,
+    ]
+
+    /// Shared albums live outside the user's library, so every picker fetch asks for them explicitly.
+    nonisolated private static let pickerSourceTypes: PHAssetSourceType = [
+        .typeUserLibrary, .typeCloudShared, .typeiTunesSynced,
+    ]
+
+    /// The albums on this iPhone. Empty ones are left out (with limited access, most albums are).
+    /// Slow on a large library: call it off the main thread.
+    nonisolated static func fetchAlbumSections() -> [PhotoAlbumSection] {
+        let system = smartAlbumOrder.compactMap { subtype -> PhotoAlbum? in
+            PHAssetCollection.fetchAssetCollections(with: .smartAlbum, subtype: subtype, options: nil)
+                .firstObject.flatMap(makeAlbum)
+        }
+
+        let topLevel = PHCollectionList.fetchTopLevelUserCollections(with: nil)
+        var userCollections = topLevel.objects(at: IndexSet(integersIn: 0..<topLevel.count))
+        var seen = Set(userCollections.map(\.localIdentifier))
+        for subtype: PHAssetCollectionSubtype in [.albumSyncedEvent, .albumSyncedFaces, .albumSyncedAlbum, .albumImported] {
+            let synced = PHAssetCollection.fetchAssetCollections(with: .album, subtype: subtype, options: nil)
+            synced.enumerateObjects { album, _, _ in
+                if seen.insert(album.localIdentifier).inserted { userCollections.append(album) }
+            }
+        }
+        let mine = userCollections.compactMap(makeAlbum)
+
+        let sharedResult = PHAssetCollection.fetchAssetCollections(with: .album, subtype: .albumCloudShared, options: nil)
+        let shared = sharedResult.objects(at: IndexSet(integersIn: 0..<sharedResult.count)).compactMap(makeAlbum)
+
+        return [
+            PhotoAlbumSection(title: nil, albums: system),
+            PhotoAlbumSection(title: "My Albums", albums: mine),
+            PhotoAlbumSection(title: "Shared Albums", albums: shared),
+        ].filter { !$0.albums.isEmpty }
+    }
+
+    nonisolated private static func makeAlbum(_ collection: PHCollection) -> PhotoAlbum? {
+        let title = collection.localizedTitle ?? "Untitled"
+        if let album = collection as? PHAssetCollection {
+            let assets = fetchAssets(in: album)
+            guard let cover = assets.firstObject else { return nil }
+            return PhotoAlbum(id: album.localIdentifier, title: title, itemCount: assets.count,
+                              cover: cover, content: .album(album))
+        }
+        guard let folder = collection as? PHCollectionList else { return nil }
+        let children = PHCollection.fetchCollections(in: folder, options: nil)
+        let albums = children.objects(at: IndexSet(integersIn: 0..<children.count)).compactMap(makeAlbum)
+        guard !albums.isEmpty else { return nil }
+        return PhotoAlbum(id: folder.localIdentifier, title: title, itemCount: albums.count,
+                          cover: nil, content: .folder(albums))
+    }
+
+    /// The album's photos. System albums show newest first; the recently added album and the
+    /// user's own albums keep the order they have in the Photos app.
+    nonisolated static func fetchAssets(in album: PHAssetCollection) -> PHFetchResult<PHAsset> {
         let options = PHFetchOptions()
+        options.predicate = NSPredicate(format: "mediaType == %d", PHAssetMediaType.image.rawValue)
+        options.includeAssetSourceTypes = pickerSourceTypes
+        if album.assetCollectionType == .smartAlbum, album.assetCollectionSubtype != .smartAlbumRecentlyAdded {
+            options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
+        }
+        return PHAsset.fetchAssets(in: album, options: options)
+    }
+
+    /// The photos with these identifiers that are still available, newest first.
+    nonisolated static func fetchAssets(identifiers: [String]) -> PHFetchResult<PHAsset> {
+        let options = PHFetchOptions()
+        options.includeAssetSourceTypes = pickerSourceTypes
         options.sortDescriptors = [NSSortDescriptor(key: "creationDate", ascending: false)]
-        return PHAsset.fetchAssets(with: .image, options: options)
+        return PHAsset.fetchAssets(withLocalIdentifiers: identifiers, options: options)
     }
 
     @discardableResult
@@ -105,7 +179,7 @@ final class ChoosePhotosService {
     /// One photo: 1024 px image → JPG on disk, plus the EXIF focal length (the original data is
     /// dropped right after). Nothing of it stays in memory after this returns.
     nonisolated private static func loadOne(_ id: String, into folder: URL) async -> LoadedPhoto? {
-        guard let asset = PHAsset.fetchAssets(withLocalIdentifiers: [id], options: nil).firstObject else { return nil }
+        guard let asset = fetchAssets(identifiers: [id]).firstObject else { return nil }
         let manager = PHImageManager.default()
 
         let jpeg: Data
