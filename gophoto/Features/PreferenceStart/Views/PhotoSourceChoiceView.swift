@@ -36,7 +36,12 @@ enum PhotoPickMethod: CaseIterable, Identifiable {
 struct PhotoSourceChoiceView: View {
     let onChoose: (PhotoPickMethod) -> Void
 
-    @State private var selected = PhotoPickMethod.suggested
+    @State private var selected: PhotoPickMethod
+
+    init(initialSelection: PhotoPickMethod = .suggested, onChoose: @escaping (PhotoPickMethod) -> Void) {
+        _selected = State(initialValue: initialSelection)
+        self.onChoose = onChoose
+    }
 
     var body: some View {
         VStack(alignment: .leading, spacing: 0) {

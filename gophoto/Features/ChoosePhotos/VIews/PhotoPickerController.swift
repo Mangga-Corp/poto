@@ -92,8 +92,7 @@ final class PhotoPickerController: UINavigationController {
         let done = UIBarButtonItem(image: UIImage(systemName: "checkmark"), primaryAction: UIAction { [weak self] _ in
             self?.doneTapped()
         })
-        done.style = .prominent
-        done.tintColor = Theme.accent
+        done.tintColor = .label
         done.accessibilityLabel = "Done"
         item.rightBarButtonItem = done
         update(done)

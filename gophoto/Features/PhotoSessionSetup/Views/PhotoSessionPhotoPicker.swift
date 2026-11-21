@@ -12,6 +12,8 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
     private let onSave: ([PhotoItem], String) -> String?
     private let onCreatePreference: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?
     private let onFinish: () -> Void
+    /// The picker was closed without Done. Nil: same as `onFinish`.
+    private var onCancel: (() -> Void)?
     private var canRemove = false
     /// The photos are added to a saved preference: ask "Update your style?" before Done.
     private var confirmsStyleUpdate = false
@@ -31,6 +33,7 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
         confirmsStyleUpdate: Bool = false,
         limit: Int = ChoosePhotosViewModel.maxPhotos,
         onSelection: @escaping ([PhotoItem]) -> Void,
+        onCancel: (() -> Void)? = nil,
         onFinish: @escaping () -> Void
     ) {
         mode = .selectPhotos(initialPhotos: initialPhotos, onSelection: onSelection)
@@ -39,6 +42,7 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
         self.limit = limit
         onSave = { _, _ in nil }
         onCreatePreference = nil
+        self.onCancel = onCancel
         self.onFinish = onFinish
     }
 
@@ -61,6 +65,7 @@ struct PhotoSessionPhotoPicker: UIViewControllerRepresentable {
             limit: limit,
             onSave: onSave,
             onCreatePreference: onCreatePreference,
+            onCancel: onCancel,
             onFinish: onFinish
         )
     }
@@ -78,6 +83,7 @@ final class PhotoPreferencePickerEntryViewController: UIViewController {
     private let limit: Int
     private let onSave: ([PhotoItem], String) -> String?
     private let onCreatePreference: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?
+    private let onCancel: (() -> Void)?
     private let onFinish: () -> Void
     private var pickerFlow: PhotoPreferencePickerFlow?
 
@@ -88,6 +94,7 @@ final class PhotoPreferencePickerEntryViewController: UIViewController {
         limit: Int = ChoosePhotosViewModel.maxPhotos,
         onSave: @escaping ([PhotoItem], String) -> String?,
         onCreatePreference: (([PhotoItem], String, @escaping (String?) -> Void) -> Void)?,
+        onCancel: (() -> Void)? = nil,
         onFinish: @escaping () -> Void
     ) {
         self.mode = mode
@@ -96,6 +103,7 @@ final class PhotoPreferencePickerEntryViewController: UIViewController {
         self.limit = limit
         self.onSave = onSave
         self.onCreatePreference = onCreatePreference
+        self.onCancel = onCancel
         self.onFinish = onFinish
         super.init(nibName: nil, bundle: nil)
         modalPresentationStyle = .fullScreen
@@ -136,7 +144,10 @@ final class PhotoPreferencePickerEntryViewController: UIViewController {
                 if error == nil { self.onFinish() }
                 return error
             },
-            onCancel: { [weak self] in self?.onFinish() },
+            onCancel: { [weak self] in
+                guard let self else { return }
+                (self.onCancel ?? self.onFinish)()
+            },
             onPickerFinished: { [weak self] in self?.onFinish() },
             onSaveAsync: onCreatePreference,
             onSaveSuccess: { [weak self] in self?.onFinish() }
